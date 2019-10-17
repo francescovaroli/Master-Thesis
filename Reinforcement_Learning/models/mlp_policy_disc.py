@@ -4,6 +4,16 @@ from utils.math import *
 
 
 class DiscretePolicy(nn.Module):
+    """
+    x is the observation
+    Policy methods:
+    - forward(x) = action_prob
+    - select_action(x) = action  -> (computes action prob and samples)
+    - get_kl(x) = total_kl
+    - get_log_prob(x_batch, actions_batch) = log(p(a'|x))  where a' is the action used and p is the policy prob
+    - get_fim(x) = 1/p(a|x) , p(a|x)
+
+    """
     def __init__(self, state_dim, action_num, hidden_size=(128, 128), activation='tanh'):
         super().__init__()
         self.is_disc_action = True

@@ -4,6 +4,15 @@ from utils.math import *
 
 
 class Policy(nn.Module):
+    """
+    x is the observation
+    Policy methods:
+    - forward(x) = mean, log_std and std of the predicted action
+    - select_action(x) = action  -> (computes action prob and samples)
+    - get_kl(x) = total_kl
+    - get_log_prob(x_batch, actions_batch) = sum[-(x - mean)^2 / (2 * var) - 0.5 * log(2 * math.pi) - log_std]
+
+    """
     def __init__(self, state_dim, action_dim, hidden_size=(128, 128), activation='tanh', log_std=0):
         super().__init__()
         self.is_disc_action = False

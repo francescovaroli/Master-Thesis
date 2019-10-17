@@ -43,12 +43,18 @@ def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_k
     """update critic"""
 
     def get_value_loss(flat_params):
+        """
+        compute the loss for the value network comparing estimated values with empirical ones
+        and optimizes the network parameters
+        :param flat_params:
+        :return:
+        """
         set_flat_params_to(value_net, tensor(flat_params))
         for param in value_net.parameters():
             if param.grad is not None:
                 param.grad.data.fill_(0)
         values_pred = value_net(states)
-        value_loss = (values_pred - returns).pow(2).mean()
+        value_loss = (values_pred - returns).pow(2).mean()  # SquaredMeanError
 
         # weight decay
         for param in value_net.parameters():
@@ -107,12 +113,12 @@ def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_k
 
     Fvp = Fvp_fim if use_fim else Fvp_direct
 
-    loss = get_loss()
-    grads = torch.autograd.grad(loss, policy_net.parameters())
+    loss = get_loss()  # compute TRPO loss
+    grads = torch.autograd.grad(loss, policy_net.parameters())  # compute its gradients
     loss_grad = torch.cat([grad.view(-1) for grad in grads]).detach()
-    stepdir = conjugate_gradients(Fvp, -loss_grad, 10)
+    stepdir = conjugate_gradients(Fvp, -loss_grad, 10)  # gradient direction
 
-    shs = 0.5 * (stepdir.dot(Fvp(stepdir)))
+    shs = 0.5 * (stepdir.dot(Fvp(stepdir)))  # line search to find the step size
     lm = math.sqrt(max_kl / shs)
     fullstep = stepdir * lm
     expected_improve = -loss_grad.dot(fullstep)

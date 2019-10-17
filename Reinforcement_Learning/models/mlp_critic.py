@@ -3,6 +3,9 @@ import torch
 
 
 class Value(nn.Module):
+    """
+    Network to estimate the value of each state
+    """
     def __init__(self, state_dim, hidden_size=(128, 128), activation='tanh'):
         super().__init__()
         if activation == 'tanh':

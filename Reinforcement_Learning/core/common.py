@@ -3,6 +3,17 @@ from utils import to_device
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
+    """
+    Estimate normalized advantages and Q-values of all state-action pairs sampled from a batch
+    :param rewards:
+    :param masks:
+    :param values:
+    :param gamma:
+    :param tau:
+    :param device:
+    :return:
+    """
+    # (4)
     rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
     tensor_type = type(rewards)
     deltas = tensor_type(rewards.size(0), 1)
@@ -11,9 +22,9 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
     prev_value = 0
     prev_advantage = 0
     for i in reversed(range(rewards.size(0))):
-        deltas[i] = rewards[i] + gamma * prev_value * masks[i] - values[i]
-        advantages[i] = deltas[i] + gamma * tau * prev_advantage * masks[i]
-
+        deltas[i] = rewards[i] + gamma * prev_value * masks[i] - values[i]  # at the end of every episode m=0 so we're
+        advantages[i] = deltas[i] + gamma * tau * prev_advantage * masks[i]  # computing from there backwards each time
+        #                           why are we adding prev adv?
         prev_value = values[i, 0]
         prev_advantage = advantages[i, 0]
 

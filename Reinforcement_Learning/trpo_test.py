@@ -59,7 +59,7 @@ if torch.cuda.is_available():
 env = gym.make(args.env_name)
 state_dim = env.observation_space.shape[0]
 is_disc_action = len(env.action_space.shape) == 0
-running_state = ZFilter((state_dim,), clip=5)
+running_state = ZFilter((state_dim,), clip=5)  # running list of states that allows to access precise mean and std
 # running_reward = ZFilter((1,), demean=False, clip=10)
 
 """seeding"""
@@ -84,12 +84,13 @@ agent = Agent(env, policy_net, device, running_state=running_state, render=args.
 
 
 def update_params(batch):
+    # (3)
     states = torch.from_numpy(np.stack(batch.state)).to(dtype).to(device)
     actions = torch.from_numpy(np.stack(batch.action)).to(dtype).to(device)
     rewards = torch.from_numpy(np.stack(batch.reward)).to(dtype).to(device)
     masks = torch.from_numpy(np.stack(batch.mask)).to(dtype).to(device)
     with torch.no_grad():
-        values = value_net(states)
+        values = value_net(states)  # estimate value function of each state with NN
 
     """get advantage estimation from the trajectories"""
     advantages, returns = estimate_advantages(rewards, masks, values, args.gamma, args.tau, device)
@@ -100,10 +101,11 @@ def update_params(batch):
 
 def main_loop():
     for i_iter in range(args.max_iter_num):
+        # (1)
         """generate multiple trajectories that reach the minimum batch_size"""
-        batch, log = agent.collect_samples(args.min_batch_size)
-        t0 = time.time()
-        update_params(batch)
+        batch, log = agent.collect_samples(args.min_batch_size)  # batch of at least batch_siz transitions from multiple
+        t0 = time.time()                                         # episodes (separated by mask=0). Stored in Memory
+        update_params(batch)  # estimate advantages from samples and update policy by TRPO step
         t1 = time.time()
 
         if i_iter % args.log_interval == 0:

@@ -7,9 +7,10 @@ import time
 
 def collect_samples(pid, queue, env, policy, custom_reward,
                     mean_action, render, running_state, min_batch_size):
+    # (2)
     torch.randn(pid)
     log = dict()
-    memory = Memory()
+    memory = Memory()  # every time we collect a batch he memory is re-initialized
     num_steps = 0
     total_reward = 0
     min_reward = 1e6
@@ -19,8 +20,8 @@ def collect_samples(pid, queue, env, policy, custom_reward,
     max_c_reward = -1e6
     num_episodes = 0
 
-    while num_steps < min_batch_size:
-        state = env.reset()
+    while num_steps < min_batch_size:  # collecting samples from episodes until we at least a batch
+        state = env.reset()            # (maybe more since we stop when episode ends)
         if running_state is not None:
             state = running_state(state)
         reward_episode = 0
@@ -35,19 +36,19 @@ def collect_samples(pid, queue, env, policy, custom_reward,
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
-            if running_state is not None:
+            if running_state is not None:  # running list of states that allows to access precise mean and std
                 next_state = running_state(next_state)
 
-            if custom_reward is not None:
+            if custom_reward is not None:  # by default is None, unless given when init Agent
                 reward = custom_reward(state, action)
                 total_c_reward += reward
                 min_c_reward = min(min_c_reward, reward)
                 max_c_reward = max(max_c_reward, reward)
 
-            mask = 0 if done else 1
+            mask = 0 if done else 1  # marker to separate episodes in the batch
 
-            memory.push(state, action, mask, next_state, reward)
-
+            memory.push(state, action, mask, next_state, reward)  # replay memory where all Transitions
+                                                                  # (from different episodes) are stored
             if render:
                 env.render()
             if done:

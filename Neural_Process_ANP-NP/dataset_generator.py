@@ -2,7 +2,7 @@ import glob
 import torch
 import gpytorch
 from math import pi
-from PIL import Image
+# from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 from gpytorch.means import ConstantMean, LinearMean
@@ -100,7 +100,6 @@ class MultiGPData(Dataset):
     """
 
     def __init__(self, mean_list, kernel_list, num_points=100, num_samples=1000, amplitude_range=(-5., 5.)):
-
         self.mean_list = mean_list
         self.kernel_list = kernel_list
         self.num_config = len(mean_list) * len(kernel_list)

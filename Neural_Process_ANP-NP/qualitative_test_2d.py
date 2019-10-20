@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from random import randint
 from torch.utils.data import DataLoader
 from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
@@ -25,7 +26,7 @@ kernel = 'cosine'
 use_attention = True
 att_type = 'dot_product'  # attention_types = ['uniform','laplace','dot_product']
 
-epochs = 100
+epochs = 150
 
 x_dim = 2
 y_dim = 1
@@ -109,26 +110,27 @@ for i in range(len(grid_bounds)):
 x = gpytorch.utils.grid.create_data_from_grid(grid)
 x = x.unsqueeze(0)
 
-mu_list = []
-for i in range(4):
-    z_sample = torch.randn((1, z_dim))
-    z_sample = z_sample.unsqueeze(1).repeat(1, x.size()[1], 1)
-    mu, _ = neuralprocess.xz_to_y(x, z_sample)
-    mu_list.append(mu)
+if not use_attention:
+    mu_list = []
+    for i in range(4):
+        z_sample = torch.randn((1, z_dim))
+        z_sample = z_sample.unsqueeze(1).repeat(1, x.size()[1], 1)
+        mu, _ = neuralprocess.xz_to_y(x, z_sample)
+        mu_list.append(mu)
 
-f2, axarr2 = plt.subplots(2,2)
+    f2, axarr2 = plt.subplots(2,2)
 
-axarr2[0, 0].imshow(mu_list[0].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
-axarr2[0, 1].imshow(mu_list[1].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
-axarr2[1, 0].imshow(mu_list[2].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
-axarr2[1, 1].imshow(mu_list[3].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
-f2.suptitle('Samples from trained prior')
-for ax in axarr2.flat:
-    ax.set(xlabel='x1', ylabel='x2')
-    ax.label_outer()
-plt.savefig(plots_path + kernel + 'prior'+id)
-plt.show()
-plt.close(f2)
+    axarr2[0, 0].imshow(mu_list[0].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+    axarr2[0, 1].imshow(mu_list[1].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+    axarr2[1, 0].imshow(mu_list[2].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+    axarr2[1, 1].imshow(mu_list[3].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+    f2.suptitle('Samples from trained prior')
+    for ax in axarr2.flat:
+        ax.set(xlabel='x1', ylabel='x2')
+        ax.label_outer()
+    plt.savefig(plots_path + kernel + 'prior'+id)
+    plt.show()
+    plt.close(f2)
 
 # Extract a batch from data_loader
 for batch in data_loader:
@@ -136,9 +138,11 @@ for batch in data_loader:
 
 # Use batch to create random set of context points
 x, y = batch
+num_context_t = randint(*num_context)
+num_target_t = randint(*num_target)
 x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
-                                                  num_context,
-                                                  num_target)
+                                                  num_context_t,
+                                                  num_target_t)
 
 neuralprocess.training = False
 
@@ -149,8 +153,8 @@ f3, axarr3 = plt.subplots(2,2)
 
 axarr3[0,0].imshow(y[0].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
 axarr3[0,0].set_title('Real function')
-axarr3[0,1].scatter(x_context.view(num_context, -1).detach().cpu().numpy()[:,0],
-                    x_context.view(num_context, -1).detach().cpu().numpy()[:,1], c='b', s=1)
+axarr3[0,1].scatter(x_context.view(num_context_t, -1).detach().cpu().numpy()[:,0],
+                    x_context.view(num_context_t, -1).detach().cpu().numpy()[:,1], c='b', s=1)
 axarr3[0,1].set_xlim(extent[0], extent[1])
 axarr3[0,1].set_ylim(extent[2], extent[3])
 axarr3[0,1].set_aspect('equal')

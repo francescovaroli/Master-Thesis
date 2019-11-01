@@ -361,7 +361,7 @@ class AttentiveNeuralProcess(nn.Module):
     h_dim : int
         Dimension of hidden layer in encoder and decoder.
     """
-    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, att_type, use_self_att=True, scale=1.):
+    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=True):
         super(AttentiveNeuralProcess, self).__init__()
         self.x_dim = x_dim
         self.y_dim = y_dim

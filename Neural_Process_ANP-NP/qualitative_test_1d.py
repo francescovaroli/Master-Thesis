@@ -5,7 +5,7 @@ from random import randint
 from torch.utils.data import DataLoader
 from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
-from attentive_neural_process import AttentiveNeuralProcess
+from multihead_attention_np import AttentiveNeuralProcess
 from dataset_generator import SineData, MultiGPData
 from utils import context_target_split
 import os
@@ -18,8 +18,12 @@ else:
     device = torch.device('cpu')
 print('device: ', device)
 
+plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/NP&ANP/1D/w-o self attention/'
 
-plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/'
+## seedings
+seed = 1
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 ########################
 #####  Parameters  #####
@@ -27,16 +31,17 @@ plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/'
 
 # dataset parameters
 data = 'gp'
-kernel = ['RBF', 'polynomial']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
+kernel = ['matern']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
 mean = ['linear']  # possible means ['linear', 'constant']
 num_tot_samples = 2000
-use_different_test_dataset = True
+use_different_test_dataset = False
 
 # model parameters
-use_attention = True
+use_attention = False
+use_self_att = True
 att_type = 'dot_product'  # attention_types = ['uniform','laplace','dot_product']
 
-epochs = 100
+epochs = 2
 learning_rate = 3e-4
 l = '3e-4'
 batch_size = 4
@@ -47,7 +52,7 @@ x_range = (-3., 3.)
 
 x_dim = 1
 y_dim = 1
-r_dim = 2*128  # Dimension of representation of context points in NP
+r_dim = 128  # Dimension of representation of context points in NP
 z_dim = 128  # Dimension of sampled latent variable
 h_dim = 2*128  # Dimension of hidden layers in encoder and decoder
 a_dim = 128  # Dimension of attention output
@@ -55,8 +60,11 @@ a_dim = 128  # Dimension of attention output
 # create ID for saving plots
 mdl = 'NP'
 if use_attention:
-    mdl = 'A'+mdl
-id = mdl + '{}e_{}b_{}c{}t_{}lr_{}x{}x{}'.format(epochs, batch_size, num_context, num_target, l,r_dim, z_dim, h_dim)
+    mdl = 'cross attention '+mdl
+if use_self_att:
+    mdl = 'self & ' + mdl
+
+id = mdl + '{}e_{}b_{}c{}t_{}lr_{}r_{}z_{}a'.format(epochs, batch_size, num_context, num_target, l,r_dim, z_dim, a_dim)
 
 
 # Create dataset
@@ -86,10 +94,10 @@ for i in range(64):
     plt.ylabel('y')
     plt.xlim(x_range[0], x_range[1])
 plt.savefig(plots_path + '-'.join(kernel) + '_data')
-
+plt.close()
 # create and train np
 if use_attention:
-    neuralprocess = AttentiveNeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, att_type).to(device)
+    neuralprocess = AttentiveNeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=use_self_att).to(device)
 else:
     neuralprocess = NeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim).to(device)
 
@@ -98,7 +106,7 @@ optimizer = torch.optim.Adam(neuralprocess.parameters(), lr=learning_rate)
 np_trainer = NeuralProcessTrainer(device, neuralprocess, optimizer,
                                   num_context_range=num_context,
                                   num_extra_target_range=num_target,
-                                  print_freq=2000)
+                                  print_freq=10000)
 neuralprocess.training = True
 np_trainer.train(data_loader, epochs)
 
@@ -109,7 +117,7 @@ plt.ylabel('average loss')
 plt.plot(np.linspace(0, epochs-1 ,epochs), np_trainer.epoch_loss_history, c='b', alpha=0.5)
 plt.grid()
 plt.savefig(plots_path + '_loss_history_'+id)
-
+plt.close()
 
 x_target = torch.linspace(x_range[0]-1, x_range[1]+1, 100)
 x_target = x_target.unsqueeze(1).unsqueeze(0)
@@ -117,6 +125,7 @@ x_target = x_target.unsqueeze(1).unsqueeze(0)
 if not use_attention:
     for i in range(60):
         z_sample = torch.randn((1, z_dim))
+        z_sample = z_sample.unsqueeze(1).repeat(1, 100, 1)
         mu, _ = neuralprocess.xz_to_y(x_target, z_sample)
         plt.figure(3)
         plt.xlabel('x')
@@ -126,7 +135,7 @@ if not use_attention:
                  c='b', alpha=0.5)
 
 plt.savefig(plots_path + '-'.join(kernel) + '_prior_'+id)
-
+plt.close()
 # Extract a batch from data_loader
 for batch in data_loader:
     break
@@ -143,7 +152,7 @@ x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
 neuralprocess.training = False
 
 plt.figure(4)
-plt.title('Posterior')
+plt.title(mdl + ' Posterior')
 for i in range(64):
     # Neural process returns distribution over y_target
     p_y_pred = neuralprocess(x_context, y_context, x_target)
@@ -158,3 +167,6 @@ plt.plot(x[0].cpu().numpy(), y[0].cpu().numpy(), alpha=0.3, c='k')
 plt.scatter(x_context[0].cpu().numpy(), y_context[0].cpu().numpy(), c='k')
 plt.savefig(plots_path + '_posterior_'+id)
 plt.show()
+plt.close()
+
+torch.cuda.empty_cache()

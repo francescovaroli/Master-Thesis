@@ -5,7 +5,9 @@ from random import randint
 from torch.utils.data import DataLoader
 from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
-from attentive_neural_process import AttentiveNeuralProcess
+from network import LatentModel
+from multihead_attention_np import *
+#from attentive_neural_process import AttentiveNeuralProcess
 from dataset_generator import SineData, GPData2D
 from utils import context_target_split
 import gpytorch
@@ -21,12 +23,13 @@ plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/NP&ANP/2D/'
 # settings
 data = 'gp'
 kernel_dict = ['RBF', 'cosine', 'linear', 'LCM', 'polynomial']
-kernel = 'cosine'
+kernel = 'matern'
 
+use_self_att = True
 use_attention = True
 att_type = 'dot_product'  # attention_types = ['uniform','laplace','dot_product']
 
-epochs = 150
+epochs = 100
 
 x_dim = 2
 y_dim = 1
@@ -36,8 +39,8 @@ h_dim = 2*128  # Dimension of hidden layers in encoder and decoder
 a_dim = 128
 
 batch_size = 4
-num_context = (90, 120)
-num_target = (100, 150)
+num_context = (190, 250)
+num_target = (200, 350)
 
 grid_bounds=[(-1,1),(-1,1)]
 grid_size = 100
@@ -57,7 +60,7 @@ if data == 'sine':
                        num_samples=2000)
 elif data == 'gp':
 
-    dataset = GPData2D('constant', kernel, num_samples=2000, grid_bounds=grid_bounds, grid_size=grid_size)
+    dataset = GPData2D('constant', kernel, num_samples=20, grid_bounds=grid_bounds, grid_size=grid_size)
 
 # Visualize data samples
 plt.figure(1)
@@ -80,7 +83,7 @@ plt.close(f)
 
 # create and train np
 if use_attention:
-    neuralprocess = AttentiveNeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, att_type).to(device)
+    neuralprocess = AttentiveNeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=use_self_att).to(device)
 else:
     neuralprocess = NeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim).to(device)
 
@@ -147,31 +150,30 @@ x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
 neuralprocess.training = False
 
 f3, axarr3 = plt.subplots(2,2)
-
-# axarr3[0, 0].imshow(y_context.view(num_context, -1).detach().cpu().numpy(), extent=extent)
-# axarr3[0,0].set_title('Context points')
-
-axarr3[0,0].imshow(y[0].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+axarr3[0,1].scatter(x_context[0].detach().cpu().numpy()[:,0],
+                    x_context[0].detach().cpu().numpy()[:,1],
+                    cmap='viridis', c=y_context[0].detach().cpu().numpy()[:,0],  s=1)
+axarr3[0,0].imshow(y[0].view(-1, grid_size).detach().cpu().numpy()[::-1], extent=extent)
 axarr3[0,0].set_title('Real function')
-axarr3[0,1].scatter(x_context.view(num_context_t, -1).detach().cpu().numpy()[:,0],
-                    x_context.view(num_context_t, -1).detach().cpu().numpy()[:,1], c='b', s=1)
 axarr3[0,1].set_xlim(extent[0], extent[1])
 axarr3[0,1].set_ylim(extent[2], extent[3])
 axarr3[0,1].set_aspect('equal')
 axarr3[0,1].set_title('Context points')
 mu_list = []
-for i in range(3):
+for i in range(2):
     # Neural process returns distribution over y_target
     p_y_pred = neuralprocess(x_context, y_context, x[0].unsqueeze(0))
 
     # Extract mean of distribution
     mu_list.append(p_y_pred.loc.detach())
 
-axarr3[1, 0].imshow(mu_list[0].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+axarr3[1, 0].imshow(mu_list[0].view(-1, grid_size).detach().cpu().numpy()[::-1], extent=extent)
 axarr3[1,0].set_title('Posterior estimate_1')
 
-axarr3[1, 1].imshow(mu_list[1].view(-1, grid_size).detach().cpu().numpy(), extent=extent)
+axarr3[1, 1].imshow(mu_list[1].view(-1, grid_size).detach().cpu().numpy()[::-1], extent=extent)
 axarr3[1,1].set_title('Posterior estimate_2')
 plt.savefig(plots_path + kernel + ' posteriior'+id)
 plt.show()
 plt.close(f3)
+
+torch.cuda.empty_cache()

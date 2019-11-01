@@ -13,6 +13,15 @@ class BinaryActionLinearPolicy(object):
         return a
 
 
+class ContinuousActionLinearPolicy(object):
+    def __init__(self, theta, n_in, n_out):
+        assert len(theta) == (n_in + 1) * n_out
+        self.W = theta[0 : n_in * n_out].reshape(n_in, n_out)
+        self.b = theta[n_in * n_out : None].reshape(1, n_out)
+    def act(self, ob):
+        a = ob.dot(self.W) + self.b
+        return a
+
 def cem(f, theta_mean, batch_size, n_iter, elite_fraction, initial_std=1.0):
     """
     Generic implementation of the cross-entropy method for maximizing a black-box function

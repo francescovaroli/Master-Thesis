@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from utils.math import *
+from utils_rl.math import *
 
 
 class DiscretePolicy(nn.Module):

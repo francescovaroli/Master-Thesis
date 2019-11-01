@@ -1,6 +1,6 @@
 import multiprocessing
-from utils.replay_memory import Memory
-from utils.torch import *
+from utils_rl.replay_memory import Memory
+from utils_rl.torch import *
 import math
 import time
 
@@ -26,19 +26,18 @@ def collect_samples(pid, queue, env, policy, custom_reward,
             state = running_state(state)
         reward_episode = 0
 
-        for t in range(10000):
+        for t in range(10000):  # in gym.env there's already an upper bound to the number of steps
             state_var = tensor(state).unsqueeze(0)
             with torch.no_grad():
                 if mean_action:
-                    action = policy(state_var)[0][0].numpy()
+                    action = policy(state_var)[0][0].numpy()  # use mean value
                 else:
-                    action = policy.select_action(state_var)[0].numpy()
+                    action = policy.select_action(state_var)[0].numpy()  # sample from normal distribution
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
-            if running_state is not None:  # running list of states that allows to access precise mean and std
+            if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                 next_state = running_state(next_state)
-
             if custom_reward is not None:  # by default is None, unless given when init Agent
                 reward = custom_reward(state, action)
                 total_c_reward += reward
@@ -146,4 +145,4 @@ class Agent:
         log['action_mean'] = np.mean(np.vstack(batch.action), axis=0)
         log['action_min'] = np.min(np.vstack(batch.action), axis=0)
         log['action_max'] = np.max(np.vstack(batch.action), axis=0)
-        return batch, log
+        return batch, log, memory

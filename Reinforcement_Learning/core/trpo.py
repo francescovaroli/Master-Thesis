@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.optimize
-from utils import *
+from utils_rl import *
 
 
 def conjugate_gradients(Avp_f, b, nsteps, rdotr_tol=1e-10):

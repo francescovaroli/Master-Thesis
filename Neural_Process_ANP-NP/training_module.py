@@ -25,17 +25,16 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std):
           predicted std dev of the y values at the target points in target_x.
     """
     # Plot everything
-    plt.clf()
     xt, yp = zip(*sorted(zip(target_x[0].numpy(), pred_y[0].numpy())))
     _, yt = zip(*sorted(zip(target_x[0].numpy(), target_y[0].numpy())))
     xc, yc = zip(*sorted(zip(context_x[0].numpy(), context_y[0].numpy())))
-    # plt.xlim(xt[0][0]-1, xt[-1][0]+1)
-    plt.plot(xt, yp, 'b', linewidth=2)
-    plt.plot(xt, yt, 'k:', linewidth=2)
-    plt.plot(xc, yc, 'ko', markersize=10)
+    fig_train, ax_train = plt.subplots(1, 1)
+    ax_train.plot(xt, yp, 'b', linewidth=2)
+    ax_train.plot(xt, yt, 'k:', linewidth=2)
+    ax_train.plot(xc, yc, 'ko', markersize=10)
     _, stdm = zip(*sorted(zip(target_x[0].numpy(), pred_y[0, :] - std[0,:])))
     _, stdp = zip(*sorted(zip(target_x[0].numpy(), pred_y[0, :] + std[0,:])))
-    plt.fill_between(
+    ax_train.fill_between(
         [xt[i][0] for i in range(len(xt))], stdm, stdp,
         alpha=0.2,
         facecolor='#65c9f7',
@@ -43,8 +42,8 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std):
 
     # Make the plot pretty
     plt.grid('off')
-    ax = plt.gca()
     plt.show()
+    plt.close(fig_train)
 
 class NeuralProcessTrainer():
     """

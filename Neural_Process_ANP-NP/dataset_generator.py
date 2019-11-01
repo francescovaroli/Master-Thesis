@@ -6,7 +6,7 @@ from math import pi
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 from gpytorch.means import ConstantMean, LinearMean
-from gpytorch.kernels import CosineKernel, RBFKernel, LinearKernel, PolynomialKernel, LCMKernel, PeriodicKernel
+from gpytorch.kernels import CosineKernel, RBFKernel, LinearKernel, PolynomialKernel, LCMKernel, PeriodicKernel, MaternKernel
 
 class SineData(Dataset):
     """
@@ -118,7 +118,8 @@ class MultiGPData(Dataset):
         kernel_dict = {'RBF': RBFKernel(), 'cosine': CosineKernel(), 'linear': LinearKernel(),
                        'periodic': PeriodicKernel(period_length=0.5),
                        'LCM': LCMKernel(base_kernels=[CosineKernel()], num_tasks=1),
-                       'polynomial': PolynomialKernel(power=2)}
+                       'polynomial': PolynomialKernel(power=2),
+                       'matern': MaternKernel()}
 
         # create a different GP from each possible configuration
         for mean in self.mean_list:
@@ -188,7 +189,8 @@ class GPData2D(Dataset):
         kernel_dict = {'RBF': RBFKernel(), 'cosine': CosineKernel(), 'linear': LinearKernel(),
                        'periodic': PeriodicKernel(),
                        'LCM': LCMKernel(base_kernels=[CosineKernel()], num_tasks=1),
-                       'polynomial': PolynomialKernel(power=3)}
+                       'polynomial': PolynomialKernel(power=3),
+                       'matern': MaternKernel()}
 
         # evaluate GP on prior distribution
         with gpytorch.settings.prior_mode(True):

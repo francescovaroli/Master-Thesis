@@ -12,6 +12,7 @@ from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from torch.distributions import Normal
 
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -25,15 +26,15 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
-parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
+parser.add_argument('--gamma', type=float, default=0.9, metavar='G',
                     help='discount factor (default: 0.99)')
-parser.add_argument('--epochs-per-iter', type=int, default=50, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=15, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
                     help='l2 regularization regression (default: 1e-3)')
-parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=5e-1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
@@ -41,7 +42,7 @@ parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=394, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=3995, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -52,7 +53,18 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 args = parser.parse_args()
 
-np_spec = 'att:{}_{}e'.format(args.use_attention, args.epochs_per_iter)
+replay_memory_size = 20
+train_on_mean = True  # whether to use the improved mean or actions sampled from them as training set
+improve_mean = True   # whether to use the improved mean or actions sampled from them as context points
+use_running_state = False
+
+# NP params
+r_dim = 256
+z_dim =128
+h_dim = 256
+np_batch_size = 4
+
+np_spec = '{}rm_{}e_trainM:{}_imprM:{}_drew'.format(replay_memory_size, args.epochs_per_iter, train_on_mean, improve_mean)
 run_id = '{}b_{}kl_{}gamma_'.format(args.min_batch_size, args.max_kl, args.gamma) + np_spec
 directory_path = '/home/francesco/PycharmProjects/MasterThesis/NP learning results/' + run_id
 
@@ -61,7 +73,6 @@ torch.set_default_dtype(dtype)
 device_np = torch.device('cpu')  #torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else
 
 """environment"""
-use_running_state = False
 env = gym.make(args.env_name)
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
@@ -78,21 +89,18 @@ torch.manual_seed(args.seed)
 env.seed(args.seed)
 
 '''create neural process'''
-policy_np = NeuralProcess(state_dim, action_dim, 256, 128, 256).to(device_np)
+policy_np = NeuralProcess(state_dim, action_dim, r_dim, z_dim, h_dim).to(device_np)
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 np_trainer = NeuralProcessTrainerRL(device_np, policy_np, optimizer,
                                     num_context_range=(400, 500),
                                     num_extra_target_range=(400, 500),
                                     print_freq=100)
 """create replay memory"""
-replay_memory_size = 10
 replay_memory = ReplayMemoryDataset(replay_memory_size)
 
 
 """create agent"""
 agent = Agent(env, policy_np, device_np, running_state=running_state, render=args.render, num_threads=args.num_threads)
-train_on_mean = True
-improve_mean = True
 
 def estimate_eta(episode):
     d = episode[0].action.shape[0]
@@ -121,15 +129,21 @@ def improvement_step(memory):
             discounted_reward = tensor(transition.disc_rew).to(dtype).unsqueeze(0)
 
             new_mean = mean + eta*discounted_reward*((action-mean)/stddev)
+            distr = Normal(new_mean[0], stddev[0])
+            new_action = distr.sample()
+
             if first:
                 all_new_states = state.unsqueeze(0)
-                all_new_actions = new_mean[0]
+                all_new_actions = new_action
+                all_new_means = new_mean[0]
                 first = False
             else:
                 all_new_states = torch.cat((all_new_states, state.unsqueeze(0)), dim=0)
-                all_new_actions = torch.cat((all_new_actions, new_mean[0]), dim=0)
+                all_new_means = torch.cat((all_new_means, new_mean[0]), dim=0)
+                all_new_actions = torch.cat((all_new_actions, new_action), dim=0)
 
-    return [all_new_states.unsqueeze(0), all_new_actions.unsqueeze(0)]
+
+    return {'states':all_new_states.unsqueeze(0), 'means':all_new_means.unsqueeze(0), 'actions':all_new_actions.unsqueeze(0)}
 
 
 
@@ -199,7 +213,7 @@ def plot_NP_policy(context_xy, iter_pred, num_samples=1):
     ax_context = fig.add_subplot(223, projection='3d')
     set_labels(ax_context)
     set_limits(ax_context, env)
-    ax_context.set_title('Context points from one TRPO trajectory', pad=20, fontsize=16)
+    ax_context.set_title('Context points improved', pad=20, fontsize=16)
     z = context_xy[1][0,:,0].detach().cpu().numpy()
     xs_context = context_xy[0][0,:,0].detach().cpu().numpy()
     ys_context = context_xy[0][0,:,1].detach().cpu().numpy()
@@ -218,17 +232,44 @@ def plot_NP_policy(context_xy, iter_pred, num_samples=1):
     fig.savefig(directory_path+'/NP estimate/'+name, dpi=250)
     plt.close(fig)
 
+
+def plot_training_set(i_iter):
+    name = 'Training trajectories ' + str(i_iter)
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+    ax.set_title(name)
+    set_limits(ax, env)
+    set_labels(ax)
+    for trajectory in replay_memory:
+        z = trajectory[1][:,0].detach().cpu().numpy()
+        xs_context = trajectory[0][:,0].detach().cpu().numpy()
+        ys_context = trajectory[0][:,1].detach().cpu().numpy()
+        ax.scatter(xs_context, ys_context, z, c=z, cmap='viridis', alpha=0.1)
+    fig.savefig(directory_path+'/Training/'+name)
+    plt.close(fig)
+
 def plot_improvements(batch, improved_context, i_iter):
+
     episode = batch[0]
     states = []
     means = []
+    actions = []
+    disc_rew  = []
     num_c = len(episode)
     for transition in episode:
         states.append(transition.state)
+        disc_rew.append(transition.disc_rew)
+        actions.append(transition.action)
         means.append(transition.mean)
-    name = 'Mean improvement iter '+ str(i_iter)
-    fig = plt.figure()
-    ax = plt.axes(projection="3d")
+    if improve_mean:
+        previous = means
+    else:
+        previous = actions
+    name = 'Improvement iter '+ str(i_iter)
+    fig = plt.figure(figsize=(16,6))
+    fig.suptitle(name, fontsize=20)
+    ax = fig.add_subplot(121, projection='3d')
+    name = 'Context improvement iter '+ str(i_iter)
     ax.set_title(name)
     set_limits(ax, env)
     set_labels(ax)
@@ -237,15 +278,26 @@ def plot_improvements(batch, improved_context, i_iter):
     ys_context = improved_context[0][0,:num_c,1].detach().cpu().numpy()
     state_1 = [state[0] for state in states]
     state_2 = [state[1] for state in states]
-    ax.scatter(state_1, state_2, means, c='y', label='sampled')
-    ax.scatter(xs_context, ys_context, z, c='r', label='improved')
-    fig.savefig(directory_path+'/Mean improvment/'+name, dpi=250)
+    ax.scatter(state_1, state_2, previous, c='r', label='sampled',  alpha=0.2)
+    ax.scatter(xs_context, ys_context, z, c='y', label='improved', alpha=0.1)
     leg = ax.legend(loc="upper right")
+    ax_rew = fig.add_subplot(122, projection='3d')
+    set_labels(ax_rew)
+    set_limits(ax_rew, env)
+    a = ax_rew.scatter(state_1, state_2, actions, c=disc_rew, cmap='viridis', alpha=0.5)
+    #plt.colorbar()
+    cb = fig.colorbar(a)
+    cb.set_label('Discounted rewards')
+    ax_rew.set_title('Discounted rewards')
+    fig.savefig(directory_path+'/Mean improvment/'+name)
+    plt.close(fig)
+
 
 def create_directories(directory_path):
     os.mkdir(directory_path)
     os.mkdir(directory_path+'/NP estimate/')
     os.mkdir(directory_path + '/Mean improvment/')
+    os.mkdir(directory_path + '/Training/')
 
 def sample_context(x, y, num_context=100):
 
@@ -260,11 +312,10 @@ def sample_context(x, y, num_context=100):
     y_context = y[:, locations[:num_context], :]
     return x_context, y_context
 
-np_batch_size = 4
 def train_np(datasets):
     policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, args.epochs_per_iter)
+    np_trainer.train(data_loader, args.epochs_per_iter, early_stopping=0)
 
 
 
@@ -283,9 +334,9 @@ def sample_initial_context(num_context, dtype=None):
     return [all_states.unsqueeze(0), all_actions.unsqueeze(0)]
 
 
-
 def main_loop():
     improved_context = sample_initial_context(args.min_batch_size, dtype=dtype)
+    avg_rewards = []
     for i_iter in range(args.max_iter_num):
         print('sampling episodes')
         # (1)
@@ -295,24 +346,40 @@ def main_loop():
         batch, log, memory = agent.collect_samples(args.min_batch_size, context=improved_context)  # batch of batch_size transitions from multiple
         print(log['num_steps'], log['num_episodes'])                     # episodes (separated by mask=0). Stored in Memory
 
-        dataset = MemoryDatasetNP(batch, device_np, dtype, max_len=999, use_mean=train_on_mean)
+        disc_rew = discounted_rewards(batch, args.gamma)
 
-        disc_rew = discounted_rewards(dataset.rewards, args.gamma)
         memory.set_disc_rew(disc_rew)
         t0 = time.time()
-        improved_context = improvement_step(batch)
+        all_improved_context = improvement_step(batch)
         t1 = time.time()
+        key = 'means' if improve_mean else 'actions'
+        improved_context = [all_improved_context['states'], all_improved_context[key]]
+
         plot_improvements(batch, improved_context, i_iter)
 
+        training_set = all_improved_context['means'] if train_on_mean else all_improved_context['actions']
+        dataset = MemoryDatasetNP(batch, training_set, device_np, dtype, max_len=999)
         replay_memory.add(dataset)
+
+        plot_training_set(i_iter)
+
         print('replay memory size:', len(replay_memory))
         train_np(replay_memory)
 
+        plot_NP_policy(improved_context, i_iter)
 
+        avg_rewards.append(log['avg_reward'])
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
-            plot_NP_policy(improved_context, i_iter)
+
+
+    fig_rew, ax_rew = plt.subplots(1, 1)
+    ax_rew.plot(np.arange(len(avg_rewards)), avg_rewards)
+    ax_rew.set_xlabel('iterations')
+    ax_rew.set_ylabel('average reward')
+    fig_rew.savefig(directory_path+'/average reward')
+    plt.close(fig_rew)
     """clean up gpu memory"""
     torch.cuda.empty_cache()
 

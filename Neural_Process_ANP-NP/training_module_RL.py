@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from torch.distributions.kl import kl_divergence
 from utils import (context_target_split, batch_context_target_mask,
                    img_mask_to_np_input)
-
+import numpy as np
 
 class NeuralProcessTrainerRL():
     """
@@ -44,7 +44,7 @@ class NeuralProcessTrainerRL():
         self.steps = 0
         self.epoch_loss_history = []
 
-    def train(self, data_loader, epochs):
+    def train(self, data_loader, epochs, early_stopping=None):
         """
         Trains Neural Process.
 
@@ -74,14 +74,20 @@ class NeuralProcessTrainerRL():
 
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)
                 loss.backward()
+
                 self.optimizer.step()
 
                 epoch_loss += loss.item()
 
                 self.steps += 1
 
-            print("Epoch: {}, Avg_loss: {}".format(epoch, epoch_loss / len(data_loader)))
-            self.epoch_loss_history.append(epoch_loss / len(data_loader))
+            avg_loss = epoch_loss / len(data_loader)
+            print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
+            self.epoch_loss_history.append(avg_loss)
+
+            if early_stopping is not None:
+                if avg_loss < early_stopping:
+                    break
 
     def _loss(self, p_y_pred, y_target, q_target, q_context):
         """

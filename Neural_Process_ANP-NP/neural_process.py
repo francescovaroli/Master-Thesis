@@ -302,6 +302,16 @@ class NeuralProcess(nn.Module):
 
             return p_y_pred
 
+    def sample_z(self, x_context, y_context, num_target=1):
+
+        mu_context, sigma_context = self.xy_to_mu_sigma(x_context, y_context)
+        # Sample from distribution based on context
+        q_context = Normal(mu_context, sigma_context)
+        z_sample = q_context.rsample()
+        # Repeat z, so it can be concatenated with every x. This changes shape
+        # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
+        z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
+        return z_sample
 
 
 class NeuralProcessImg(nn.Module):

@@ -34,7 +34,7 @@ class MemoryDatasetNP(Dataset):
     The memory is a list of transitions (tuples) from many trajectory collected during one iteration.
     We transform it to a dataset where the data is a list of trajectories (each traj is a list of 2 tensor, x and y)
     """
-    def __init__(self, memory_list, device, dtype, max_len=None):
+    def __init__(self, memory_list, new_means, device, dtype, max_len=None):
         self.data = []
         self.rewards = []
 
@@ -42,17 +42,17 @@ class MemoryDatasetNP(Dataset):
         action_dim = len(memory_list[0][0].action)
 
         unpadded_data = []
-
+        idx = 0
         for episode in memory_list:
             trajectory_states = []
             trajectory_actions = []
             trajectory_rewards = []
-            len_traj = 0
+            len_traj = len(episode)
             for transition in episode:
                 trajectory_states.append(transition.state)
-                trajectory_actions.append(transition.action)
+                trajectory_actions.append(new_means[0][idx].numpy())
                 trajectory_rewards.append(transition.reward)
-                len_traj += 1
+                idx += 1
             unpadded_data.append([torch.tensor(trajectory_states).to(dtype).to(device),
                                   torch.tensor(trajectory_actions).to(dtype).to(device),
                                   len_traj])

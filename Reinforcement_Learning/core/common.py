@@ -33,3 +33,30 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
 
     advantages, returns = to_device(device, advantages, returns)
     return advantages, returns
+
+
+def discounted_rewards(rewards, gamma):
+    '''
+    :param rewards: list of list, each of the inner is a trajectory of rewards
+    :return: list of list
+    '''
+
+    disc_rewards = []
+    # de-mean
+    for e in range(len(rewards)):
+        avg = sum(rewards[e]) / len(rewards[e])
+        rewards[e] = [float(r) - avg for r in rewards[e]]
+
+    for traj_rewards in rewards:
+        traj_disc_rew = [0]
+        num_steps = len(traj_rewards)
+        for t in reversed(range(num_steps)):
+            curr_disc_rew = gamma * (traj_disc_rew[0] + traj_rewards[t])
+            traj_disc_rew.insert(0, curr_disc_rew)
+        disc_rewards.append(traj_disc_rew[:-1])
+
+    return disc_rewards
+
+
+rewards = [[1]*10, [1]*5, [1]*2]
+#print(discounted_rewards(rewards, 0.9))

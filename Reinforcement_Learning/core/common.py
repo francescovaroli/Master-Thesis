@@ -65,5 +65,6 @@ def discounted_rewards(batch, gamma):
     return disc_rewards
 
 
+
 rewards = [[1]*10, [1]*5, [1]*2]
 #print(discounted_rewards(rewards, 0.9))

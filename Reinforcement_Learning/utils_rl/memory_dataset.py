@@ -3,6 +3,83 @@ import torch
 import random
 
 
+class BaseDataset(Dataset):
+    """
+    Basic dataset to covert episodes of list of transactions to episodes of list of states, actions, means, stddev, rewards
+    """
+    def __init__(self, memory_list, disc_rew,device, dtype, max_len=None):
+        self.data = []
+        self.keys = ['states', 'actions', 'means', 'stddevs', 'rewards', 'discounted_rewards', 'real_len']
+
+        state_dim = len(memory_list[0][0].state)
+        action_dim = len(memory_list[0][0].action)
+        unpadded_data = []
+        for e, episode in enumerate(memory_list):
+            trajectory_states = []
+            trajectory_actions = []
+            trajectory_means = []
+            trajectory_stddevs = []
+            trajectory_rewards = []
+            trajectory_discounted_rewards = []
+            len_traj = len(episode)
+            for t, transition in enumerate(episode):
+                trajectory_states.append(transition.state)
+                trajectory_actions.append(transition.action)
+                trajectory_means.append(transition.mean)
+                trajectory_stddevs.append(transition.stddev)
+                trajectory_rewards.append(transition.reward)
+                trajectory_discounted_rewards.append(disc_rew[e][t])
+
+            unpadded_data.append([torch.tensor(trajectory_states).to(dtype).to(device).view(-1,state_dim),
+                                  torch.tensor(trajectory_actions).to(dtype).to(device).view(-1,action_dim),
+                                  torch.tensor(trajectory_means).to(dtype).to(device).view(-1,action_dim),
+                                  torch.tensor(trajectory_stddevs).to(dtype).to(device).view(-1,action_dim),
+                                  torch.tensor(trajectory_rewards).to(dtype).to(device).view(-1,1),
+                                  torch.tensor(trajectory_discounted_rewards).to(dtype).to(device).view(-1,1),
+                                  len_traj])
+        _, _, _, _, _, _, lengths = zip(*unpadded_data)
+        if max_len is None:
+            max_len = max(lengths)
+
+        for unpad_traj in unpadded_data:
+            pad_traj = {}
+            for i, unpad_values in enumerate(unpad_traj[:-1]):
+                pad_v = torch.zeros([max_len, len(unpad_values[0])]).to(dtype).to(device)
+                pad_v[:unpad_traj[-1], :] = unpad_traj[i]
+                pad_traj[self.keys[i]] = pad_v
+            pad_traj['real_len'] = unpad_traj[-1]
+            self.data.append(pad_traj)
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __len__(self):
+        return len(self.data)
+
+
+class ValueReplay(Dataset):
+
+    def __init__(self, memory_size):
+        self.data = []
+        self.max_size = memory_size
+
+
+    def add(self, complete_dataset):
+        add_len = len(complete_dataset)
+        my_len = len(self.data)
+        excess = my_len + add_len - self.max_size
+        if excess > 0:
+            del self.data[0:excess]
+        for episode in complete_dataset:
+            self.data.append([episode['states'], episode['discounted_rewards'], episode['real_len']])
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __len__(self):
+        return len(self.data)
+
+
 class ReplayMemoryDataset(Dataset):
     """
     Fixed size Memory to aggregate datasets
@@ -184,6 +261,17 @@ class ReplayMemoryDatasetTRPO(Dataset):
 
     def get_rewards(self, index):
         return self.rewards[index]
+
+    def __len__(self):
+        return len(self.data)
+
+
+class ValueDataset(Dataset):
+    def __init__(self, value_training_set):
+        self.data = value_training_set
+
+    def __getitem__(self, index):
+        return self.data[index]
 
     def __len__(self):
         return len(self.data)

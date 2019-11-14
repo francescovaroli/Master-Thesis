@@ -311,7 +311,7 @@ class NeuralProcess(nn.Module):
         # Repeat z, so it can be concatenated with every x. This changes shape
         # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
         z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
-        return z_sample
+        return z_sample, q_context
 
 
 class NeuralProcessImg(nn.Module):

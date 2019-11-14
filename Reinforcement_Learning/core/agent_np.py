@@ -25,14 +25,14 @@ def collect_samples(pid, queue, env, policy, custom_reward,
     num_episodes = 0
     x_context = context_points[0]
     y_context = context_points[1]
-
+    _, z_dist = policy.sample_z(x_context, y_context)
     while num_steps < min_batch_size:  # collecting samples from episodes until we at least a batch
         state = env.reset()            # (maybe more since we stop when episode ends)
         if running_state is not None:
             state = running_state(state)
         reward_episode = 0
         episode = []
-        z_sample = policy.sample_z(x_context, y_context)
+        z_sample = z_dist.sample()
         for t in range(10000):  # in gym.env there's already an upper bound to the number of steps
             state_var = tensor(state).unsqueeze(0).unsqueeze(0)
             with torch.no_grad():
@@ -40,6 +40,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
                 action_distribution = Normal(mean, stddev)
                 if mean_action:
                     action = mean  # use mean value
+                    mean, stddev = policy.xz_to_y(state_var, z_dist.mean)
                 else:
                     action = action_distribution.sample().squeeze(0).squeeze(0)  # sample from normal distribution
 

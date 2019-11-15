@@ -152,7 +152,7 @@ def plot_improvements(batch, improved_context, env, i_iter, args):
     state_1 = [state[0] for state in states]
     state_2 = [state[1] for state in states]
     ax.scatter(state_1, state_2, previous, c='r', label='sampled',  alpha=0.2)
-    ax.scatter(xs_context, ys_context, z, c='y', label='improved', alpha=0.1)
+    ax.scatter(xs_context, ys_context, z, c='y', label='improved', alpha=0.3)
     leg = ax.legend(loc="upper right")
     ax_rew = fig.add_subplot(122, projection='3d')
     set_labels(ax_rew)
@@ -198,7 +198,7 @@ def plot_NP_value(value_np, states, disc_rew, values, r_est, env, args, i_iter):
 
     ax_stdv = fig.add_subplot(222, projection='3d')
     set_limits(ax_stdv, env, args, np_id='value')
-    set_labels(ax_stdv)
+    set_labels(ax_stdv, np_id='value')
     ax_stdv.set_title('Standard deviation of the value NP', pad=20, fontsize=14)
 
 
@@ -213,7 +213,7 @@ def plot_NP_value(value_np, states, disc_rew, values, r_est, env, args, i_iter):
 
     ax = fig.add_subplot(223, projection='3d')
     set_limits(ax_stdv, env, args, np_id='value')
-    set_labels(ax_stdv)
+    set_labels(ax_stdv, np_id='value')
     ax.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), disc_rew[0, :, 0].detach(), c='r', label='Discounted rewards')
     ax.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), values[0, :, 0].detach(), c='b', label='Estimated values')
     leg = ax.legend(loc="upper right")

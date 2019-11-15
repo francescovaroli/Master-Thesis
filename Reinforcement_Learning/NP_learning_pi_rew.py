@@ -40,18 +40,29 @@ parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
-parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=30, metavar='G',
                     help='training epochs of NP')
 
 parser.add_argument('--replay-memory-size', type=int, default=15, metavar='G',
                     help='size of training set in episodes')
-parser.add_argument('--z-dim', type=int, default=64, metavar='N',
+parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=128, metavar='N',
+parser.add_argument('--r-dim', type=int, default=256, metavar='N',
                     help='dimension of represenation space in np')
-parser.add_argument('--h-dim', type=int, default=128, metavar='N',
+parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--np-batch-size', type=int, default=8, metavar='N',
+                    help='batch size for np training')
+
+parser.add_argument('--v-replay-memory-size', type=int, default=80, metavar='G',
+                    help='size of training set in episodes')
+parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
+                    help='dimension of latent variable in np')
+parser.add_argument('--v-r-dim', type=int, default=256, metavar='N',
+                    help='dimension of represenation space in np')
+parser.add_argument('--v-h-dim', type=int, default=256, metavar='N',
+                    help='dimension of hidden layers in np')
+parser.add_argument('--v-np-batch-size', type=int, default=8, metavar='N',
                     help='batch size for np training')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
@@ -82,6 +93,7 @@ args.directory_path += run_id
 torch.set_default_dtype(args.dtype)
 
 """environment"""
+max_episode_len = 999
 env = gym.make(args.env_name)
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
@@ -105,15 +117,15 @@ np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer,
                                     num_extra_target_range=(400, 500),
                                     print_freq=100)
 
-value_np = NeuralProcess(state_dim, 1, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
+value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
 value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, value_optimizer,
-                                    num_context_range=(400, 500),
-                                    num_extra_target_range=(400, 500),
-                                    print_freq=100)
+                                          num_context_range=(400, 500),
+                                          num_extra_target_range=(400, 500),
+                                          print_freq=100)
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size)
-value_replay_memory = ValueReplay(100)
+value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
 agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render, num_threads=args.num_threads)
@@ -196,8 +208,9 @@ def train_value_np(value_replay_memory):
 def estimate_disc_rew(all_episodes, i_iter):
     estimated_disc_rew = []
     for episode in all_episodes.data:
-        x = episode['states'].unsqueeze(0)
-        context_y = episode['discounted_rewards'].unsqueeze(0)
+        real_len = episode['real_len']
+        x = episode['states'][:real_len].unsqueeze(0)
+        context_y = episode['discounted_rewards'][:real_len].unsqueeze(0)
         with torch.no_grad():
             values_distr = value_np(x, context_y, x)
             values = values_distr.mean

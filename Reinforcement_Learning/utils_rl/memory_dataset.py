@@ -164,7 +164,7 @@ class Memory(object):
         self.memory = []
 
     def push(self, episode):
-        """Saves a transition."""
+        """Saves a list of transitions."""
         self.memory.append(episode)
 
     def set_disc_rew(self, rew_list):

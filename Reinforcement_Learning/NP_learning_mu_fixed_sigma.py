@@ -40,6 +40,8 @@ parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
 
+parser.add_argument('--use-mean', default=False, metavar='N',
+                    help='train & condit on improved means/actions'),
 parser.add_argument('--fixed-sigma', default=0.05, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=30, metavar='G',
@@ -94,9 +96,9 @@ initial_training = True
 np_spec = '_{}z_{}rm_{}e_imprM:{}_sampled_a:{}'.format(args.z_dim, args.replay_memory_size,
                                                        args.epochs_per_iter, args.improve_mean,
                                                        args.sample_improved_action)
-run_id = '/Value_NP_A:{}_fixSTD:{}_epV:{}_init_tr:{}_{}ep_{}kl_{}gamma_'.format(args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
-                                                                        initial_training, args.num_ensembles,
-                                                                        args.max_kl, args.gamma) + np_spec
+run_id = '/Value_NP_mean:{}_A:{}_fixSTD:{}_epV:{}_init_tr:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+                                                args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
+                                                initial_training, args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
 torch.set_default_dtype(args.dtype)
@@ -185,7 +187,10 @@ def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
             i += 1
         episode['new_means'] = new_padded_means
         episode['new_actions'] = new_padded_actions
-        all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
+        if args.use_mean:
+            all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
+        else:
+            all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
 
     return all_improved_context
 
@@ -223,7 +228,6 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
         all_values = [values]
         all_episodes = [all_episodes[-1]]
         all_rewards = context_y
-        print('V:', values.shape, 'R:', context_y.shape)
     else:
         real_len = all_episodes[0]['real_len']
         all_states = all_episodes.data[0]['states'][:real_len]
@@ -248,7 +252,7 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
                 estimated_disc_rew.append(r_est.view(-1).numpy())
                 value_stddevs.append(values_distr.stddev.view(-1).numpy())
             all_values.append(values)
-    plot_NP_value(value_np, all_states, all_values, all_episodes,all_rewards, env, args, i_iter)
+    plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, env, args, i_iter)
     return estimated_disc_rew, value_stddevs
 
 def sample_initial_context_uniform(num_episodes):

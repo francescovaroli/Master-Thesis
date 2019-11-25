@@ -86,9 +86,10 @@ class ReplayMemoryDataset(Dataset):
     memory_size: max number of datasets (iterations)
     """
 
-    def __init__(self, memory_size, data=[]):
-        self.data = data
+    def __init__(self, memory_size, use_mean=False):
+        self.data = []
         self.max_size = memory_size
+        self.use_mean = use_mean
 
     def add(self, dataset):
         add_len = len(dataset)
@@ -96,9 +97,12 @@ class ReplayMemoryDataset(Dataset):
         excess = my_len + add_len - self.max_size
         if excess > 0:
             del self.data[0:excess]
-        #self.data += dataset.data
+
         for episode in dataset:
-            self.data.append([episode['states'], episode['new_actions'], episode['real_len']])
+            if self.use_mean:
+                self.data.append([episode['states'], episode['new_means'], episode['real_len']])
+            else:
+                self.data.append([episode['states'], episode['new_actions'], episode['real_len']])
 
     def __getitem__(self, index):
         return self.data[index]

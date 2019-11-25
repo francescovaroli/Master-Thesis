@@ -263,7 +263,24 @@ class DeterministicEncoder(nn.Module):
 
         return query
 
+    def get_input_key(self, context_x, context_y):
+        # Concatenate x and y along the filter axes
+        encoder_input = torch.cat([context_x, context_y], dim=-1)
 
+        # Pass final axis through MLP
+        encoder_input = self.xy_to_hidden(encoder_input)
+        keys = self.context_projection(context_x)
+
+        return encoder_input, keys
+
+    def get_repr(self, encoder_input, keys, target_x):
+        query = self.target_projection(target_x)
+
+        # cross attention layer
+        for attention in self.cross_attentions:
+            query, _ = attention(keys, encoder_input, query)
+
+        return query
 
 class Decoder(nn.Module):
     """
@@ -284,14 +301,14 @@ class Decoder(nn.Module):
     y_dim : int
         Dimension of y values.
     """
-    def __init__(self, x_dim, rep_dim, h_dim, y_dim):
+    def __init__(self, x_dim, rep_dim, h_dim, y_dim, fixed_sigma):
         super(Decoder, self).__init__()
 
         self.x_dim = x_dim
         self.rep_dim = rep_dim
         self.h_dim = h_dim
         self.y_dim = y_dim
-
+        self.fixed_sigma = fixed_sigma
 
         layers = [Linear(x_dim + rep_dim, h_dim),
                   nn.ReLU(inplace=True),
@@ -335,7 +352,11 @@ class Decoder(nn.Module):
         pre_sigma = pre_sigma.view(batch_size, num_points, self.y_dim)
         # Define sigma following convention in "Empirical Evaluation of Neural
         # Process Objectives" and "Attentive Neural Processes"
-        sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
+        if self.fixed_sigma is None:
+            sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
+        else:
+            sigma = torch.Tensor(mu.shape)
+            sigma.fill_(self.fixed_sigma)
         return mu, sigma
 
 
@@ -361,7 +382,7 @@ class AttentiveNeuralProcess(nn.Module):
     h_dim : int
         Dimension of hidden layer in encoder and decoder.
     """
-    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=True):
+    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=True, fixed_sigma=None):
         super(AttentiveNeuralProcess, self).__init__()
         self.x_dim = x_dim
         self.y_dim = y_dim
@@ -374,7 +395,7 @@ class AttentiveNeuralProcess(nn.Module):
         self_att = Attention(r_dim) if use_self_att else None
         self.xy_to_z = LatentEncoder(x_dim, y_dim, r_dim, z_dim, )
         self.xy_to_a = DeterministicEncoder(x_dim, y_dim, a_dim, Attention(a_dim))
-        self.xrep_to_y = Decoder(x_dim, z_dim+a_dim, h_dim, y_dim)
+        self.xz_to_y = Decoder(x_dim, z_dim+a_dim, h_dim, y_dim, fixed_sigma)
 
     def forward(self, x_context, y_context, x_target, y_target=None):
         """
@@ -420,7 +441,7 @@ class AttentiveNeuralProcess(nn.Module):
             # Concatenate latent and deterministic representation
             representation = torch.cat([z_sample, a_repr], dim=-1)
             # Get parameters of output distribution
-            y_pred_mu, y_pred_sigma = self.xrep_to_y(x_target, representation)
+            y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, representation)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
 
             return p_y_pred, q_target, q_context
@@ -438,8 +459,19 @@ class AttentiveNeuralProcess(nn.Module):
             # Concatenate latent and deterministic representation
             representation = torch.cat([z_sample, a_repr], dim=-1)
             # Predict target points based on context
-            y_pred_mu, y_pred_sigma = self.xrep_to_y(x_target, representation)
+            y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, representation)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
 
             return p_y_pred
+
+    def sample_z(self, x_context, y_context, num_target=1):
+
+        mu_context, sigma_context = self.xy_to_z(x_context, y_context)
+        # Sample from distribution based on context
+        q_context = Normal(mu_context, sigma_context)
+        z_sample = q_context.rsample()
+        # Repeat z, so it can be concatenated with every x. This changes shape
+        # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
+        z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
+        return z_sample, q_context
 

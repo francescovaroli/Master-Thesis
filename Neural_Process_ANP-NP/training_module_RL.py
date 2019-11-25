@@ -1,6 +1,5 @@
 import torch
 from random import randint
-from neural_process import NeuralProcessImg
 from matplotlib import pyplot as plt
 from torch.distributions.kl import kl_divergence
 from utils import (context_target_split, batch_context_target_mask,
@@ -82,7 +81,8 @@ class NeuralProcessTrainerRL():
                 self.steps += 1
 
             avg_loss = epoch_loss / len(data_loader)
-            print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
+            if epoch % self.print_freq == 0:
+                print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)
 
             if early_stopping is not None:

@@ -7,7 +7,7 @@ class BaseDataset(Dataset):
     """
     Basic dataset to covert episodes of list of transactions to episodes of list of states, actions, means, stddev, rewards
     """
-    def __init__(self, memory_list, disc_rew,device, dtype, max_len=None):
+    def __init__(self, memory_list, disc_rew, device, dtype, max_len=None):
         self.data = []
         self.keys = ['states', 'actions', 'means', 'stddevs', 'rewards', 'discounted_rewards', 'real_len']
 
@@ -44,7 +44,7 @@ class BaseDataset(Dataset):
         for unpad_traj in unpadded_data:
             pad_traj = {}
             for i, unpad_values in enumerate(unpad_traj[:-1]):
-                pad_v = torch.zeros([max_len, len(unpad_values[0])]).to(dtype).to(device)
+                pad_v = torch.zeros([max_len, unpad_values.shape[-1]]).to(dtype).to(device)
                 pad_v[:unpad_traj[-1], :] = unpad_traj[i]
                 pad_traj[self.keys[i]] = pad_v
             pad_traj['real_len'] = unpad_traj[-1]
@@ -86,8 +86,8 @@ class ReplayMemoryDataset(Dataset):
     memory_size: max number of datasets (iterations)
     """
 
-    def __init__(self, memory_size):
-        self.data = []
+    def __init__(self, memory_size, data=[]):
+        self.data = data
         self.max_size = memory_size
 
     def add(self, dataset):
@@ -96,7 +96,9 @@ class ReplayMemoryDataset(Dataset):
         excess = my_len + add_len - self.max_size
         if excess > 0:
             del self.data[0:excess]
-        self.data += dataset.data
+        #self.data += dataset.data
+        for episode in dataset:
+            self.data.append([episode['states'], episode['new_actions'], episode['real_len']])
 
     def __getitem__(self, index):
         return self.data[index]

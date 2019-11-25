@@ -9,8 +9,8 @@ from torch.distributions import Normal
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew'))
 
-def collect_samples(pid, queue, env, policy, custom_reward,
-                    mean_action, render, running_state, min_batch_size, context_points):
+def collect_samples(pid, env, policy, custom_reward,
+                    mean_action, render, running_state, context_points_list, attention):
     # (2)
     torch.randn(pid)
     log = dict()
@@ -23,21 +23,27 @@ def collect_samples(pid, queue, env, policy, custom_reward,
     min_c_reward = 1e6
     max_c_reward = -1e6
     num_episodes = 0
-    ## should take only the real unpaddded
-    x_context = context_points[0]
-    y_context = context_points[1]
-    _, z_dist = policy.sample_z(x_context, y_context)
-    while num_steps < min_batch_size:  # collecting samples from episodes until we at least a batch
-        state = env.reset()            # (maybe more since we stop when episode ends)
+    for episode_contexts in context_points_list:
+        episode = []
+        reward_episode = 0
+        x_context, y_context, real_len = episode_contexts
+        if attention:
+            encoder_input, keys = policy.xy_to_a.get_input_key(x_context[:real_len], y_context[:real_len])
+        _, z_dist = policy.sample_z(x_context[:real_len], y_context[:real_len])
+        state = env.reset()
         if running_state is not None:
             state = running_state(state)
-        reward_episode = 0
-        episode = []
         z_sample = z_dist.sample()
-        for t in range(10000):  # in gym.env there's already an upper bound to the number of steps
+        for t in range(10000):
             state_var = tensor(state).unsqueeze(0).unsqueeze(0)
             with torch.no_grad():
-                mean, stddev = policy.xz_to_y(state_var, z_sample)
+                if attention:
+                    a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)
+                    representation = torch.cat([z_sample, a_repr.squeeze(0)], dim=-1)
+                    mean, stddev = policy.xz_to_y(state_var, representation)
+                else:
+                    mean, stddev = policy.xz_to_y(state_var, z_sample)
+
                 action_distribution = Normal(mean, stddev)
                 if mean_action:
                     action = mean  # use mean value
@@ -45,7 +51,6 @@ def collect_samples(pid, queue, env, policy, custom_reward,
                 else:
                     action = action_distribution.sample().squeeze(0).squeeze(0)  # sample from normal distribution
 
-            #action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
             if running_state is not None:  # running list of normalized states allowing to access precise mean and std
@@ -85,10 +90,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
         log['max_c_reward'] = max_c_reward
         log['min_c_reward'] = min_c_reward
 
-    if queue is not None:
-        queue.put([pid, memory, log])
-    else:
-        return memory, log
+    return memory, log
 
 def compute_stats(batch):
     s = 0
@@ -125,8 +127,8 @@ def merge_log(log_list):
 
 class Agent:
 
-    def __init__(self, env, policy, device, custom_reward=None,
-                 mean_action=False, render=False, running_state=None, num_threads=1):
+    def __init__(self, env, policy, device, custom_reward=None, attention=False,
+                 mean_action=False, render=False, running_state=None):
         self.env = env
         self.policy = policy
         self.device = device
@@ -134,37 +136,16 @@ class Agent:
         self.mean_action = mean_action
         self.running_state = running_state
         self.render = render
-        self.num_threads = num_threads
+        self.attention = attention
 
-    def collect_samples(self, min_batch_size, context=None):
+    def collect_episodes(self, context_list):
         t_start = time.time()
         to_device(torch.device('cpu'), self.policy)
-        thread_batch_size = int(math.floor(min_batch_size / self.num_threads))
-        queue = multiprocessing.Queue()
-        workers = []
 
-        for i in range(self.num_threads-1):
-            worker_args = (i+1, queue, self.env, self.policy, self.custom_reward, self.mean_action,
-                           False, self.running_state, thread_batch_size, context)
-            workers.append(multiprocessing.Process(target=collect_samples, args=worker_args))
-        for worker in workers:
-            worker.start()
+        memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.mean_action,
+                                      self.render, self.running_state, context_list, self.attention)
 
-        memory, log = collect_samples(0, None, self.env, self.policy, self.custom_reward, self.mean_action,
-                                      self.render, self.running_state, thread_batch_size, context)
-
-        worker_logs = [None] * len(workers)
-        worker_memories = [None] * len(workers)
-        for _ in workers:
-            pid, worker_memory, worker_log = queue.get()
-            worker_memories[pid - 1] = worker_memory
-            worker_logs[pid - 1] = worker_log
-        for worker_memory in worker_memories:
-            memory.append(worker_memory)
-        batch = memory.memory  # not sampling but giving all memory
-        if self.num_threads > 1:
-            log_list = [log] + worker_logs
-            log = merge_log(log_list)
+        batch = memory.memory
         to_device(self.device, self.policy)
         t_end = time.time()
         mean_a, max_a, min_a = compute_stats(batch)
@@ -172,4 +153,4 @@ class Agent:
         log['action_mean'] = mean_a
         log['action_min'] = min_a
         log['action_max'] = max_a
-        return batch, log, memory
+        return memory, log

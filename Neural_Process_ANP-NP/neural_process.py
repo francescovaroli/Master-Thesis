@@ -1,6 +1,5 @@
 import torch
 from torch.distributions import Normal
-from utils import img_mask_to_np_input
 from torch import nn
 from torch.nn import functional as F
 
@@ -110,14 +109,14 @@ class Decoder(nn.Module):
     y_dim : int
         Dimension of y values.
     """
-    def __init__(self, x_dim, rep_dim, h_dim, y_dim):
+    def __init__(self, x_dim, rep_dim, h_dim, y_dim, fixed_sigma):
         super(Decoder, self).__init__()
 
         self.x_dim = x_dim
         self.rep_dim = rep_dim
         self.h_dim = h_dim
         self.y_dim = y_dim
-
+        self.fixed_sigma = fixed_sigma
 
         layers = [nn.Linear(x_dim + rep_dim, h_dim),
                   nn.ReLU(inplace=True),
@@ -161,7 +160,12 @@ class Decoder(nn.Module):
         pre_sigma = pre_sigma.view(batch_size, num_points, self.y_dim)
         # Define sigma following convention in "Empirical Evaluation of Neural
         # Process Objectives" and "Attentive Neural Processes"
-        sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
+        if self.fixed_sigma is None:
+            sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
+        else:
+            sigma = torch.Tensor(mu.shape)
+            sigma.fill_(self.fixed_sigma)
+
         return mu, sigma
 
 
@@ -188,18 +192,19 @@ class NeuralProcess(nn.Module):
     h_dim : int
         Dimension of hidden layer in encoder and decoder.
     """
-    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim):
+    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, fixed_sigma=None):
         super(NeuralProcess, self).__init__()
         self.x_dim = x_dim
         self.y_dim = y_dim
         self.r_dim = r_dim
         self.z_dim = z_dim
         self.h_dim = h_dim
+        self.fixed_sigma = fixed_sigma
 
         # Initialize networks
         self.xy_to_r = Encoder(x_dim, y_dim, h_dim, r_dim)
         self.r_to_mu_sigma = MuSigmaEncoder(r_dim, z_dim)
-        self.xz_to_y = Decoder(x_dim, z_dim, h_dim, y_dim)
+        self.xz_to_y = Decoder(x_dim, z_dim, h_dim, y_dim, fixed_sigma)
 
     def aggregate(self, r_i):
         """
@@ -299,7 +304,6 @@ class NeuralProcess(nn.Module):
             # Predict target points based on context
             y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, z_sample)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
-
             return p_y_pred
 
     def sample_z(self, x_context, y_context, num_target=1):
@@ -312,56 +316,3 @@ class NeuralProcess(nn.Module):
         # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
         z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
         return z_sample, q_context
-
-
-class NeuralProcessImg(nn.Module):
-    """
-    Wraps regular Neural Process for image processing.
-
-    Parameters
-    ----------
-    img_size : tuple of ints
-        E.g. (1, 28, 28) or (3, 32, 32)
-
-    r_dim : int
-        Dimension of output representation r.
-
-    z_dim : int
-        Dimension of latent variable z.
-
-    h_dim : int
-        Dimension of hidden layer in encoder and decoder.
-    """
-    def __init__(self, img_size, r_dim, z_dim, h_dim):
-        super(NeuralProcessImg, self).__init__()
-        self.img_size = img_size
-        self.num_channels, self.height, self.width = img_size
-        self.r_dim = r_dim
-        self.z_dim = z_dim
-        self.h_dim = h_dim
-
-        self.neural_process = NeuralProcess(x_dim=2, y_dim=self.num_channels,
-                                            r_dim=r_dim, z_dim=z_dim,
-                                            h_dim=h_dim)
-
-    def forward(self, img, context_mask, target_mask):
-        """
-        Given an image and masks of context and target points, returns a
-        distribution over pixel intensities at the target points.
-
-        Parameters
-        ----------
-        img : torch.Tensor
-            Shape (batch_size, channels, height, width)
-
-        context_mask : torch.ByteTensor
-            Shape (batch_size, height, width). Binary mask indicating
-            the pixels to be used as context.
-
-        target_mask : torch.ByteTensor
-            Shape (batch_size, height, width). Binary mask indicating
-            the pixels to be used as target.
-        """
-        x_context, y_context = img_mask_to_np_input(img, context_mask)
-        x_target, y_target = img_mask_to_np_input(img, target_mask)
-        return self.neural_process(x_context, y_context, x_target, y_target)

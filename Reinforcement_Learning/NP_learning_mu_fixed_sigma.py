@@ -13,7 +13,6 @@ from training_module_RL import NeuralProcessTrainerRL
 from multihead_attention_np import *
 
 from torch.distributions import Normal
-
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 torch.set_default_tensor_type(torch.DoubleTensor)
 
@@ -25,11 +24,11 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=5e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=75e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=1, metavar='N',
                     help='episode to collect per iteration')
-parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
+parser.add_argument('--max-iter-num', type=int, default=50000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
@@ -40,11 +39,11 @@ parser.add_argument("--init-normal", default=False,
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=None, metavar='G', type=float,
+parser.add_argument('--fixed-sigma', default=None, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=10, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=5, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=5, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -55,7 +54,7 @@ parser.add_argument('--h-dim', type=int, default=128, metavar='N',
 parser.add_argument('--np-batch-size', type=int, default=8, metavar='N',
                     help='batch size for np training')
 
-parser.add_argument('--v-epochs-per-iter', type=int, default=30, metavar='G',
+parser.add_argument('--v-epochs-per-iter', type=int, default=1, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--v-replay-memory-size', type=int, default=60, metavar='G',
                     help='size of training set in episodes')
@@ -68,7 +67,7 @@ parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
 parser.add_argument('--v-np-batch-size', type=int, default=8, metavar='N',
                     help='batch size for np training')
 
-parser.add_argument('--directory-path', default='/cluster/scratch/varolif',
+parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
                     help='path to plots folder')
 parser.add_argument('--device-np', default=torch.device('cpu'),
                     help='device')
@@ -91,7 +90,7 @@ parser.add_argument("--plot-every", type=int, default=1,
 parser.add_argument("--num-testing-points", type=int, default=1,
                     help='how many point to use as only testing during NP training')
 args = parser.parse_args()
-
+plot_freq = 10
 initial_training = True
 
 max_episode_len = 999
@@ -169,29 +168,31 @@ def estimate_eta_2(actions, means, stddevs, disc_rews):
 
 def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
     all_improved_context = []
-    for episode, disc_rewards, values_std in zip(complete_dataset, estimated_disc_rew, values_stdevs):
-        real_len = episode['real_len']
-        states = episode['states'][:real_len]
-        actions = episode['actions'][:real_len]
-        means = episode['means'][:real_len]
-        stddevs = episode['stddevs'][:real_len]
-        eta = estimate_eta_2(actions, means, stddevs, disc_rewards)
-        new_padded_actions = torch.zeros_like(episode['actions'])
-        new_padded_means = torch.zeros_like(episode['means'])
-        i = 0
-        for state, action, mean, stddev, disc_reward, value_std in zip(states, actions, means, stddevs, disc_rewards, values_std):
-            new_mean = mean + eta * disc_reward * ((action - mean) / stddev)
-            distr = Normal(new_mean, stddev)
-            new_action = distr.sample()
-            new_padded_actions[i, :] = new_action
-            new_padded_means[i, :] = new_mean
-            i += 1
-        episode['new_means'] = new_padded_means
-        episode['new_actions'] = new_padded_actions
-        if args.use_mean:
-            all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
-        else:
-            all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
+    with torch.no_grad():
+        for episode, disc_rewards, values_std in zip(complete_dataset, estimated_disc_rew, values_stdevs):
+            real_len = episode['real_len']
+            states = episode['states'][:real_len]
+            actions = episode['actions'][:real_len]
+            means = episode['means'][:real_len]
+            stddevs = episode['stddevs'][:real_len]
+            eta = estimate_eta_2(actions, means, stddevs, disc_rewards)
+            new_padded_actions = torch.zeros_like(episode['actions'])
+            new_padded_means = torch.zeros_like(episode['means'])
+            i = 0
+            for state, action, mean, stddev, disc_reward, value_std in zip(states, actions, means, stddevs, disc_rewards, values_std):
+                new_mean = mean + eta * disc_reward * ((action - mean) / stddev)
+                #distr = Normal(new_mean, stddev)
+                distr = Normal(new_mean, 0.2)
+                new_action = distr.sample()
+                new_padded_actions[i, :] = new_action
+                new_padded_means[i, :] = new_mean
+                i += 1
+            episode['new_means'] = new_padded_means
+            episode['new_actions'] = new_padded_actions
+            if args.use_mean:
+                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
+            else:
+                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
 
     return all_improved_context
 
@@ -268,7 +269,7 @@ def sample_initial_context_uniform(num_episodes):
     if args.fixed_sigma is not None:
         std = args.fixed_sigma
     else:
-        std = action_delta.item()
+        std = min(0.5, action_delta.item())
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
         actions = torch.zeros([1, max_episode_len, action_dim])
@@ -318,6 +319,8 @@ def create_directories(directory_path):
     os.mkdir(directory_path + '/policy/' + '/Training/')
     os.mkdir(directory_path + '/policy/' + '/All policies samples/')
 
+avg_rewards = []
+
 
 def main_loop():
     colors = []
@@ -332,7 +335,6 @@ def main_loop():
     plot_initial_context(improved_context_list, colors, env, args, '00')
     if initial_training:
         train_on_initial(improved_context_list)
-    avg_rewards = []
     for i_iter in range(args.max_iter_num):
         #print('sampling episodes')
         # (1)
@@ -343,7 +345,7 @@ def main_loop():
         #print(log['num_steps'], log['num_episodes'])                # episodes (separated by mask=0). Stored in Memory
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
-        complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype)
+        complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
 
         value_replay_memory.add(complete_dataset)
         train_value_np(value_replay_memory)

@@ -24,9 +24,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=75e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=50e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=1, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=50000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -39,9 +39,9 @@ parser.add_argument("--init-normal", default=True,
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=None, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.4, metavar='N', type=float,
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=5, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=10, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=5, metavar='G',
                     help='size of training set in episodes')
@@ -54,7 +54,7 @@ parser.add_argument('--h-dim', type=int, default=128, metavar='N',
 parser.add_argument('--np-batch-size', type=int, default=8, metavar='N',
                     help='batch size for np training')
 
-parser.add_argument('--v-epochs-per-iter', type=int, default=1, metavar='G',
+parser.add_argument('--v-epochs-per-iter', type=int, default=10, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--v-replay-memory-size', type=int, default=60, metavar='G',
                     help='size of training set in episodes')
@@ -81,7 +81,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=False, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
@@ -92,13 +92,14 @@ parser.add_argument("--num-testing-points", type=int, default=1,
 args = parser.parse_args()
 plot_freq = 10
 initial_training = True
+init_func = InitFunc.init_xavier
 
 max_episode_len = 999
 num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size,
                                                        args.epochs_per_iter, num_context_points)
-run_id = '/Value_NP_mean:{}_A:{}_fixSTD:{}_epV:{}_init_norm:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/Value_NP_deep2_mean:{}_A:{}_fixSTD:{}_epV:{}_init_norm:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.init_normal, args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
@@ -124,10 +125,9 @@ env.seed(args.seed)
 '''create neural process'''
 if args.use_attentive_np:
     policy_np = AttentiveNeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim,
-                                                       args.z_dim, use_self_att=True, fixed_sigma=args.fixed_sigma).to(args.device_np)
+                                                       args.z_dim, use_self_att=False).to(args.device_np)
 else:
-    policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim,
-                              fixed_sigma=args.fixed_sigma).to(args.device_np)
+    policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
 
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer,
@@ -137,7 +137,7 @@ np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer,
 
 if args.use_attentive_np:
     value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim,
-                                      args.z_dim, use_self_att=True).to(args.device_np)
+                                      args.z_dim, use_self_att=False).to(args.device_np)
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
@@ -150,7 +150,8 @@ replay_memory = ReplayMemoryDataset(args.replay_memory_size)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
-agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render, attention=args.use_attentive_np)
+agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
+              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
 def estimate_eta_2(actions, means, stddevs, disc_rews):
     d = actions.shape[-1]
@@ -205,7 +206,7 @@ def train_np(datasets, epochs=args.epochs_per_iter):
 
 
 def train_value_np(value_replay_memory):
-    #print('Value training')
+    print('Value training')
     value_np.training = True
     value_data_loader = DataLoader(value_replay_memory, batch_size=args.np_batch_size, shuffle=True)
     value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=100)
@@ -282,7 +283,6 @@ def sample_initial_context_uniform(num_episodes):
 
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
-    init_func = InitFunc.init_kaiming
     policy_np.apply(init_func)
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
@@ -336,7 +336,7 @@ def main_loop():
     if initial_training:
         train_on_initial(improved_context_list)
     for i_iter in range(args.max_iter_num):
-        #print('sampling episodes')
+        print('sampling episodes')
         # (1)
         # generate multiple trajectories that reach the minimum batch_size
         # introduce param context=None when np is policy, these will be the context points used to predict

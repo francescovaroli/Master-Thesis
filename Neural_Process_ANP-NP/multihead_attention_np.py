@@ -152,10 +152,6 @@ class LatentEncoder(nn.Module):
                   nn.ReLU(inplace=True),
                   Linear(s_dim, s_dim),
                   nn.ReLU(inplace=True),
-                  Linear(s_dim, s_dim),
-                  nn.ReLU(inplace=True),
-                  Linear(s_dim, s_dim),
-                  nn.ReLU(inplace=True),
                   Linear(s_dim, s_dim)]
 
         self.xy_to_hidden = nn.Sequential(*layers)
@@ -311,12 +307,6 @@ class Decoder(nn.Module):
         self.fixed_sigma = fixed_sigma
 
         layers = [Linear(x_dim + rep_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  Linear(h_dim, h_dim),
                   nn.ReLU(inplace=True),
                   Linear(h_dim, h_dim),
                   nn.ReLU(inplace=True)]

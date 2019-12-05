@@ -31,12 +31,6 @@ class Encoder(nn.Module):
 
         layers = [nn.Linear(x_dim + y_dim, h_dim),
                   nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
                   nn.Linear(h_dim, r_dim)]
 
         self.input_to_hidden = nn.Sequential(*layers)
@@ -119,12 +113,6 @@ class Decoder(nn.Module):
         self.fixed_sigma = fixed_sigma
 
         layers = [nn.Linear(x_dim + rep_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
                   nn.ReLU(inplace=True),
                   nn.Linear(h_dim, h_dim),
                   nn.ReLU(inplace=True)]

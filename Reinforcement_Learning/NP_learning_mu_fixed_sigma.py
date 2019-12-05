@@ -11,7 +11,7 @@ from core.agent_ensembles import Agent
 from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
 from multihead_attention_np import *
-
+from weights_init import InitFunc
 from torch.distributions import Normal
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -34,12 +34,12 @@ parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
-parser.add_argument("--init-normal", default=False,
+parser.add_argument("--init-normal", default=True,
                     help='inititalize context point from the NP')
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=None, metavar='N',
+parser.add_argument('--fixed-sigma', default=None, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=5, metavar='G',
                     help='training epochs of NP')
@@ -81,9 +81,9 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=True, metavar='N',
+parser.add_argument('--use-attentive-np', default=False, metavar='N',
                      help='use attention in policy and value NPs')
-parser.add_argument('--episode-specific-value', default=True, metavar='N',
+parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
@@ -98,9 +98,9 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size,
                                                        args.epochs_per_iter, num_context_points)
-run_id = '/Value_NP_mean:{}_A:{}_fixSTD:{}_epV:{}_init_tr:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/Value_NP_mean:{}_A:{}_fixSTD:{}_epV:{}_init_norm:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
-                                                initial_training, args.num_ensembles, args.max_kl, args.gamma) + np_spec
+                                                args.init_normal, args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
 torch.set_default_dtype(args.dtype)
@@ -282,21 +282,21 @@ def sample_initial_context_uniform(num_episodes):
 
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
-    means_variance_gain = 1/100
-    z_init = Normal(0, 1/means_variance_gain)
+    init_func = InitFunc.init_kaiming
+    policy_np.apply(init_func)
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
+
+        if args.use_attentive_np:
+            z_sample = torch.randn((1, args.z_dim+args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
+        else:
+            z_sample = torch.randn((1, args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
+
         for i in range(max_episode_len):
             states[:, i, :] = torch.from_numpy(env.observation_space.sample())
 
-        if args.use_attentive_np:
-            z_sample = z_init.sample([1, args.z_dim+args.z_dim])
-        else:
-            z_sample = z_init.sample([1, args.z_dim])
-        z_sample = z_sample.unsqueeze(1).repeat(1, max_episode_len, 1)
         means_init, stds_init = policy_np.xz_to_y(states, z_sample)
         actions_init = Normal(means_init, stds_init).sample()
-
         initial_episodes.append([states, actions_init, max_episode_len])
     return initial_episodes
 

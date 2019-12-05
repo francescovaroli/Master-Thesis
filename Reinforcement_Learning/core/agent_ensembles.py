@@ -10,7 +10,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew'))
 
 def collect_samples(pid, env, policy, custom_reward,
-                    mean_action, render, running_state, context_points_list, attention):
+                    mean_action, render, running_state, context_points_list, attention, fixed_sigma):
     # (2)
     torch.randn(pid)
     log = dict()
@@ -44,7 +44,13 @@ def collect_samples(pid, env, policy, custom_reward,
                 else:
                     mean, stddev = policy.xz_to_y(state_var, z_sample)
 
-                action_distribution = Normal(mean, stddev)
+                if fixed_sigma is not None:
+                    sigma = fixed_sigma
+                else:
+                    sigma = stddev
+
+                action_distribution = Normal(mean, sigma)
+
                 if mean_action:
                     action = mean  # use mean value
                     mean, stddev = policy.xz_to_y(state_var, z_dist.mean)
@@ -128,7 +134,7 @@ def merge_log(log_list):
 class Agent:
 
     def __init__(self, env, policy, device, custom_reward=None, attention=False,
-                 mean_action=False, render=False, running_state=None):
+                 mean_action=False, render=False, running_state=None, fixed_sigma=None):
         self.env = env
         self.policy = policy
         self.device = device
@@ -137,13 +143,14 @@ class Agent:
         self.running_state = running_state
         self.render = render
         self.attention = attention
+        self.fixed_sigma = fixed_sigma
 
     def collect_episodes(self, context_list):
         t_start = time.time()
         to_device(torch.device('cpu'), self.policy)
 
         memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.mean_action,
-                                      self.render, self.running_state, context_list, self.attention)
+                                      self.render, self.running_state, context_list, self.attention, self.fixed_sigma)
 
         batch = memory.memory
         to_device(self.device, self.policy)

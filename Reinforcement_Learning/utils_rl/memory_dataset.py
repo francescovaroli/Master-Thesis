@@ -3,6 +3,19 @@ import torch
 import random
 
 
+def merge_context(context_points_list):
+    '''Transforms a list of episodes' context points (padded to max_len)
+     into a vector with all points unpadded'''
+    all_x_context, all_y_context, real_len = context_points_list[0]
+    all_x_context = all_x_context[:real_len]
+    all_y_context = all_y_context[:real_len]
+    for episode_contexts in context_points_list[1:]:
+        x_context, y_context, real_len = episode_contexts
+        all_x_context = torch.cat((all_x_context, x_context[:real_len]), dim=-2)
+        all_y_context = torch.cat((all_y_context, y_context[:real_len]), dim=-2)
+    return all_x_context, all_y_context
+
+
 class BaseDataset(Dataset):
     """
     Basic dataset to covert episodes of list of transactions to episodes of list of states, actions, means, stddev, rewards
@@ -30,12 +43,12 @@ class BaseDataset(Dataset):
                 trajectory_rewards.append(transition.reward)
                 trajectory_discounted_rewards.append(disc_rew[e][t])
 
-            unpadded_data.append([torch.tensor(trajectory_states).to(dtype).to(device).view(-1,state_dim),
-                                  torch.tensor(trajectory_actions).to(dtype).to(device).view(-1,action_dim),
-                                  torch.tensor(trajectory_means).to(dtype).to(device).view(-1,action_dim),
-                                  torch.tensor(trajectory_stddevs).to(dtype).to(device).view(-1,action_dim),
-                                  torch.tensor(trajectory_rewards).to(dtype).to(device).view(-1,1),
-                                  torch.tensor(trajectory_discounted_rewards).to(dtype).to(device).view(-1,1),
+            unpadded_data.append([torch.tensor(trajectory_states).to(dtype).to(device).view(-1, state_dim),
+                                  torch.tensor(trajectory_actions).to(dtype).to(device).view(-1, action_dim),
+                                  torch.tensor(trajectory_means).to(dtype).to(device).view(-1, action_dim),
+                                  torch.tensor(trajectory_stddevs).to(dtype).to(device).view(-1, action_dim),
+                                  torch.tensor(trajectory_rewards).to(dtype).to(device).view(-1, 1),
+                                  torch.tensor(trajectory_discounted_rewards).to(dtype).to(device).view(-1, 1),
                                   len_traj])
         _, _, _, _, _, _, lengths = zip(*unpadded_data)
         if max_len is None:

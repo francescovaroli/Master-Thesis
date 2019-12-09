@@ -59,10 +59,13 @@ class NeuralProcessTrainerLoo():
             epoch_loss = 0.
             for i in range(len(data_loader)):
                 self.optimizer.zero_grad()
-                context_list = [ep for j, ep in enumerate(data_loader) if j != i]
-                data = data_loader.dataset[i]
-                all_context_points = merge_context(context_list)
+                if len(data_loader) == 1:
+                    context_list = [ep for j, ep in enumerate(data_loader)]
+                else:
+                    context_list = [ep for j, ep in enumerate(data_loader) if j != i]
 
+                all_context_points = merge_context(context_list)
+                data = data_loader.dataset[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points
                 x_target = random.choice(x[:num_points]).unsqueeze(0).unsqueeze(1)

@@ -100,7 +100,7 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size,
                                                        args.epochs_per_iter, num_context_points)
-run_id = '/Value_NP_deep2_mean:{}_A:{}_fixSTD:{}_epV:{}_init_norm:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/Value_NP_zero_init_mean:{}_A:{}_fixSTD:{}_epV:{}_init_norm:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.init_normal, args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
@@ -368,9 +368,12 @@ def main_loop():
             plot_NP_policy(policy_np, improved_context_list, i_iter, log['avg_reward'], env, args, colors)
 
         avg_rewards.append(log['avg_reward'])
-        if i_iter % args.log_interval == 0 and False:
+        if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
+        if log['avg_reward'] > 96:
+            print('converged')
+            plot_rewards_history(avg_rewards, args)
 
     plot_rewards_history(avg_rewards, args)
 

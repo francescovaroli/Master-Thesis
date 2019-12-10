@@ -31,7 +31,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
         _, z_dist = policy.sample_z(all_x_context, all_y_context)
 
         for ep in range(len(context_points_list)):
-            print('episode', ep)
+            #print('episode', ep)
 
             episode = []
             reward_episode = 0

@@ -146,13 +146,13 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
         if e == 0:
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c=colors[e], s=2, label='sampled', alpha=0.1)
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=colors[e], marker='+', label='improved', alpha=0.5)
+            leg = ax.legend(loc="upper right")
         else:
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c=colors[e], s=2, alpha=0.1)
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=colors[e], marker='+', alpha=0.5)
 
         a = ax_rew.scatter(states[:, 0].numpy(), states[:, 1].numpy(), actions[:, 0].numpy(), c=est_rew[:], cmap='viridis', alpha=0.5)
 
-    leg = ax.legend(loc="upper right")
     cb = fig.colorbar(a)
     cb.set_label('Discounted rewards')
     ax_rew.set_title('Discounted rewards')

@@ -147,7 +147,8 @@ value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optim
                                           num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                           print_freq=50)
 """create replay memory"""
-replay_memory = ReplayMemoryDataset(args.replay_memory_size)
+# force rm to contain only last iter episodes
+replay_memory = ReplayMemoryDataset(args.num_ensembles)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
@@ -298,6 +299,7 @@ def sample_initial_context_normal(num_episodes):
 
         means_init, stds_init = policy_np.xz_to_y(states, z_sample)
         actions_init = Normal(means_init, stds_init).sample()
+        #actions_init = Normal(torch.zeros([1, max_episode_len, 1]), 0.7*torch.ones([1, max_episode_len, 1])).sample()
         initial_episodes.append([states, actions_init, max_episode_len])
     return initial_episodes
 

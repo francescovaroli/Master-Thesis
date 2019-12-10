@@ -3,6 +3,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from random import randint
 from utils_rl import *
 import gpytorch
+import graphviz
+from torchviz import make_dot
+
 
 def set_labels(ax, np_id='policy'):
     ax.set_xlabel('Position', fontsize=14)
@@ -73,11 +76,12 @@ def plot_NP_policy(policy_np, all_context_xy, iter_pred, avg_rew, env, args, col
     set_labels(ax_samples)
     # Plot a realization
     for e, context_xy in enumerate(all_context_xy):
+        #with torch.no_grad():
         context_x, context_y, real_len = context_xy
         Z_distr = policy_np(context_x[:real_len], context_y[:real_len], x)  # B x num_points x z_dim  (B=1)
         Z_mean = Z_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
         Z_stddev = Z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
-
+        #make_dot(Z_distr.mean, params=dict(policy_np.named_parameters()))
         ax_mean.plot_surface(X1, X2, Z_mean.cpu().numpy(), cmap='viridis',  vmin=-1., vmax=1.)
 
         stddev_low = Z_mean - Z_stddev
@@ -144,19 +148,19 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
         new_means = episode['new_means'][:real_len]
         est_rew = est_rewards[e]
         if e == 0:
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c=colors[e], s=2, label='sampled', alpha=0.1)
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=colors[e], marker='+', label='improved', alpha=0.5)
+            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', s=4, label='sampled', alpha=0.3)
+            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.3)
             leg = ax.legend(loc="upper right")
         else:
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c=colors[e], s=2, alpha=0.1)
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=colors[e], marker='+', alpha=0.5)
+            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', s=4, alpha=0.3)
+            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', alpha=0.3)
 
         a = ax_rew.scatter(states[:, 0].numpy(), states[:, 1].numpy(), actions[:, 0].numpy(), c=est_rew[:], cmap='viridis', alpha=0.5)
 
     cb = fig.colorbar(a)
     cb.set_label('Discounted rewards')
     ax_rew.set_title('Discounted rewards')
-    fig.savefig(args.directory_path+'/policy/Mean improvement/'+name)
+    fig.savefig(args.directory_path+'/policy/Mean improvement/'+name, dpi=250)
     plt.close(fig)
 
 

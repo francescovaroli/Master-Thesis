@@ -37,8 +37,6 @@ parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
 parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
-parser.add_argument('--num-threads', type=int, default=2, metavar='N',
-                    help='number of threads for training (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--min-batch-size', type=int, default=4994, metavar='N',

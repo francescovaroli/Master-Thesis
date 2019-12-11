@@ -181,7 +181,7 @@ def train_value_np(value_replay_memory):
     print('Value training')
     value_np.training = True
     value_data_loader = DataLoader(value_replay_memory, batch_size=args.v_np_batch_size, shuffle=True)
-    value_np_trainer.train(value_data_loader, process_epochs, early_stopping=0)
+    value_np_trainer.train(value_data_loader, args.v_epoch_per_iter, early_stopping=0)
     value_np.training = False
 
 

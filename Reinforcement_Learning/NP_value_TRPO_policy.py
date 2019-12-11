@@ -41,7 +41,7 @@ parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--min-batch-size', type=int, default=4994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
-parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
+parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
@@ -63,6 +63,7 @@ parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--v-np-batch-size', type=int, default=8, metavar='N',
                     help='batch size for np training')
+
 parser.add_argument('--use-attentive-np', default=False, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
@@ -181,7 +182,7 @@ def train_value_np(value_replay_memory):
     print('Value training')
     value_np.training = True
     value_data_loader = DataLoader(value_replay_memory, batch_size=args.v_np_batch_size, shuffle=True)
-    value_np_trainer.train(value_data_loader, args.v_epoch_per_iter, early_stopping=0)
+    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=0)
     value_np.training = False
 
 

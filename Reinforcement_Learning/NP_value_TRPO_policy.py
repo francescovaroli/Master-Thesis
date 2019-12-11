@@ -86,7 +86,6 @@ args = parser.parse_args()
 dtype = torch.float64
 device = args.device
 
-process_epochs = args.v_epochs_per_iter//args.num_processes
 max_episode_len = 999
 num_context_points = max_episode_len - args.num_testing_points
 

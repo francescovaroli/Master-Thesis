@@ -3,12 +3,10 @@ import matplotlib.pyplot as plt
 import torch
 from random import randint
 from torch.utils.data import DataLoader
-from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
 from torch import nn
 
 from multihead_attention_np import AttentiveNeuralProcess
-from dataset_generator import SineData, MultiGPData
 from utils import context_target_split
 import os
 

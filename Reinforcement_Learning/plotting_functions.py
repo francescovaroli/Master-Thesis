@@ -123,11 +123,11 @@ def plot_training_set(i_iter, replay_memory, env, args):
 
 def plot_improvements(batch, improved_context, env, i_iter, args):
 
-    episode = batch[0]
+    episode = batch[-1]
     states = []
     means = []
     actions = []
-    disc_rew  = []
+    disc_rew = []
     num_c = len(episode)
     for transition in episode:
         states.append(transition.state)
@@ -146,9 +146,10 @@ def plot_improvements(batch, improved_context, env, i_iter, args):
     ax.set_title(name)
     set_limits(ax, env, args)
     set_labels(ax)
-    z = improved_context[1][0,:num_c,0].detach().cpu().numpy()
-    xs_context = improved_context[0][0,:num_c,0].detach().cpu().numpy()
-    ys_context = improved_context[0][0,:num_c,1].detach().cpu().numpy()
+    start_ep = improved_context[0].shape[1] - num_c
+    z = improved_context[1][0,start_ep:,0].detach().cpu().numpy()
+    xs_context = improved_context[0][0,start_ep:,0].detach().cpu().numpy()
+    ys_context = improved_context[0][0,start_ep:,1].detach().cpu().numpy()
     state_1 = [state[0] for state in states]
     state_2 = [state[1] for state in states]
     ax.scatter(state_1, state_2, previous, c='r', label='sampled',  alpha=0.2)

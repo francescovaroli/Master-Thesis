@@ -33,15 +33,16 @@ torch.manual_seed(seed)
 data = 'gp'
 kernel = ['matern']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
 mean = ['linear']  # possible means ['linear', 'constant']
-num_tot_samples = 2000
+num_tot_samples = 200
 use_different_test_dataset = False
+fix_sigma = None
 
 # model parameters
-use_attention = False
-use_self_att = True
+use_attention = True
+use_self_att = False
 att_type = 'dot_product'  # attention_types = ['uniform','laplace','dot_product']
 
-epochs = 2
+epochs = 30
 learning_rate = 3e-4
 l = '3e-4'
 batch_size = 4
@@ -49,12 +50,11 @@ num_context = (10, 20)
 num_target = (25, 50)
 
 x_range = (-3., 3.)
-
 x_dim = 1
 y_dim = 1
-r_dim = 128  # Dimension of representation of context points in NP
-z_dim = 128  # Dimension of sampled latent variable
-h_dim = 2*128  # Dimension of hidden layers in encoder and decoder
+r_dim = 4*128  # Dimension of representation of context points in NP
+z_dim = 2*128  # Dimension of sampled latent variable
+h_dim = 4*128  # Dimension of hidden layers in encoder and decoder
 a_dim = 128  # Dimension of attention output
 
 # create ID for saving plots
@@ -97,16 +97,16 @@ plt.savefig(plots_path + '-'.join(kernel) + '_data')
 plt.close()
 # create and train np
 if use_attention:
-    neuralprocess = AttentiveNeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=use_self_att).to(device)
+    neuralprocess = AttentiveNeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, a_dim, use_self_att=use_self_att, fixed_sigma=fix_sigma).to(device)
 else:
-    neuralprocess = NeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim).to(device)
+    neuralprocess = NeuralProcess(x_dim, y_dim, r_dim, z_dim, h_dim, fixed_sigma=fix_sigma).to(device)
 
 
 optimizer = torch.optim.Adam(neuralprocess.parameters(), lr=learning_rate)
 np_trainer = NeuralProcessTrainer(device, neuralprocess, optimizer,
                                   num_context_range=num_context,
                                   num_extra_target_range=num_target,
-                                  print_freq=10000)
+                                  print_freq=5040)
 neuralprocess.training = True
 np_trainer.train(data_loader, epochs)
 
@@ -137,34 +137,36 @@ if not use_attention:
 plt.savefig(plots_path + '-'.join(kernel) + '_prior_'+id)
 plt.close()
 # Extract a batch from data_loader
-for batch in data_loader:
-    break
-
-# Use batch to create random set of context points
-x, y = batch
-num_context_t = randint(*num_context)
-num_target_t = randint(*num_target)
-x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
-                                                  num_context_t,
-                                                  num_target_t)
-
-
-neuralprocess.training = False
-
 plt.figure(4)
-plt.title(mdl + ' Posterior')
-for i in range(64):
-    # Neural process returns distribution over y_target
-    p_y_pred = neuralprocess(x_context, y_context, x_target)
-    # Extract mean of distribution
-    plt.xlabel('x')
-    plt.ylabel('means of y distribution')
-    mu = p_y_pred.loc.detach()
-    plt.plot(x_target.cpu().numpy()[0], mu.cpu().numpy()[0],
-             alpha=0.05, c='b')
+colors = ['r', 'b', 'g', 'y']
+for j in range(2):
+    for batch in data_loader:
+        break
 
-plt.plot(x[0].cpu().numpy(), y[0].cpu().numpy(), alpha=0.3, c='k')
-plt.scatter(x_context[0].cpu().numpy(), y_context[0].cpu().numpy(), c='k')
+    # Use batch to create random set of context points
+    x, y = batch
+    num_context_t = randint(*num_context)
+    num_target_t = randint(*num_target)
+    x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
+                                                      num_context_t,
+                                                      num_target_t)
+
+
+    neuralprocess.training = False
+
+    plt.title(mdl + ' Posterior')
+    for i in range(4):
+        # Neural process returns distribution over y_target
+        p_y_pred = neuralprocess(x_context, y_context, x_target)
+        # Extract mean of distribution
+        plt.xlabel('x')
+        plt.ylabel('means of y distribution')
+        mu = p_y_pred.loc.detach()
+        plt.plot(x_target.cpu().numpy()[0], mu.cpu().numpy()[0],
+                 alpha=0.3, c=colors[j])
+
+    plt.plot(x[0].cpu().numpy(), y[0].cpu().numpy(), alpha=0.3, c='k')
+    plt.scatter(x_context[0].cpu().numpy(), y_context[0].cpu().numpy(), c=colors[j])
 plt.savefig(plots_path + '_posterior_'+id)
 plt.show()
 plt.close()

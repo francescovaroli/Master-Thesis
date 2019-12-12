@@ -7,8 +7,6 @@ import torch
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from random import randint
 import gpytorch
-import matplotlib.gridspec as gridspec
-
 from utils_rl import *
 
 from training_module_RL import NeuralProcessTrainerRL
@@ -22,7 +20,7 @@ print('device: ', device)
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 parent_dir = '/home/francesco/PycharmProjects/MasterThesis/RL memories/TRPO policies&samples MCC(9)/'
-folder_name = '5 datasets all context plotted/'
+folder_name = '5 datasets all context plotted/multihead/'
 memory_dir = parent_dir + 'episodes/'
 
 num_memories = 501
@@ -168,7 +166,7 @@ def sample_context(x, y, num_context=100):
 
 if use_attention:
     neuralprocess = AttentiveNeuralProcess(args.x_dim, args.y_dim, args.r_dim, args.z_dim,
-                                            args.h_dim, args.a_dim, args.att_type).to(device)
+                                            args.h_dim, args.a_dim, use_self_att=True).to(device)
 else:
     neuralprocess = NeuralProcess(args.x_dim, args.y_dim, args.r_dim, args.z_dim, args.h_dim).to(device)
 

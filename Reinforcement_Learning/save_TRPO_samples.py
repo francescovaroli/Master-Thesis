@@ -20,7 +20,7 @@ parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G
                     help='name of the environment to run')
 parser.add_argument('--model-path', metavar='G',
                     help='path of pre-trained model')
-parser.add_argument('--render', action='store_true', default=True,
+parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
@@ -80,7 +80,7 @@ policy_net.to(device)
 value_net.to(device)
 
 """create agent"""
-agent = Agent(env, policy_net, device, running_state=None, render=args.render, num_threads=args.num_threads)
+agent = Agent(env, policy_net, device, running_state=running_state, render=args.render, num_threads=args.num_threads)
 
 
 def update_params(batch):
@@ -98,7 +98,7 @@ def update_params(batch):
     """perform TRPO update"""
     trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl, args.damping, args.l2_reg)
 
-run_id = '(0)'
+run_id = '(test)'
 directory_path = '/home/francesco/PycharmProjects/MasterThesis/RL memories/TRPO policies&samples MCC' + run_id
 
 def plot_policy(policy_net, info):

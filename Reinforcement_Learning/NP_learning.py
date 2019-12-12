@@ -26,7 +26,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
-parser.add_argument('--gamma', type=float, default=0.9, metavar='G',
+parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -34,7 +34,7 @@ parser.add_argument('--replay-memory-size', type=int, default=15, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
                     help='l2 regularization regression (default: 1e-3)')
-parser.add_argument('--max-kl', type=float, default=5e-1, metavar='G',
+parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
@@ -42,7 +42,7 @@ parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=3995, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=15*999, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -53,19 +53,23 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 args = parser.parse_args()
 
-replay_memory_size = 20
-train_on_mean = True  # whether to use the improved mean or actions sampled from them as training set
-improve_mean = True   # whether to use the improved mean or actions sampled from them as context points
+replay_memory_size = 100
+improve_mean = False   # whether to use the improved mean or actions sampled from them as context points
+sample_improved_action = True  # sample actions from improved mean or improve old actions
 use_running_state = False
+coherent = False
+
+frac_replace_actions = 1  # replace mean with actions in training set
 
 # NP params
 r_dim = 256
-z_dim =128
+z_dim = 128
 h_dim = 256
-np_batch_size = 4
+np_batch_size = 8
 
-np_spec = '{}rm_{}e_trainM:{}_imprM:{}_drew'.format(replay_memory_size, args.epochs_per_iter, train_on_mean, improve_mean)
-run_id = '{}b_{}kl_{}gamma_'.format(args.min_batch_size, args.max_kl, args.gamma) + np_spec
+np_spec = '{}z_{}rm_{}e_imprM:{}_sampled_a:{}_RS:{}_replace{}_coh:{}'.format(z_dim, replay_memory_size, args.epochs_per_iter, improve_mean,
+                                                                      sample_improved_action, use_running_state, frac_replace_actions, coherent)
+run_id = np_spec + '{}b_{}kl_{}gamma_'.format(args.min_batch_size, args.max_kl, args.gamma)
 directory_path = '/home/francesco/PycharmProjects/MasterThesis/NP learning results/' + run_id
 
 dtype = torch.float64
@@ -100,7 +104,7 @@ replay_memory = ReplayMemoryDataset(replay_memory_size)
 
 
 """create agent"""
-agent = Agent(env, policy_np, device_np, running_state=running_state, render=args.render, num_threads=args.num_threads)
+agent = Agent(env, policy_np, device_np, running_state=running_state, render=args.render, num_threads=args.num_threads, mean_action=coherent)
 
 def estimate_eta(episode):
     d = episode[0].action.shape[0]
@@ -129,8 +133,12 @@ def improvement_step(memory):
             discounted_reward = tensor(transition.disc_rew).to(dtype).unsqueeze(0)
 
             new_mean = mean + eta*discounted_reward*((action-mean)/stddev)
-            distr = Normal(new_mean[0], stddev[0])
-            new_action = distr.sample()
+            if sample_improved_action:
+                distr = Normal(new_mean[0], stddev[0])
+                new_action = distr.sample()
+            else:
+                new_action = action + eta*discounted_reward*((action-mean)/stddev)
+                new_action = new_action[0]
 
             if first:
                 all_new_states = state.unsqueeze(0)
@@ -153,6 +161,9 @@ def set_labels(ax):
     ax.set_zlabel('Acceleration', fontsize=14)
 
 def set_limits(ax, env):
+    if use_running_state:
+        ax.set_zlim(env.action_space.low, env.action_space.high)
+        return
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
     ax.set_xlim(bounds_low[0], bounds_high[0])
@@ -160,7 +171,7 @@ def set_limits(ax, env):
     ax.set_zlim(env.action_space.low, env.action_space.high)
 
 num_test_context = 999
-def plot_NP_policy(context_xy, iter_pred, num_samples=1):
+def plot_NP_policy(context_xy, iter_pred, avg_rew, num_samples=1):
     policy_np.training = False
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
@@ -184,7 +195,7 @@ def plot_NP_policy(context_xy, iter_pred, num_samples=1):
     Z_mean = Z_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
     Z_stddev = Z_distr.stddev.detach()[0].reshape(X1.shape) # x1_dim x x2_dim
 
-    name = 'NP policy for iteration {}'.format(iter_pred)
+    name = 'NP policy for iteration {}, avg rew {}'.format(iter_pred, int(avg_rew))
     fig = plt.figure(figsize=(16,14)) #figsize=plt.figaspect(1.5)
     fig.suptitle(name, fontsize=20)
     fig.tight_layout()
@@ -261,15 +272,12 @@ def plot_improvements(batch, improved_context, i_iter):
         disc_rew.append(transition.disc_rew)
         actions.append(transition.action)
         means.append(transition.mean)
-    if improve_mean:
-        previous = means
-    else:
-        previous = actions
-    name = 'Improvement iter '+ str(i_iter)
-    fig = plt.figure(figsize=(16,6))
+    previous = means
+    name = 'Improvement iter ' + str(i_iter)
+    fig = plt.figure(figsize=(16, 6))
     fig.suptitle(name, fontsize=20)
     ax = fig.add_subplot(121, projection='3d')
-    name = 'Context improvement iter '+ str(i_iter)
+    name = 'Context improvement iter ' + str(i_iter)
     ax.set_title(name)
     set_limits(ax, env)
     set_labels(ax)
@@ -279,7 +287,7 @@ def plot_improvements(batch, improved_context, i_iter):
     state_1 = [state[0] for state in states]
     state_2 = [state[1] for state in states]
     ax.scatter(state_1, state_2, previous, c='r', label='sampled',  alpha=0.2)
-    ax.scatter(xs_context, ys_context, z, c='y', label='improved', alpha=0.1)
+    ax.scatter(xs_context, ys_context, z, c='y', label='improved', alpha=0.3)
     leg = ax.legend(loc="upper right")
     ax_rew = fig.add_subplot(122, projection='3d')
     set_labels(ax_rew)
@@ -296,7 +304,7 @@ def plot_improvements(batch, improved_context, i_iter):
 def create_directories(directory_path):
     os.mkdir(directory_path)
     os.mkdir(directory_path+'/NP estimate/')
-    os.mkdir(directory_path + '/Mean improvment/')
+    os.mkdir(directory_path + '/Mean improvement/')
     os.mkdir(directory_path + '/Training/')
 
 def sample_context(x, y, num_context=100):
@@ -315,7 +323,7 @@ def sample_context(x, y, num_context=100):
 def train_np(datasets):
     policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, args.epochs_per_iter, early_stopping=0)
+    np_trainer.train(data_loader, args.epochs_per_iter, early_stopping=100)
 
 
 
@@ -327,10 +335,15 @@ def sample_initial_context(num_context, dtype=None):
     all_actions = fix(torch.from_numpy(env.action_space.sample()))
     for i in range(num_context-1):
         state = fix(torch.from_numpy(env.observation_space.sample()))
-        action = fix(torch.from_numpy(env.action_space.sample()))
+        action = fix(torch.from_numpy(env.action_space.sample()/3))
         all_states = torch.cat((all_states, state), dim=0)
         all_actions = torch.cat((all_actions, action), dim=0)
-
+    #fig = plt.figure()
+    #ax = plt.axes(projection="3d")
+    #set_limits(ax, env)
+    #set_labels(ax)
+    #ax.scatter(all_states[:,0].numpy(), all_states[:,1].numpy(), all_actions[:,0].numpy(), c=all_actions[:,0].numpy(), cmap='viridis')
+    #plt.show()
     return [all_states.unsqueeze(0), all_actions.unsqueeze(0)]
 
 
@@ -355,9 +368,15 @@ def main_loop():
         key = 'means' if improve_mean else 'actions'
         improved_context = [all_improved_context['states'], all_improved_context[key]]
 
-        plot_improvements(batch, improved_context, i_iter)
+        # plot improved context and actions' discounted rewards
+        plot_improvements(batch, [all_improved_context['states'], all_improved_context['means']], i_iter)
 
-        training_set = all_improved_context['means'] if train_on_mean else all_improved_context['actions']
+        # create training set
+        training_set = all_improved_context['means']
+        num_action_in_training = int(frac_replace_actions * training_set.shape[1])
+        print('replacing {} means with actions'.format(num_action_in_training))
+        training_set[:, :num_action_in_training, :] = all_improved_context['actions'][:, :num_action_in_training, :]
+
         dataset = MemoryDatasetNP(batch, training_set, device_np, dtype, max_len=999)
         replay_memory.add(dataset)
 
@@ -366,7 +385,7 @@ def main_loop():
         print('replay memory size:', len(replay_memory))
         train_np(replay_memory)
 
-        plot_NP_policy(improved_context, i_iter)
+        plot_NP_policy(improved_context, i_iter, log['avg_reward'])
 
         avg_rewards.append(log['avg_reward'])
         if i_iter % args.log_interval == 0:

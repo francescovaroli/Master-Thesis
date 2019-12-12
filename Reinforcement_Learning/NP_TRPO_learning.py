@@ -38,9 +38,9 @@ parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
 parser.add_argument('--num-threads', type=int, default=5, metavar='N',
                     help='number of threads for agent (default: 4)')
-parser.add_argument('--seed', type=int, default=13, metavar='N',
+parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=4000, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=4994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -80,10 +80,10 @@ optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 np_trainer = NeuralProcessTrainerRL(device_np, policy_np, optimizer,
                                     num_context_range=(400, 500),
                                     num_extra_target_range=(400, 500),
-                                    print_freq=2000)
+                                    print_freq=100)
 """create replay memory"""
 replay_memory_size = 10
-replay_memory = ReplayMemoryDataset(replay_memory_size)
+replay_memory = ReplayMemoryDatasetTRPO(replay_memory_size)
 
 """define actor and critic"""
 if args.use_neural_process:
@@ -123,7 +123,7 @@ def update_params_trpo(batch):
     trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl, args.damping, args.l2_reg)
 
 
-run_id = '(train 4k)'
+run_id = '(train 4kc)'
 directory_path = '/home/francesco/PycharmProjects/MasterThesis/RL memories/TRPO policies&samples MCC' + run_id
 
 def set_labels(ax):
@@ -294,7 +294,7 @@ def main_loop():
             plot_policy(policy_net, (i_iter, log['avg_reward']))
 
         with torch.no_grad():
-            dataset = MemoryDataset(memory.memory, device_np, dtype, max_len=999)
+            dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
             if i_iter > 0:
                 # predict with NP before training on last episode
                 x, y, num_steps = dataset.data[0]
@@ -309,5 +309,5 @@ def main_loop():
     """clean up gpu memory"""
     torch.cuda.empty_cache()
 
-create_directories(directory_path)
+#create_directories(directory_path)
 main_loop()

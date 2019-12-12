@@ -28,11 +28,11 @@ parser.add_argument('--sample-improved-action', default=True,
                     help='sample actions fro improved mean or improve old actions')
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=1e-3, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-threads', type=int, default=1, metavar='N',
+parser.add_argument('--num-threads', type=int, default=3, metavar='N',
                     help='number of threads for agent (default: 4)')
-parser.add_argument('--min-batch-size', type=int, default=5*999, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=3*999, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -40,12 +40,12 @@ parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
-parser.add_argument('--epochs-per-iter', type=int, default=30, metavar='G',
-                    help='training epochs of NP')
 
-parser.add_argument('--replay-memory-size', type=int, default=15, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=21, metavar='G',
+                    help='training epochs of NP')
+parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes')
-parser.add_argument('--z-dim', type=int, default=128, metavar='N',
+parser.add_argument('--z-dim', type=int, default=256, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--r-dim', type=int, default=256, metavar='N',
                     help='dimension of represenation space in np')
@@ -54,7 +54,9 @@ parser.add_argument('--h-dim', type=int, default=256, metavar='N',
 parser.add_argument('--np-batch-size', type=int, default=8, metavar='N',
                     help='batch size for np training')
 
-parser.add_argument('--v-replay-memory-size', type=int, default=80, metavar='G',
+parser.add_argument('--v-epochs-per-iter', type=int, default=30, metavar='G',
+                    help='training epochs of NP')
+parser.add_argument('--v-replay-memory-size', type=int, default=60, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -85,9 +87,9 @@ args = parser.parse_args()
 frac_replace_actions = 1
 
 
-np_spec = 'ValueNP_{}z_{}rm_{}e_imprM:{}_sampled_a:{}_RS:{}_replace{}'.format(args.z_dim, args.replay_memory_size, args.epochs_per_iter, args.improve_mean,
+np_spec = '_{}z_{}rm_{}e_imprM:{}_sampled_a:{}_RS:{}_replace{}'.format(args.z_dim, args.replay_memory_size, args.epochs_per_iter, args.improve_mean,
                                                                       args.sample_improved_action, args.use_running_state, frac_replace_actions)
-run_id = '{}b_{}kl_{}gamma_'.format(args.min_batch_size, args.max_kl, args.gamma) + np_spec
+run_id = 'ValueNP_STD_{}b_{}kl_{}gamma_'.format(args.min_batch_size, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
 torch.set_default_dtype(args.dtype)
@@ -115,14 +117,14 @@ optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer,
                                     num_context_range=(400, 500),
                                     num_extra_target_range=(400, 500),
-                                    print_freq=100)
+                                    print_freq=10)
 
 value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
 value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, value_optimizer,
                                           num_context_range=(400, 500),
                                           num_extra_target_range=(400, 500),
-                                          print_freq=100)
+                                          print_freq=10)
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
@@ -179,18 +181,47 @@ def improvement_step(memory):
     return {'states':all_new_states.unsqueeze(0), 'means':all_new_means.unsqueeze(0), 'actions':all_new_actions.unsqueeze(0)}
 
 
-def sample_context(x, y, num_context=100):
-    x = x.to(args.dtype).to(args.device_np)
-    y = y.to(args.dtype).to(args.device_np)
-    num_points = x.shape[1]
-    # Sample locations of context and target points
-    locations = np.random.choice(num_points,
-                                 size=num_context,
-                                 replace=False)
-    x_context = x[:, locations[:num_context], :]
-    y_context = y[:, locations[:num_context], :]
-    return x_context, y_context
+def estimate_eta_2(actions, means, stddevs, disc_rews):
+    d = actions.shape[-1]
+    if d > 1:
+        raise NotImplementedError('compute eta not implemented for action space of dim>1')
+    else:
+        iter_sum = 0
+        eps = tensor(args.max_kl).to(args.dtype)
+        T = tensor(actions.shape[0]).to(args.dtype)
+        for action, mean, stddev, disc_reward in zip(actions, means, stddevs, disc_rews):
+            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / stddev ** 4
+        denominator = iter_sum.to(args.dtype)
+        return torch.sqrt((T*eps)/denominator)
 
+
+def imporove_mean_stdv(complete_dataset, estimated_disc_rew, values_stdevs):
+    first = True
+    for episode, disc_rewards, values_std in zip(complete_dataset, estimated_disc_rew, values_stdevs):
+        real_len = episode['real_len']
+        states = episode['states'][:real_len]
+        actions = episode['actions'][:real_len]
+        means = episode['means'][:real_len]
+        stddevs = episode['stddevs'][:real_len]
+        eta = estimate_eta_2(actions, means, stddevs, disc_rewards)
+        for state, action, mean, stddev, disc_reward, value_std in zip(states, actions, means, stddevs, disc_rewards, values_std):
+            new_mean = mean + eta * disc_reward * ((action - mean) / stddev)
+            new_stdv = stddev - eta*disc_reward/value_std
+            distr = Normal(new_mean, new_stdv)
+            new_action = distr.sample()
+
+            if first:
+                all_new_states = state.unsqueeze(0)
+                all_new_actions = new_action.unsqueeze(0)
+                all_new_means = new_mean.unsqueeze(0)
+                first = False
+            else:
+                all_new_states = torch.cat((all_new_states, state.unsqueeze(0)), dim=0)
+                all_new_means = torch.cat((all_new_means, new_mean.unsqueeze(0)), dim=0)
+                all_new_actions = torch.cat((all_new_actions, new_action.unsqueeze(0)), dim=0)
+
+    return {'states': all_new_states.unsqueeze(0), 'means': all_new_means.unsqueeze(0),
+            'actions': all_new_actions.unsqueeze(0)}
 
 def train_np(datasets):
     policy_np.training = True
@@ -201,12 +232,13 @@ def train_np(datasets):
 def train_value_np(value_replay_memory):
     value_np.training = True
     value_data_loader = DataLoader(value_replay_memory, batch_size=args.np_batch_size, shuffle=True)
-    value_np_trainer.train(value_data_loader, args.epochs_per_iter, early_stopping=100)
+    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=100)
     value_np.training = False
 
 
 def estimate_disc_rew(all_episodes, i_iter):
     estimated_disc_rew = []
+    value_stddevs = []
     for episode in all_episodes.data:
         real_len = episode['real_len']
         x = episode['states'][:real_len].unsqueeze(0)
@@ -216,9 +248,10 @@ def estimate_disc_rew(all_episodes, i_iter):
             values = values_distr.mean
             r_est = context_y - values
             estimated_disc_rew.append(r_est.view(-1).numpy())
+            value_stddevs.append(values_distr.stddev.view(-1).numpy())
 
     plot_NP_value(value_np, x, context_y, values, r_est, env, args, i_iter)
-    return estimated_disc_rew
+    return estimated_disc_rew, value_stddevs
 
 
 def sample_initial_context():
@@ -262,11 +295,12 @@ def main_loop():
         value_replay_memory.add(complete_dataset)
         train_value_np(value_replay_memory)
 
-        estimated_disc_rew = estimate_disc_rew(complete_dataset, i_iter)
+        estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter)
         memory.set_disc_rew(estimated_disc_rew)
 
         t0 = time.time()
-        all_improved_context = improvement_step(batch)
+        all_improved_context_0 = improvement_step(batch)
+        all_improved_context = imporove_mean_stdv(complete_dataset, estimated_disc_rew, values_stdevs)
         t1 = time.time()
         key = 'means' if args.improve_mean else 'actions'
         improved_context = [all_improved_context['states'], all_improved_context[key]]

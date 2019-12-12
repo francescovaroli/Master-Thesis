@@ -160,7 +160,7 @@ def estimate_eta_2(actions, means, stddevs, disc_rews):
         eps = tensor(args.max_kl).to(args.dtype)
         T = tensor(actions.shape[0]).to(args.dtype)
         for action, mean, stddev, disc_reward in zip(actions, means, stddevs, disc_rews):
-            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / stddev ** 4
+            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2*(stddev ** 4))
         denominator = iter_sum.to(args.dtype)
         return torch.sqrt((T*eps)/denominator)
 

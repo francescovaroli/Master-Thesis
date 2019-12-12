@@ -3,8 +3,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from random import randint
 from utils_rl import *
 import gpytorch
-import graphviz
-from torchviz import make_dot
+from torch.distributions import Normal
 
 
 def set_labels(ax, np_id='policy'):
@@ -50,7 +49,7 @@ def create_plot_grid(env, args, size=20):
     x = x.unsqueeze(0).to(args.dtype).to(args.device_np)
     return x, X1, X2, x1, x2
 
-def plot_NP_policy(policy_np, all_context_xy, iter_pred, avg_rew, env, args, colors):
+def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
     num_test_context = 999
     policy_np.training = False
     x, X1, X2, x1, x2 = create_plot_grid(env, args)
@@ -60,51 +59,61 @@ def plot_NP_policy(policy_np, all_context_xy, iter_pred, avg_rew, env, args, col
     fig = plt.figure(figsize=(16, 14))  # figsize=plt.figaspect(1.5)
     fig.suptitle(name, fontsize=20)
     fig.tight_layout()
-    ax_mean = fig.add_subplot(221, projection='3d')
-    set_labels(ax_mean)
-    set_limits(ax_mean, env, args)
-    ax_mean.set_title('Mean of the NP policies', pad=20, fontsize=16)
 
-    ax_context = fig.add_subplot(223, projection='3d')
+    ax_context = fig.add_subplot(222, projection='3d')
     set_labels(ax_context)
     set_limits(ax_context, env, args)
-    ax_context.set_title('Context points improved', pad=20, fontsize=16)
+    ax_context.set_title('Context points improved', pad=30, fontsize=16)
 
-    ax_samples = fig.add_subplot(224, projection='3d')
-    ax_samples.set_title(' samples from policy', pad=20, fontsize=16)
+    ax_samples = fig.add_subplot(223, projection='3d')
+    ax_samples.set_title('Samples from policy, fixed sigma {}'.format(args.fixed_sigma), pad=30, fontsize=16)
     set_limits(ax_samples, env, args)
     set_labels(ax_samples)
-    # Plot a realization
-    for e, context_xy in enumerate(all_context_xy):
-        #with torch.no_grad():
-        context_x, context_y, real_len = context_xy
-        Z_distr = policy_np(context_x[:real_len], context_y[:real_len], x)  # B x num_points x z_dim  (B=1)
-        Z_mean = Z_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
-        Z_stddev = Z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
-        #make_dot(Z_distr.mean, params=dict(policy_np.named_parameters()))
-        ax_mean.plot_surface(X1, X2, Z_mean.cpu().numpy(), cmap='viridis',  vmin=-1., vmax=1.)
 
-        stddev_low = Z_mean - Z_stddev
-        stddev_high = Z_mean + Z_stddev
-        if e == 0:
-            ax_stdv = fig.add_subplot(222, projection='3d')
-            set_limits(ax_stdv, env, args)
-            set_labels(ax_stdv)
-            ax_stdv.set_title('Standard deviation of one NP policy', pad=20, fontsize=14)
-            i = 0
-            for y_slice in x2:
-                ax_stdv.add_collection3d(
-                    plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen',
-                                     alpha=0.2),
-                    zs=y_slice, zdir='y')
-                i += 1
+    stddev_low_list = []
+    stddev_high_list = []
+    z_distr_list = []
+    for e, context_xy in enumerate(all_context_xy):
+        with torch.no_grad():
+            context_x, context_y, real_len = context_xy
+            z_distr = policy_np(context_x[:real_len], context_y[:real_len], x)  # B x num_points x z_dim  (B=1)
+            z_distr_list.append(z_distr)
+            z_mean = z_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+            z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+            stddev_low_list.append(z_mean - z_stddev)
+            stddev_high_list.append(z_mean + z_stddev)
 
         ax_context.scatter(context_x[0, :real_len, 0], context_x[0, :real_len, 1], context_y[0, :real_len, 0],
                            s=8, c=colors[e])
 
-        Z_sample = Z_distr.sample().detach()[0].reshape(X1.shape)
-        ax_samples.plot_surface(X1, X2, Z_sample.cpu().numpy(), color=colors[e], alpha=0.2)
+    ax_mean = fig.add_subplot(221, projection='3d')
+    for stddev_low, stddev_high in zip(stddev_low_list, stddev_high_list):
+        i = 0
+        for y_slice in x2:
+            ax_mean.add_collection3d(
+                plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen',
+                                 alpha=0.01),
+                zs=y_slice, zdir='y')
+            i += 1
+    for e, z_distr in enumerate(z_distr_list):
+        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        ax_mean.plot_surface(X1, X2, z_mean.cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
 
+        a_distr = Normal(z_distr.mean, args.fixed_sigma*torch.ones_like(z_distr.mean))
+        z_sample = a_distr.sample().detach()[0].reshape(X1.shape)
+        ax_samples.plot_surface(X1, X2, z_sample.cpu().numpy(), color=colors[e], alpha=0.2)
+
+    ax_rm = fig.add_subplot(224, projection='3d')
+    set_limits(ax_rm, env, args)
+    set_labels(ax_rm)
+    ax_rm.set_title('Training set (RM)', pad=30, fontsize=16)
+    for traj in rm:
+        r_len = traj[-1]
+        ax_rm.scatter(traj[0][:r_len, 0].detach(), traj[0][:r_len, 1].detach(), traj[1][:r_len, 0].detach(),
+                      c=traj[1][:r_len, 0].detach(), alpha=0.1, cmap='viridis')
+    set_labels(ax_mean)
+    set_limits(ax_mean, env, args)
+    ax_mean.set_title('Mean of the NP policies', pad=30, fontsize=16)
     # plt.show()
     fig.savefig(args.directory_path + '/policy/'+'/NP estimate/'+name, dpi=250)
     plt.close(fig)
@@ -172,60 +181,71 @@ def plot_rewards_history(avg_rewards, args):
     fig_rew.savefig(args.directory_path + '/average reward')
     plt.close(fig_rew)
 
-def plot_NP_value(value_np, all_states, all_values, all_episodes, all_rews,env, args, i_iter):
-    name = 'Value estimate' + str(i_iter)
+def plot_NP_value(value_np, all_states, all_values, all_episodes, all_rews, rm, env, args, i_iter):
+    name = 'Value estimate ' + str(i_iter)
     fig = plt.figure(figsize=(16, 14))  # figsize=plt.figaspect(1.5)
     fig.suptitle(name, fontsize=20)
     fig.tight_layout()
     value_np.training = False
     x, X1, X2, x1, x2 = create_plot_grid(env, args)
     # Plot a realization
-    V_distr = value_np(all_states, all_rews, x)  # B x num_points x z_dim  (B=1)
-    V_mean = V_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
-    V_stddev = V_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+    with torch.no_grad():
+        V_distr = value_np(all_states, all_rews, x)  # B x num_points x z_dim  (B=1)
+        V_mean = V_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        V_stddev = V_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
     stddev_low = V_mean - V_stddev
     stddev_high = V_mean + V_stddev
     vmin = stddev_low.min()
     vmax = stddev_high.max()
     ax_mean = fig.add_subplot(221, projection='3d')
+    i = 0
+    for y_slice in x2:
+        ax_mean.add_collection3d(
+            plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen', alpha=0.05),
+            zs=y_slice, zdir='y')
+        i += 1
     ax_mean.plot_surface(X1, X2, V_mean.cpu().numpy(), cmap='viridis', vmin=vmin, vmax=vmax)
-    set_labels(ax_mean)
+    set_labels(ax_mean, np_id='value')
     set_limits(ax_mean, env, args, np_id='value')
     ax_mean.set_zlim(vmin, vmax)
 
-    ax_mean.set_title('Mean of the value NP', pad=20, fontsize=16)
+    ax_mean.set_title('Mean and std. dev. of the value NP', pad=25, fontsize=16)
 
-    ax_stdv = fig.add_subplot(222, projection='3d')
-    set_limits(ax_stdv, env, args, np_id='value')
-    set_labels(ax_stdv, np_id='value')
-    ax_stdv.set_title('Standard deviation of the value NP', pad=20, fontsize=14)
+    ax_context = fig.add_subplot(222, projection='3d')
+    set_limits(ax_context, env, args, np_id='value')
+    set_labels(ax_context, np_id='value')
+    ax_context.set_title('Context and  prediction', pad=25, fontsize=16)
 
-
-    ax_stdv.plot_surface(X1, X2, stddev_low.cpu().numpy(), cmap='viridis', vmin=vmin, vmax=vmax)
-    ax_stdv.plot_surface(X1, X2, stddev_high.cpu().numpy(), cmap='viridis', vmin=vmin, vmax=vmax)
-    i = 0
-    for y_slice in x2:
-        ax_stdv.add_collection3d(
-            plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen', alpha=0.2),
-            zs=y_slice, zdir='y')
-        i += 1
-
-    ax = fig.add_subplot(223, projection='3d')
-    set_limits(ax, env, args, np_id='value')
-    set_labels(ax, np_id='value')
-    leg = ax.legend(loc="upper right")
-    ax_diff = fig.add_subplot(224, projection='3d')
-    set_labels(ax_diff, np_id='value')
+    ax_diff = fig.add_subplot(223, projection='3d')
     set_limits(ax_diff, env, args, np_id='value')
+    set_labels(ax_diff, np_id='value')
+    ax_diff.set_title('Q - V advantage estimate', pad=25, fontsize=16)
+    first = True
     for episode, values in zip(all_episodes, all_values):
         real_len = episode['real_len']
         states = episode['states'][:real_len].unsqueeze(0)
         disc_rew = episode['discounted_rewards'][:real_len].unsqueeze(0)
         r_est = disc_rew - values
-        ax.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), disc_rew[0, :, 0].detach(), c='r', label='Discounted rewards',alpha=0.1)
-        ax.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), values[0, :, 0].detach(), c='b', label='Estimated values',alpha=0.1)
-    ax_diff.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), r_est[0, :, 0].detach(), c='g', label='R-V')
-    ax_diff.set_title('Difference btw one disc. rew and Values')
+        if first:
+            ax_context.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), disc_rew[0, :, 0].detach(), c='r',
+                               label='Discounted rewards (~Q)', alpha=0.1)
+            ax_context.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), values[0, :, 0].detach(), c='b',
+                               label='Estimated values (~V)', alpha=0.1)
+        else:
+            ax_context.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), disc_rew[0, :, 0].detach(), c='r',alpha=0.1)
+            ax_context.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), values[0, :, 0].detach(), c='b',alpha=0.1)
+
+        ax_diff.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), r_est[0, :, 0].detach(), c='g', alpha=0.08)
+        first = False
+    leg = ax_context.legend(loc="upper right")
+    ax_rm = fig.add_subplot(224, projection='3d')
+    set_limits(ax_rm, env, args, np_id='value')
+    set_labels(ax_rm, np_id='value')
+    ax_rm.set_title('Training set (RM)', pad=25, fontsize=16)
+    for traj in rm:
+        r_len = traj[-1]
+        ax_rm.scatter(traj[0][:r_len, 0].detach(), traj[0][:r_len, 1].detach(), traj[1][:r_len, 0].detach(),
+                           c=traj[1][:r_len, 0].detach(), alpha=0.1, cmap='viridis')
     fig.savefig(args.directory_path+'/value/'+name)
     plt.close(fig)
 

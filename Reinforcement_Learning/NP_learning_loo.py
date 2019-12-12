@@ -25,9 +25,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=50e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=60e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=8, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=50000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -35,14 +35,12 @@ parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
-parser.add_argument("--init-normal", default=True,
-                    help='inititalize context point from the NP')
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
 parser.add_argument('--fixed-sigma', default=0.4, metavar='N', type=float,
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=10, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=5, metavar='G',
                     help='size of training set in episodes')
@@ -55,9 +53,9 @@ parser.add_argument('--h-dim', type=int, default=128, metavar='N',
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 
-parser.add_argument('--v-epochs-per-iter', type=int, default=10, metavar='G',
+parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=60, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=40, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -76,7 +74,7 @@ parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=1, metavar='N',
+parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='interval between training status logs (default: 10)')
 parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
@@ -91,18 +89,17 @@ parser.add_argument("--plot-every", type=int, default=1,
 parser.add_argument("--num-testing-points", type=int, default=1,
                     help='how many point to use as only testing during NP training')
 args = parser.parse_args()
-plot_freq = 10
 initial_training = True
-init_func = InitFunc.init_xavier
+init_func = InitFunc.init_zero
 
 max_episode_len = 999
 num_context_points = max_episode_len - args.num_testing_points
 
-np_spec = '_{}z_{}rm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size,
+np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points)
-run_id = '/Value_NP_zero_init_mean:{}_A:{}_fixSTD:{}_epV:{}_init_norm:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/Value_NP_meanRM_mean:{}_A:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
-                                                args.init_normal, args.num_ensembles, args.max_kl, args.gamma) + np_spec
+                                                args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
 torch.set_default_dtype(args.dtype)
@@ -116,7 +113,6 @@ if args.use_running_state:
     running_state = ZFilter((state_dim,), clip=5)  # running list of states that allows to access precise mean and std
 else:
     running_state = None
-# running_reward = ZFilter((1,), demean=False, clip=10)
 
 """seeding"""
 np.random.seed(args.seed)
@@ -148,7 +144,7 @@ value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optim
                                           print_freq=50)
 """create replay memory"""
 # force rm to contain only last iter episodes
-replay_memory = ReplayMemoryDataset(args.num_ensembles)
+replay_memory = ReplayMemoryDataset(args.num_ensembles, use_mean=args.use_mean)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
@@ -185,7 +181,7 @@ def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
             for state, action, mean, stddev, disc_reward, value_std in zip(states, actions, means, stddevs, disc_rewards, values_std):
                 new_mean = mean + eta * disc_reward * ((action - mean) / stddev)
                 #distr = Normal(new_mean, stddev)
-                distr = Normal(new_mean, 0.2)
+                distr = Normal(new_mean, args.fixed_sigma)
                 new_action = distr.sample()
                 new_padded_actions[i, :] = new_action
                 new_padded_means[i, :] = new_mean
@@ -258,48 +254,28 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
                 value_stddevs.append(values_distr.stddev.view(-1).numpy())
             all_values.append(values)
     if i_iter % args.plot_every == 0:
-        plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, env, args, i_iter)
+        plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, value_replay_memory, env, args, i_iter)
     return estimated_disc_rew, value_stddevs
 
-def sample_initial_context_uniform(num_episodes):
-    initial_episodes = []
-    bounds_high = env.action_space.high
-    bounds_low = env.action_space.low
-    action_delta = (bounds_high-bounds_low)/num_episodes/2
-    start = (bounds_low + action_delta).item()
-    end = (bounds_high - action_delta).item()
-    initial_means = torch.linspace(start, end, num_episodes)
-    if args.fixed_sigma is not None:
-        std = args.fixed_sigma
-    else:
-        std = min(0.5, action_delta.item())
-    for e in range(num_episodes):
-        states = torch.zeros([1, max_episode_len, state_dim])
-        actions = torch.zeros([1, max_episode_len, action_dim])
-        for i in range(max_episode_len):
-            states[:, i, :] = torch.from_numpy(env.observation_space.sample())
-            actions[:, i, :] = Normal(initial_means[e], std).sample()
-
-        initial_episodes.append([states, actions, max_episode_len])
-    return initial_episodes
 
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     policy_np.apply(init_func)
+
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
-
-        if args.use_attentive_np:
-            z_sample = torch.randn((1, args.z_dim+args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
-        else:
-            z_sample = torch.randn((1, args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
 
         for i in range(max_episode_len):
             states[:, i, :] = torch.from_numpy(env.observation_space.sample())
 
-        means_init, stds_init = policy_np.xz_to_y(states, z_sample)
-        actions_init = Normal(means_init, stds_init).sample()
-        #actions_init = Normal(torch.zeros([1, max_episode_len, 1]), 0.7*torch.ones([1, max_episode_len, 1])).sample()
+        if args.use_attentive_np:
+            dims = [1, max_episode_len, action_dim]
+            distr_init = Normal(zeros(dims), args.fixed_sigma*ones(dims))
+            actions_init = distr_init.sample()
+        else:
+            z_sample = torch.randn((1, args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
+            means_init, stds_init = policy_np.xz_to_y(states, z_sample)
+            actions_init = Normal(means_init, stds_init).sample()
         initial_episodes.append([states, actions_init, max_episode_len])
     return initial_episodes
 
@@ -330,11 +306,8 @@ def main_loop():
     num_episodes = args.num_ensembles
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
-    #print('sampling initial context')
-    if args.init_normal:
-        improved_context_list = sample_initial_context_normal(args.num_ensembles)
-    else:
-        improved_context_list = sample_initial_context_uniform(args.num_ensembles)
+
+    improved_context_list = sample_initial_context_normal(args.num_ensembles)
     plot_initial_context(improved_context_list, colors, env, args, '00')
     if initial_training:
         train_on_initial(improved_context_list)
@@ -351,7 +324,9 @@ def main_loop():
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
 
         value_replay_memory.add(complete_dataset)
+        tv0 = time.time()
         train_value_np(value_replay_memory)
+        tv1 = time.time()
         estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
 
         t0 = time.time()
@@ -363,16 +338,20 @@ def main_loop():
             plot_improvements(complete_dataset, estimated_disc_rew, env, i_iter, args, colors)
 
         # create training set
+        tn0 = time.time()
         replay_memory.add(complete_dataset)
         train_np(replay_memory)
+        tn1 = time.time()
+
         #plot_training_set(i_iter, replay_memory, env, args)
         if i_iter % args.plot_every == 0:
-            plot_NP_policy(policy_np, improved_context_list, i_iter, log['avg_reward'], env, args, colors)
+            plot_NP_policy(policy_np, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
 
         avg_rewards.append(log['avg_reward'])
         if i_iter % args.log_interval == 0:
-            print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
+            print('{}\tT_sample {:.4f} \tT_update {:.4f} \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
+            print('Training:  \tT_policy {:.2f}  \tT_value {:.2f}'.format(tn1-tn0, tv1-tv0))
         if log['avg_reward'] > 96:
             print('converged')
             plot_rewards_history(avg_rewards, args)

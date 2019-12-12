@@ -25,9 +25,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=60e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=30e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=8, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=50000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -52,6 +52,8 @@ parser.add_argument('--h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
+parser.add_argument('--early-stopping', type=int, default=-10, metavar='N',
+                    help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -63,8 +65,10 @@ parser.add_argument('--v-r-dim', type=int, default=128, metavar='N',
                     help='dimension of represenation space in np')
 parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--v-np-batch-size', type=int, default=8, metavar='N',
+parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
+parser.add_argument('--v-early-stopping', type=int, default=0, metavar='N',
+                    help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
                     help='path to plots folder')
@@ -95,8 +99,8 @@ init_func = InitFunc.init_zero
 max_episode_len = 999
 num_context_points = max_episode_len - args.num_testing_points
 
-np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
-                                                       args.epochs_per_iter, num_context_points)
+np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
+                                                       args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
 run_id = '/Value_NP_meanRM_mean:{}_A:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
@@ -156,10 +160,11 @@ def estimate_eta_2(actions, means, stddevs, disc_rews):
     if d > 1:
         raise NotImplementedError('compute eta not implemented for action space of dim>1')
     else:
+        stddev = args.fixed_sigma
         iter_sum = 0
         eps = tensor(args.max_kl).to(args.dtype)
         T = tensor(actions.shape[0]).to(args.dtype)
-        for action, mean, stddev, disc_reward in zip(actions, means, stddevs, disc_rews):
+        for action, mean, stddev_np, disc_reward in zip(actions, means, stddevs, disc_rews):
             iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2*(stddev ** 4))
         denominator = iter_sum.to(args.dtype)
         return torch.sqrt((T*eps)/denominator)
@@ -200,14 +205,14 @@ def train_np(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
     policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=args.np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, epochs, early_stopping=0)
+    np_trainer.train(data_loader, epochs, early_stopping=args.early_stopping)
 
 
 def train_value_np(value_replay_memory):
     print('Value training')
     value_np.training = True
-    value_data_loader = DataLoader(value_replay_memory, batch_size=args.np_batch_size, shuffle=True)
-    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=0)
+    value_data_loader = DataLoader(value_replay_memory, batch_size=args.v_np_batch_size, shuffle=True)
+    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=args.v_early_stopping)
     value_np.training = False
 
 

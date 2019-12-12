@@ -101,7 +101,7 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/Value_NP_meanRM_mean:{}_A:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/Value_NP_mean:{}_A:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
@@ -170,6 +170,7 @@ def estimate_eta_2(actions, means, stddevs, disc_rews):
         return torch.sqrt((T*eps)/denominator)
 
 
+
 def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
     all_improved_context = []
     with torch.no_grad():
@@ -184,8 +185,7 @@ def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
             new_padded_means = torch.zeros_like(episode['means'])
             i = 0
             for state, action, mean, stddev, disc_reward, value_std in zip(states, actions, means, stddevs, disc_rewards, values_std):
-                new_mean = mean + eta * disc_reward * ((action - mean) / stddev)
-                #distr = Normal(new_mean, stddev)
+                new_mean = mean + eta * disc_reward * ((action - mean) / args.fixed_sigma)
                 distr = Normal(new_mean, args.fixed_sigma)
                 new_action = distr.sample()
                 new_padded_actions[i, :] = new_action

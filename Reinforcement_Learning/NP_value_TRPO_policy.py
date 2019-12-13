@@ -82,6 +82,8 @@ parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
 parser.add_argument('--loo', default=False, metavar='N',
                      help='train with leave-one-out method')
+parser.add_argument('--early-stopping', type=int, default=-100, metavar='N',
+                    help='stop training training when avg_loss reaches it')
 args = parser.parse_args()
 
 dtype = torch.float64
@@ -115,7 +117,7 @@ env.seed(args.seed)
 
 if args.use_attentive_np:
     value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim,
-                                      args.z_dim, use_self_att=False).to(args.device)
+                                      args.v_z_dim, use_self_att=False).to(args.device)
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
@@ -182,7 +184,7 @@ def train_value_np(value_replay_memory):
     print('Value training')
     value_np.training = True
     value_data_loader = DataLoader(value_replay_memory, batch_size=args.v_np_batch_size, shuffle=True)
-    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=0)
+    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=args.early_stopping)
     value_np.training = False
 
 

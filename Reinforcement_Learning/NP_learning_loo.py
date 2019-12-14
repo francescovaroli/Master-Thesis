@@ -57,7 +57,7 @@ parser.add_argument('--early-stopping', type=int, default=-10, metavar='N',
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=40, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=5, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -86,6 +86,8 @@ parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
 parser.add_argument('--use-attentive-np', default=False, metavar='N',
                      help='use attention in policy and value NPs')
+parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
+                     help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
@@ -101,8 +103,8 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/Value_NP_mean:{}_A:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
-                                                args.use_attentive_np, args.fixed_sigma, args.episode_specific_value,
+run_id = '/V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+                                                args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
@@ -136,7 +138,7 @@ np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer,
                                     num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                     print_freq=50)
 
-if args.use_attentive_np:
+if args.v_use_attentive_np:
     value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim,
                                       args.z_dim, use_self_att=False).to(args.device_np)
 else:
@@ -376,8 +378,17 @@ def main_loop():
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
-
-        value_replay_memory.add(complete_dataset)
+        if not args.episode_specific_value:
+            iter_dataset = {}
+            iter_states, iter_q = merge_padded_lists([episode['states'] for episode in complete_dataset],
+                                                     [episode['discounted_rewards'] for episode in complete_dataset],
+                                                     max_lens=[episode['real_len'] for episode in complete_dataset])
+            iter_dataset['states'] = iter_states
+            iter_dataset['discounted_rewards'] = iter_q
+            iter_dataset['real_len'] = iter_states.shape[-2]
+            value_replay_memory.add([iter_dataset])
+        else:
+            value_replay_memory.add(complete_dataset)
         tv0 = time.time()
         train_value_np(value_replay_memory)
         tv1 = time.time()
@@ -406,7 +417,7 @@ def main_loop():
             print('{}\tT_sample {:.4f} \tT_update {:.4f} \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
             print('Training:  \tT_policy {:.2f}  \tT_value {:.2f}'.format(tn1-tn0, tv1-tv0))
-        if log['avg_reward'] > 96:
+        if log['avg_reward'] > 95:
             print('converged')
             plot_rewards_history(avg_rewards, args)
 

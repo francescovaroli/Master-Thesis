@@ -54,17 +54,21 @@ class NeuralProcessTrainerLoo():
         epochs : int
             Number of epochs to train for.
         """
+        one_out_list = []
+        for i in range(len(data_loader)):
+            if len(data_loader) == 1:
+                context_list = [ep for j, ep in enumerate(data_loader)]
+            else:
+                context_list = [ep for j, ep in enumerate(data_loader) if j != i]
+            all_context_points = merge_context(context_list)
+            one_out_list.append(all_context_points)
 
         for epoch in range(epochs):
             epoch_loss = 0.
             for i in range(len(data_loader)):
                 self.optimizer.zero_grad()
-                if len(data_loader) == 1:
-                    context_list = [ep for j, ep in enumerate(data_loader)]
-                else:
-                    context_list = [ep for j, ep in enumerate(data_loader) if j != i]
 
-                all_context_points = merge_context(context_list)
+                all_context_points = one_out_list[i]
                 data = data_loader.dataset[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points

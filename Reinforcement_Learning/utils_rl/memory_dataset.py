@@ -15,6 +15,28 @@ def merge_context(context_points_list):
         all_y_context = torch.cat((all_y_context, y_context[:real_len]), dim=-2)
     return all_x_context, all_y_context
 
+def merge_padded_list(points_list, max_lens):
+    '''Transforms a list of episodes' attributes (padded to max_len)
+     into a vector with all points unpadded'''
+    first_len = max_lens[0]
+    all_points = points_list[0][:first_len]
+    for points, real_len in zip(points_list[1:], max_lens[1:]):
+        all_points = torch.cat((all_points, points[:real_len]), dim=-2)
+    return all_points
+
+def merge_padded_lists(*args, max_lens=[]):
+    '''Transforms a list of episodes' attributes (padded to max_len)
+     into a vector with all points unpadded'''
+    first_len = max_lens[0]
+    merged = []
+    for points_list in args:
+        all_points = points_list[0][:first_len]
+        for points, real_len in zip(points_list[1:], max_lens[1:]):
+            all_points = torch.cat((all_points, points[:real_len]), dim=-2)
+        merged.append(all_points)
+    return merged
+
+
 
 class BaseDataset(Dataset):
     """
@@ -99,7 +121,7 @@ class ReplayMemoryDataset(Dataset):
     memory_size: max number of datasets (iterations)
     """
 
-    def __init__(self, memory_size, use_mean=False):
+    def __init__(self, memory_size, use_mean=True):
         self.data = []
         self.max_size = memory_size
         self.use_mean = use_mean

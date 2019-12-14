@@ -25,7 +25,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=30e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=5e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -42,12 +42,12 @@ parser.add_argument('--fixed-sigma', default=0.4, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=5, metavar='G',
-                    help='size of training set in episodes')
+parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
+                    help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--r-dim', type=int, default=128, metavar='N',
-                    help='dimension of represenation space in np')
+                    help='dimension of representation space in np')
 parser.add_argument('--h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
@@ -62,7 +62,7 @@ parser.add_argument('--v-replay-memory-size', type=int, default=40, metavar='G',
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--v-r-dim', type=int, default=128, metavar='N',
-                    help='dimension of represenation space in np')
+                    help='dimension of representation space in np')
 parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
@@ -156,6 +156,7 @@ agent = Agent(env, policy_np, args.device_np, running_state=running_state, rende
               attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
 def estimate_eta_2(actions, means, stddevs, disc_rews):
+    """Compute learning step for an episode"""
     d = actions.shape[-1]
     if d > 1:
         raise NotImplementedError('compute eta not implemented for action space of dim>1')
@@ -169,12 +170,61 @@ def estimate_eta_2(actions, means, stddevs, disc_rews):
         denominator = iter_sum.to(args.dtype)
         return torch.sqrt((T*eps)/denominator)
 
+def estimate_eta_3(actions, means, advantages):
+    """Compute learning step from all the samples of previous iteration"""
+    d = actions.shape[-1]
+    if d > 1:
+        raise NotImplementedError('compute eta not implemented for action space of dim>1')
+    else:
+        stddev = args.fixed_sigma
+        iter_sum = 0
+        eps = tensor(args.max_kl).to(args.dtype)
+        T = tensor(actions.shape[0]).to(args.dtype)
+        for action, mean, disc_reward in zip(actions, means, advantages):
+            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2 * (stddev ** 4))
+        denominator = iter_sum.to(args.dtype)
+        return torch.sqrt((T * eps) / denominator)
 
 
-def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
+def improvement_step_all(complete_dataset, estimated_adv):
+    """Perform improvement step using same eta for all episodes"""
     all_improved_context = []
     with torch.no_grad():
-        for episode, disc_rewards, values_std in zip(complete_dataset, estimated_disc_rew, values_stdevs):
+        all_states, all_means, all_actions = merge_padded_lists([episode['states'] for episode in complete_dataset],
+                                                                [episode['means'] for episode in complete_dataset],
+                                                                [episode['actions'] for episode in complete_dataset],
+                                                                 max_lens=[episode['real_len'] for episode in complete_dataset])
+        all_advantages = [adv for ep in estimated_adv for adv in ep]
+        eta = estimate_eta_3(all_actions, all_means, all_advantages)
+        for episode, episode_adv in zip(complete_dataset, estimated_adv):
+            real_len = episode['real_len']
+            states = episode['states'][:real_len]
+            actions = episode['actions'][:real_len]
+            means = episode['means'][:real_len]
+            new_padded_actions = torch.zeros_like(episode['actions'])
+            new_padded_means = torch.zeros_like(episode['means'])
+            i = 0
+            for state, action, mean, advantage in zip(states, actions, means, episode_adv):
+                new_mean = mean + eta * advantage * ((action - mean) / args.fixed_sigma)
+                distr = Normal(new_mean, args.fixed_sigma)
+                new_action = distr.sample()
+                new_padded_actions[i, :] = new_action
+                new_padded_means[i, :] = new_mean
+                i += 1
+            episode['new_means'] = new_padded_means
+            episode['new_actions'] = new_padded_actions
+            if args.use_mean:
+                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
+            else:
+                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
+
+    return all_improved_context
+
+def improvement_step(complete_dataset, estimated_disc_rew):
+    """Perform improvement step"""
+    all_improved_context = []
+    with torch.no_grad():
+        for episode, disc_rewards in zip(complete_dataset, estimated_disc_rew):
             real_len = episode['real_len']
             states = episode['states'][:real_len]
             actions = episode['actions'][:real_len]
@@ -184,7 +234,7 @@ def improvement_step(complete_dataset, estimated_disc_rew, values_stdevs):
             new_padded_actions = torch.zeros_like(episode['actions'])
             new_padded_means = torch.zeros_like(episode['means'])
             i = 0
-            for state, action, mean, stddev, disc_reward, value_std in zip(states, actions, means, stddevs, disc_rewards, values_std):
+            for state, action, mean, stddev, disc_reward in zip(states, actions, means, stddevs, disc_rewards):
                 new_mean = mean + eta * disc_reward * ((action - mean) / args.fixed_sigma)
                 distr = Normal(new_mean, args.fixed_sigma)
                 new_action = distr.sample()
@@ -320,7 +370,6 @@ def main_loop():
         print('sampling episodes')
         # (1)
         # generate multiple trajectories that reach the minimum batch_size
-        # introduce param context=None when np is policy, these will be the context points used to predict
         policy_np.training = False
         batch, log = agent.collect_episodes(improved_context_list)  # batch of batch_size transitions from multiple
         #print(log['num_steps'], log['num_episodes'])                # episodes (separated by mask=0). Stored in Memory
@@ -335,7 +384,7 @@ def main_loop():
         estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
 
         t0 = time.time()
-        improved_context_list = improvement_step(complete_dataset, estimated_disc_rew, values_stdevs)
+        improved_context_list = improvement_step_all(complete_dataset, estimated_disc_rew)
         t1 = time.time()
         #plot_initial_context(improved_context_list, colors, env, args, i_iter)
         # plot improved context and actions' discounted rewards

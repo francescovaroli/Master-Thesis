@@ -25,7 +25,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
-parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
+parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='gae (default: 0.95)')
@@ -39,7 +39,7 @@ parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=4994, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=4995, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -53,7 +53,7 @@ parser.add_argument('--use-running-state', default=False,
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=60, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=5, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -61,10 +61,10 @@ parser.add_argument('--v-r-dim', type=int, default=128, metavar='N',
                     help='dimension of represenation space in np')
 parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--v-np-batch-size', type=int, default=8, metavar='N',
+parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 
-parser.add_argument('--use-attentive-np', default=False, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
@@ -94,8 +94,8 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}e_num_context:{}/'.format(args.v_z_dim, args.v_replay_memory_size,
                                                        args.v_epochs_per_iter, num_context_points)
-run_id = '/Value_NP_deep2_A:{}_epV:{}_{}bsize_{}kl_{}gamma_'.format(args.use_attentive_np,  args.episode_specific_value,
-                                                                 args.min_batch_size, args.max_kl, args.gamma) + np_spec
+run_id = '/Value_NP_polNN_A:{}_epV:{}_loo:{}_{}bsize_{}kl_{}gamma_'.format(args.use_attentive_np,  args.episode_specific_value,
+                                                                 args.loo, args.min_batch_size, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
 torch.set_default_dtype(dtype)
@@ -178,7 +178,7 @@ def update_params_trpo(batch, i_iter):
     plot_values(value_np, value_net, states, values, advantages, disc_rewards, env, args, i_iter)
 
     """perform TRPO update"""
-    trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl, args.damping, args.l2_reg)
+    trpo_step(policy_net, value_net, states.squeeze(0), actions.squeeze(0), returns.squeeze(0), advantages, args.max_kl, args.damping, args.l2_reg)
 
 def train_value_np(value_replay_memory):
     print('Value training')
@@ -190,6 +190,7 @@ def train_value_np(value_replay_memory):
 
 def create_directories(directory_path):
     os.mkdir(directory_path)
+    os.mkdir(directory_path+'/policies')
 
 
 def main_loop():
@@ -206,11 +207,21 @@ def main_loop():
         t0 = time.time()
         update_params_trpo(batch, i_iter)  # estimate advantages from samples and update policy by TRPO step
         t1 = time.time()
+        plot_policy(policy_net, (i_iter, log['avg_reward'], 'policies'))
 
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
                 i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
 
+        if not args.episode_specific_value:
+            iter_dataset = {}
+            iter_states, iter_q = merge_padded_lists([episode['states'] for episode in complete_dataset],
+                                                     [episode['discounted_rewards'] for episode in complete_dataset],
+                                                     max_lens=[episode['real_len'] for episode in complete_dataset])
+            iter_dataset['states'] = iter_states
+            iter_dataset['discounted_rewards'] = iter_q
+            iter_dataset['real_len'] = iter_states.shape[-2]
+            complete_dataset = [iter_dataset]
         value_replay_memory.add(complete_dataset)
         train_value_np(value_replay_memory)
 
@@ -243,7 +254,7 @@ def plot_values(value_np, value_net, all_states, all_values, all_advantages, all
     set_limits(ax_mean, env, args, np_id='value')
     ax_mean.set_zlim(vmin, vmax)
 
-    ax_mean.set_title('Mean and std. dev. of the value NP', pad=20, fontsize=16)
+    ax_mean.set_title('Mean and std. dev. of the value NP', pad=35, fontsize=16)
 
     '''ax_nn = fig.add_subplot(222, projection='3d')
     set_limits(ax_nn, env, args, np_id='value')
@@ -255,34 +266,81 @@ def plot_values(value_np, value_net, all_states, all_values, all_advantages, all
             state = tensor([_x1, _x2], device=args.device).unsqueeze(0)
             zs.append(value_net(state)[0][0].item())
     Z = (np.array(zs)).reshape(X1.shape).transpose()
-    ax_nn.plot_surface(X1, X2, Z, cmap='viridis', vmin=-1., vmax=1.)'''
+    ax_nn.plot_surface(X1, X2, Z, cmap='viridis', vmin=-1., vmax=1.)
+    
+    ax_adv = fig.add_subplot(224, projection='3d')
+    set_labels(ax_adv, np_id='value')
+    set_limits(ax_adv, env, args, np_id='value')
+    ax_adv.set_title('GAE advantage estimate', pad=35, fontsize=16)
+    ax_adv.scatter(all_states[0, :, 0].detach(), all_states[0, :, 1].detach(), all_advantages[:, 0].detach(), c='g', label='R-V')
+    '''
 
     ax_context = fig.add_subplot(222, projection='3d')
     set_limits(ax_context, env, args, np_id='value')
     set_labels(ax_context, np_id='value')
-    ax_context.set_title('Context and  prediction', pad=20, fontsize=16)
+    ax_context.set_title('Context and  prediction', pad=35, fontsize=16)
 
     ax_diff = fig.add_subplot(223, projection='3d')
     set_limits(ax_diff, env, args, np_id='value')
     set_labels(ax_diff, np_id='value')
-    ax_diff.set_title('Q - V advantage estimate')
+    ax_diff.set_title('Q - V advantage estimate', pad=35, fontsize=16)
     diff = all_rews.squeeze(0) - all_values
     ax_diff.scatter(all_states[0, :, 0].detach(), all_states[0, :, 1].detach(), diff[:,0].detach())
 
-    ax_adv = fig.add_subplot(224, projection='3d')
-    set_labels(ax_adv, np_id='value')
-    set_limits(ax_adv, env, args, np_id='value')
-    ax_adv.set_title('GAE advantage estimate')
 
     ax_context.scatter(all_states[0, :, 0].detach(), all_states[0, :, 1].detach(), all_rews[0, :, 0].detach(), c='r',
                label='Discounted rewards (context)', alpha=0.1)
     ax_context.scatter(all_states[0, :, 0].detach(), all_states[0, :, 1].detach(), all_values[:, 0].detach(), c='b',
                label='Estimated values', alpha=0.1)
-
     leg = ax_context.legend(loc="upper right")
-    ax_adv.scatter(all_states[0, :, 0].detach(), all_states[0, :, 1].detach(), all_advantages[:, 0].detach(), c='g', label='R-V')
+
+    ax_rm = fig.add_subplot(224, projection='3d')
+    set_limits(ax_rm, env, args, np_id='value')
+    set_labels(ax_rm, np_id='value')
+    ax_rm.set_title('One function from training set (RM)', pad=25, fontsize=16)
+    if len(value_replay_memory.data) > 0:
+        traj = value_replay_memory.data[0]
+        r_len = traj[-1]
+        ax_rm.scatter(traj[0][:r_len, 0].detach(), traj[0][:r_len, 1].detach(), traj[1][:r_len, 0].detach(),
+                       c=traj[1][:r_len, 0].detach(), alpha=0.1, cmap='viridis')
     fig.savefig(args.directory_path+name)
     plt.close(fig)
+
+def plot_policy(net, info):
+    from mpl_toolkits.mplot3d import Axes3D
+    # Axes3D import has side effects, it enables using projection='3d' in add_subplot
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    bounds_high = env.observation_space.high
+    bounds_low = env.observation_space.low
+    x1 = np.linspace(bounds_low[0], bounds_high[0], 100)
+    x2 = np.linspace(bounds_low[1], bounds_high[1], 100)
+    X1, X2 = np.meshgrid(x1, x2)
+    zs = []
+    for _x1 in x1:
+        for _x2 in x2:
+            state = tensor([_x1, _x2], device=device).unsqueeze(0)
+            zs.append(net(state)[0][0].item())
+    Z = (np.array(zs)).reshape(X1.shape).transpose()
+
+    ax = plt.axes(projection='3d')
+    ax.set_xlabel('Position')
+    ax.set_ylabel('Velocity')
+    if info[2] == 'policies':
+        ax.set_zlabel('Acceleration')
+        ax.set_zlim(env.action_space.low, env.action_space.high)
+        ax.plot_surface(X1, X2, Z, cmap='viridis',  vmin=-1., vmax=1.)  #
+
+    else:
+        ax.set_zlabel('Value')
+        ax.set_zlim(-50, 100)
+        ax.plot_surface(X1, X2, Z, cmap='viridis', vmin=-50., vmax=100.)  # ,
+
+    name = 'TRPO {} iter: {} avg_rew: {}'.format(info[2], info[0], int(info[1]))
+    ax.set_title(name, pad=20)
+    fig.savefig(args.directory_path+'/'+info[2]+'/'+name)
+    plt.close(fig)
+    # plt.show()
 
 create_directories(args.directory_path)
 main_loop()

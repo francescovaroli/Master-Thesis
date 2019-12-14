@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from torch.distributions.kl import kl_divergence
 from utils import (context_target_split, batch_context_target_mask,
                    img_mask_to_np_input)
+import time
 import numpy as np
 
 class NeuralProcessTrainerRL():
@@ -56,34 +57,40 @@ class NeuralProcessTrainerRL():
         """
         for epoch in range(epochs):
             epoch_loss = 0.
+            t0 = time.time()
             for i, data in enumerate(data_loader):
+                i0 = time.time()
                 self.optimizer.zero_grad()
 
                 x, y, num_points = data
                 num_points = min(num_points).item()
                 # Sample number of context and target points
-                num_context = min(randint(*self.num_context_range), num_points//2)
-                num_extra_target = min(randint(*self.num_extra_target_range), num_points-num_context)
+                num_context = min(randint(*self.num_context_range), num_points-1)
+                num_extra_target = num_points-num_context
 
                 # Create context using only real data (no padded sequences)
                 x_context, y_context, x_target, y_target = \
                     context_target_split(x[:, :num_points,:], y[:, :num_points, :], num_context, num_extra_target)
+                fw0 = time.time()
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
-
+                fw1 = time.time()
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)
+                b0 = time.time()
                 loss.backward()
-
+                b1 = time.time()
+                s0 = time.time()
                 self.optimizer.step()
+                s2 = time.time()
 
                 epoch_loss += loss.item()
-
                 self.steps += 1
-
+                #print('iter tot time: {}, forward:{}, backwards:{}, step: {}'.format(time.time() - i0, fw1-fw0, b1-b0, s2-s0))
             avg_loss = epoch_loss / len(data_loader)
-            if epoch % self.print_freq == 0:
+            if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)
+            #print('epoch time: ', time.time() - t0)
 
             if early_stopping is not None:
                 if avg_loss < early_stopping:
@@ -114,3 +121,16 @@ class NeuralProcessTrainerRL():
         # r_dim (since r_dim is dimension of normal distribution)
         kl = kl_divergence(q_target, q_context).mean(dim=0).sum()
         return -log_likelihood + kl
+
+def getBack(var_grad_fn):
+    print(var_grad_fn)
+    for n in var_grad_fn.next_functions:
+        if n[0]:
+            try:
+                tensor = getattr(n[0], 'variable')
+                print(n[0])
+                print('Tensor with grad found:', tensor)
+                print(' - gradient:', tensor.grad)
+                print()
+            except AttributeError as e:
+                getBack(n[0])

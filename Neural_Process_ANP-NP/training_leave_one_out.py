@@ -72,8 +72,9 @@ class NeuralProcessTrainerLoo():
                 data = data_loader.dataset[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points
-                x_target = random.choice(x[:num_points]).unsqueeze(0).unsqueeze(1)
-                y_target = random.choice(y[:num_points]).unsqueeze(0).unsqueeze(1)
+                index = random.randint(0, num_points)
+                x_target = x[index].unsqueeze(0).unsqueeze(1)
+                y_target = y[index].unsqueeze(0).unsqueeze(1)
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)

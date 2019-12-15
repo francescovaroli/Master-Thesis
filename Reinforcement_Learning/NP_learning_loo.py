@@ -38,7 +38,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=0.4, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.5, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -78,7 +78,7 @@ parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
 parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
@@ -144,7 +144,7 @@ if args.v_use_attentive_np:
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
+value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, value_optimizer,
                                           num_context_range=(num_context_points, num_context_points),
                                           num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                           print_freq=50)

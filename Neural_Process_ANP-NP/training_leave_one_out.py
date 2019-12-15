@@ -20,14 +20,9 @@ class NeuralProcessTrainerLoo():
 
     optimizer : one of torch.optim optimizers
 
-    num_context_range : tuple of ints
-        Number of context points will be sampled uniformly in the range given
-        by num_context_range.
+    num_context_range : not used
 
-    num_extra_target_range : tuple of ints
-        Number of extra target points (as we always include context points in
-        target points, i.e. context points are a subset of target points) will
-        be sampled uniformly in the range given by num_extra_target_range.
+    num_extra_target_range : not used
 
     print_freq : int
         Frequency with which to print loss information during training.
@@ -37,8 +32,6 @@ class NeuralProcessTrainerLoo():
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
-        self.num_context_range = num_context_range
-        self.num_extra_target_range = num_extra_target_range
         self.print_freq = print_freq
         self.steps = 0
         self.epoch_loss_history = []
@@ -72,7 +65,7 @@ class NeuralProcessTrainerLoo():
                 data = data_loader.dataset[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points
-                index = random.randint(0, num_points)
+                index = random.randint(0, num_points-1)
                 x_target = x[index].unsqueeze(0).unsqueeze(1)
                 y_target = y[index].unsqueeze(0).unsqueeze(1)
                 p_y_pred, q_target, q_context = \

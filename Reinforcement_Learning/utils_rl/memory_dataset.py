@@ -7,21 +7,21 @@ def merge_context(context_points_list):
     '''Transforms a list of episodes' context points (padded to max_len)
      into a vector with all points unpadded'''
     all_x_context, all_y_context, real_len = context_points_list[0]
-    all_x_context = all_x_context[:real_len]
-    all_y_context = all_y_context[:real_len]
+    all_x_context = all_x_context[:,:real_len,:]
+    all_y_context = all_y_context[:,:real_len,:]
     for episode_contexts in context_points_list[1:]:
         x_context, y_context, real_len = episode_contexts
-        all_x_context = torch.cat((all_x_context, x_context[:real_len]), dim=-2)
-        all_y_context = torch.cat((all_y_context, y_context[:real_len]), dim=-2)
+        all_x_context = torch.cat((all_x_context, x_context[:,:real_len,:]), dim=-2)
+        all_y_context = torch.cat((all_y_context, y_context[:,:real_len,:]), dim=-2)
     return all_x_context, all_y_context
 
 def merge_padded_list(points_list, max_lens):
     '''Transforms a list of episodes' attributes (padded to max_len)
      into a vector with all points unpadded'''
     first_len = max_lens[0]
-    all_points = points_list[0][:first_len]
+    all_points = points_list[0][:first_len,:]
     for points, real_len in zip(points_list[1:], max_lens[1:]):
-        all_points = torch.cat((all_points, points[:real_len]), dim=-2)
+        all_points = torch.cat((all_points, points[:first_len,:]), dim=-2)
     return all_points
 
 def merge_padded_lists(*args, max_lens=[]):
@@ -30,9 +30,9 @@ def merge_padded_lists(*args, max_lens=[]):
     first_len = max_lens[0]
     merged = []
     for points_list in args:
-        all_points = points_list[0][:first_len]
+        all_points = points_list[0][:first_len,:]
         for points, real_len in zip(points_list[1:], max_lens[1:]):
-            all_points = torch.cat((all_points, points[:real_len]), dim=-2)
+            all_points = torch.cat((all_points, points[:real_len,:]), dim=-2)
         merged.append(all_points)
     return merged
 

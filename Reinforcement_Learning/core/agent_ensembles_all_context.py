@@ -81,13 +81,12 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     break
 
                 state = next_state
-
-        # log stats
-        num_steps += (t + 1)
-        num_episodes += 1
-        total_reward += reward_episode
-        min_reward = min(min_reward, reward_episode)
-        max_reward = max(max_reward, reward_episode)
+            # log stats
+            num_steps += (t + 1)
+            num_episodes += 1
+            total_reward += reward_episode
+            min_reward = min(min_reward, reward_episode)
+            max_reward = max(max_reward, reward_episode)
 
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes

@@ -48,11 +48,16 @@ class NeuralProcessTrainerLoo():
             Number of epochs to train for.
         """
         one_out_list = []
-        for i in range(len(data_loader)):
-            if len(data_loader) == 1:
-                context_list = [ep for j, ep in enumerate(data_loader)]
+        episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
+        for i in range(len(episode_fixed_list)):
+            context_list = []
+            if len(episode_fixed_list) == 1:
+                context_list = [ep for ep in episode_fixed_list]
             else:
-                context_list = [ep for j, ep in enumerate(data_loader) if j != i]
+                for j, ep in enumerate(episode_fixed_list):
+                    if j != i:
+                        context_list.append(ep)
+                #context_list = [ep for j, ep in enumerate(data_loader) if j != i]
             all_context_points = merge_context(context_list)
             one_out_list.append(all_context_points)
 
@@ -62,12 +67,14 @@ class NeuralProcessTrainerLoo():
                 self.optimizer.zero_grad()
 
                 all_context_points = one_out_list[i]
-                data = data_loader.dataset[i]
+                data = episode_fixed_list[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points
                 index = random.randint(0, num_points-1)
-                x_target = x[index].unsqueeze(0).unsqueeze(1)
-                y_target = y[index].unsqueeze(0).unsqueeze(1)
+                x_target = x[:, index, :].unsqueeze(0)
+                y_target = y[:, index, :].unsqueeze(0)
+                #x_target = x.unsqueeze(0)
+                #y_target = y.unsqueeze(0)
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)

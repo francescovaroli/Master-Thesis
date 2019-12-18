@@ -66,7 +66,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     ax_context.set_title('Context points improved', pad=30, fontsize=16)
 
     ax_samples = fig.add_subplot(223, projection='3d')
-    ax_samples.set_title('Samples from policy, fixed sigma {}'.format(args.fixed_sigma), pad=30, fontsize=16)
+    ax_samples.set_title('Samples from policy, fixed sigma {:.2f}'.format(args.fixed_sigma), pad=30, fontsize=16)
     set_limits(ax_samples, env, args)
     set_labels(ax_samples)
 
@@ -178,6 +178,8 @@ def plot_rewards_history(avg_rewards, args):
     ax_rew.plot(np.arange(len(avg_rewards)), avg_rewards)
     ax_rew.set_xlabel('iterations')
     ax_rew.set_ylabel('average reward')
+    ax_rew.set_title('Average Reward History')
+    plt.grid()
     fig_rew.savefig(args.directory_path + '/average reward')
     plt.close(fig_rew)
 
@@ -255,7 +257,7 @@ def plot_initial_context(context_points, colors, env, args, i_iter):
     fig = plt.figure(figsize=(10, 10))
     ax = plt.axes(projection="3d")
     ax.set_title(name)
-    set_limits(ax, env, args)
+    #set_limits(ax, env, args)
     set_labels(ax)
     for e, episode in enumerate(context_points):
         real_len = episode[2]

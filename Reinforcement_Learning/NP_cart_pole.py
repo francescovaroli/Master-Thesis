@@ -28,7 +28,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=50e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -43,7 +43,7 @@ parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
 parser.add_argument('--fixed-sigma', default=0.2, metavar='N', type=float,
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=30, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes ')
@@ -87,7 +87,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=False, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
@@ -106,7 +106,7 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/CARTPOLE_freeRM V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/CARTPOLE_freeSigma V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
@@ -160,22 +160,8 @@ value_replay_memory = ValueReplay(args.v_replay_memory_size)
 agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
               attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
-def estimate_eta_2(actions, means, stddevs, disc_rews):
-    """Compute learning step for an episode"""
-    d = actions.shape[-1]
-    if d > 1:
-        raise NotImplementedError('compute eta not implemented for action space of dim>1')
-    else:
-        stddev = args.fixed_sigma
-        iter_sum = 0
-        eps = tensor(args.max_kl).to(args.dtype)
-        T = tensor(actions.shape[0]).to(args.dtype)
-        for action, mean, stddev_np, disc_reward in zip(actions, means, stddevs, disc_rews):
-            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2*(stddev ** 4))
-        denominator = iter_sum.to(args.dtype)
-        return torch.sqrt((T*eps)/denominator)
 
-def estimate_eta_3(actions, means, advantages):
+def estimate_eta_3(actions, means, advantages, sigmas):
     """Compute learning step from all the samples of previous iteration"""
     d = actions.shape[-1]
     if d > 1:
@@ -185,7 +171,9 @@ def estimate_eta_3(actions, means, advantages):
         iter_sum = 0
         eps = tensor(args.max_kl).to(args.dtype)
         T = tensor(actions.shape[0]).to(args.dtype)
-        for action, mean, disc_reward in zip(actions, means, advantages):
+        for action, mean, disc_reward, sigma in zip(actions, means, advantages, sigmas):
+            if stddev is None:
+                stddev = sigma
             iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2 * (stddev ** 4))
         denominator = iter_sum.to(args.dtype)
         return torch.sqrt((T * eps) / denominator)
@@ -195,12 +183,13 @@ def improvement_step_all(complete_dataset, estimated_adv):
     """Perform improvement step using same eta for all episodes"""
     all_improved_context = []
     with torch.no_grad():
-        all_states, all_means, all_actions = merge_padded_lists([episode['states'] for episode in complete_dataset],
+        all_states, all_means, all_stdv, all_actions = merge_padded_lists([episode['states'] for episode in complete_dataset],
                                                                 [episode['means'] for episode in complete_dataset],
+                                                                [episode['stddevs'] for episode in complete_dataset],
                                                                 [episode['actions'] for episode in complete_dataset],
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
         all_advantages = [adv for ep in estimated_adv for adv in ep]
-        eta = estimate_eta_3(all_actions, all_means, all_advantages)
+        eta = estimate_eta_3(all_actions, all_means, all_advantages, all_stdv)
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
             states = episode['states'][:real_len]
@@ -209,39 +198,13 @@ def improvement_step_all(complete_dataset, estimated_adv):
             new_padded_actions = torch.zeros_like(episode['actions'])
             new_padded_means = torch.zeros_like(episode['means'])
             i = 0
-            for state, action, mean, advantage in zip(states, actions, means, episode_adv):
-                new_mean = mean + eta * advantage * ((action - mean) / args.fixed_sigma)
-                distr = Normal(new_mean, args.fixed_sigma)
-                new_action = distr.sample()
-                new_padded_actions[i, :] = new_action
-                new_padded_means[i, :] = new_mean
-                i += 1
-            episode['new_means'] = new_padded_means
-            episode['new_actions'] = new_padded_actions
-            if args.use_mean:
-                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
-            else:
-                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-
-    return all_improved_context
-
-def improvement_step(complete_dataset, estimated_disc_rew):
-    """Perform improvement step"""
-    all_improved_context = []
-    with torch.no_grad():
-        for episode, disc_rewards in zip(complete_dataset, estimated_disc_rew):
-            real_len = episode['real_len']
-            states = episode['states'][:real_len]
-            actions = episode['actions'][:real_len]
-            means = episode['means'][:real_len]
-            stddevs = episode['stddevs'][:real_len]
-            eta = estimate_eta_2(actions, means, stddevs, disc_rewards)
-            new_padded_actions = torch.zeros_like(episode['actions'])
-            new_padded_means = torch.zeros_like(episode['means'])
-            i = 0
-            for state, action, mean, stddev, disc_reward in zip(states, actions, means, stddevs, disc_rewards):
-                new_mean = mean + eta * disc_reward * ((action - mean) / args.fixed_sigma)
-                distr = Normal(new_mean, args.fixed_sigma)
+            for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
+                if args.fixed_sigma is None:
+                    sigma = stddev
+                else:
+                    sigma = args.fixed_sigma
+                new_mean = mean + eta * advantage * ((action - mean) / sigma)
+                distr = Normal(new_mean, sigma)
                 new_action = distr.sample()
                 new_padded_actions[i, :] = new_action
                 new_padded_means[i, :] = new_mean
@@ -322,7 +285,9 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     #policy_np.apply(init_func)
-
+    sigma = args.fixed_sigma
+    if sigma is None:
+        sigma = 0.2
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
 
@@ -331,7 +296,7 @@ def sample_initial_context_normal(num_episodes):
 
         if args.use_attentive_np or True:
             dims = [1, max_episode_len, action_dim]
-            distr_init = Normal(zeros(dims), args.fixed_sigma*ones(dims))
+            distr_init = Normal(zeros(dims), sigma*ones(dims))
             actions_init = distr_init.sample()
         else:
             z_sample = torch.randn((1, args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
@@ -428,9 +393,9 @@ def main_loop():
         if log['avg_reward'] > 195:
             print('converged')
             plot_rewards_history(avg_rewards, args)
-        if i_iter % 100 == 0:
+        if i_iter % args.plot_every == 0:
             plot_rewards_history(avg_rewards, args)
-        args.fixed_sigma = args.fixed_sigma * args.gamma
+        #args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
 
     """clean up gpu memory"""
@@ -466,50 +431,55 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     policy_np.training = False
     fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
     x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
+    stddev_low_list = []
+    stddev_high_list = []
     z_means_list = []
     for e, context_xy in enumerate(all_context_xy):
         with torch.no_grad():
             context_x, context_y, real_len = context_xy
             z_distr = policy_np(context_x[:,:real_len,:], context_y[:,:real_len,:], x)  # B x num_points x z_dim  (B=1)
-            z_means_list.append(z_distr.mean.detach()[0].reshape(X1.shape))  # x1_dim x x2_dim
-            #z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+            z_mean = z_distr.mean.detach()[0].reshape(X1.shape)
+            z_means_list.append(z_mean)  # x1_dim x x2_dim
+            z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+            stddev_low_list.append(z_mean - z_stddev)
+            stddev_high_list.append(z_mean + z_stddev)
     ax = fig.add_subplot(1,2,1, projection='3d')
+    xp1, xp2 = np.meshgrid(xs[0], xs[2])
     middle_vel = len(X2) // 2
+
+    for stddev_low, stddev_high in zip(stddev_low_list, stddev_high_list):
+        i = 0
+        for y_slice in xs[2]:
+            ax.add_collection3d(
+                plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
+                                 alpha=0.01),
+                zs=y_slice, zdir='y')
+            i += 1
     ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
     ax.set_xlabel('cart position')
     ax.set_ylabel('bar angle')
     ax.set_zlabel('action')
     ax.set_zlim(-1, 1)
-    xp1, xp2 = np.meshgrid(xs[0], xs[2])
     for z_mean in z_means_list:
         ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
     ax = fig.add_subplot(1,2,2, projection='3d')
     ax.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
-    ax.set_xlabel('cart velociti')
+    ax.set_xlabel('cart velocity')
     ax.set_ylabel('bar velocity')
     ax.set_zlabel('action')
     ax.set_zlim(-1, 1)
     xp1, xp2 = np.meshgrid(xs[1], xs[3])
+    for stddev_low, stddev_high in zip(stddev_low_list, stddev_high_list):
+        i = 0
+        for y_slice in  xs[3]:
+            ax.add_collection3d(
+                plt.fill_between(xs[1], stddev_low[middle_vel, i, middle_vel, :].cpu(), stddev_high[middle_vel,i, middle_vel, :].cpu(), color='lightseagreen',
+                                 alpha=0.01),
+                zs=y_slice, zdir='y')
+            i += 1
     for z_mean in z_means_list:
         ax.plot_surface(xp1, xp2, z_mean[middle_vel, :, middle_vel, :].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
-    '''thetas = np.arange(0,20,2)
-    for i, theta in enumerate(thetas):
-        if i == 9:
-            break
-        ax = fig.add_subplot(3, 3, i+1, projection='3d')
-        num_test_context = 999
-        policy_np.training = False
 
-        # set up axes
-        name = 'theta {:.2f}'.format(xs[2][theta]*180/np.pi)
-        ax.set_title(name)
-        ax.set_xlabel('cart position')
-        ax.set_ylabel('cart velocity')
-        ax.set_zlabel('action')
-        ax.set_zlim(-1,1)
-        x, X1, X2, x1, x2 = create_plot_grid(env, args)
-        for z_mean in z_means_list:
-            ax.plot_surface(X1, X2, z_mean[:, :, theta, 0].cpu().numpy(), cmap='viridis')'''
 
     fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
     plt.close(fig)
@@ -570,3 +540,21 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
 
 create_directories(args.directory_path)
 main_loop()
+'''thetas = np.arange(0,20,2)
+for i, theta in enumerate(thetas):
+    if i == 9:
+        break
+    ax = fig.add_subplot(3, 3, i+1, projection='3d')
+    num_test_context = 999
+    policy_np.training = False
+
+    # set up axes
+    name = 'theta {:.2f}'.format(xs[2][theta]*180/np.pi)
+    ax.set_title(name)
+    ax.set_xlabel('cart position')
+    ax.set_ylabel('cart velocity')
+    ax.set_zlabel('action')
+    ax.set_zlim(-1,1)
+    x, X1, X2, x1, x2 = create_plot_grid(env, args)
+    for z_mean in z_means_list:
+        ax.plot_surface(X1, X2, z_mean[:, :, theta, 0].cpu().numpy(), cmap='viridis')'''

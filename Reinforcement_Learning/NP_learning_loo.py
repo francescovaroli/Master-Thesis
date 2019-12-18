@@ -25,11 +25,11 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=5e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
-parser.add_argument('--max-iter-num', type=int, default=50000, metavar='N',
+parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
@@ -38,7 +38,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=0.5, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -57,7 +57,7 @@ parser.add_argument('--early-stopping', type=int, default=-10, metavar='N',
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=5, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -84,7 +84,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=False, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
@@ -144,7 +144,7 @@ if args.v_use_attentive_np:
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, value_optimizer,
+value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
                                           num_context_range=(num_context_points, num_context_points),
                                           num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                           print_freq=50)
@@ -258,6 +258,7 @@ def train_np(datasets, epochs=args.epochs_per_iter):
     policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=args.np_batch_size, shuffle=True)
     np_trainer.train(data_loader, epochs, early_stopping=args.early_stopping)
+    policy_np.training = False
 
 
 def train_value_np(value_replay_memory):
@@ -317,7 +318,7 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
 
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
-    policy_np.apply(init_func)
+    #policy_np.apply(init_func)
 
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
@@ -325,14 +326,10 @@ def sample_initial_context_normal(num_episodes):
         for i in range(max_episode_len):
             states[:, i, :] = torch.from_numpy(env.observation_space.sample())
 
-        if args.use_attentive_np:
-            dims = [1, max_episode_len, action_dim]
-            distr_init = Normal(zeros(dims), args.fixed_sigma*ones(dims))
-            actions_init = distr_init.sample()
-        else:
-            z_sample = torch.randn((1, args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
-            means_init, stds_init = policy_np.xz_to_y(states, z_sample)
-            actions_init = Normal(means_init, stds_init).sample()
+        dims = [1, max_episode_len, action_dim]
+        distr_init = Normal(zeros(dims), args.fixed_sigma*ones(dims))
+        actions_init = distr_init.sample()
+
         initial_episodes.append([states, actions_init, max_episode_len])
     return initial_episodes
 
@@ -389,11 +386,11 @@ def main_loop():
             value_replay_memory.add([iter_dataset])
         else:
             value_replay_memory.add(complete_dataset)
+
+        estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
         tv0 = time.time()
         train_value_np(value_replay_memory)
         tv1 = time.time()
-        estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
-
         t0 = time.time()
         improved_context_list = improvement_step_all(complete_dataset, estimated_disc_rew)
         t1 = time.time()
@@ -420,7 +417,9 @@ def main_loop():
         if log['avg_reward'] > 95:
             print('converged')
             plot_rewards_history(avg_rewards, args)
-
+        if i_iter % args.plot_every == 0:
+            plot_rewards_history(avg_rewards, args)
+        args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
 
     """clean up gpu memory"""

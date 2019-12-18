@@ -106,7 +106,7 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/CARTPOLE_trRL V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/CARTPOLE_freeRM V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
@@ -153,7 +153,7 @@ value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optim
                                           print_freq=50)
 """create replay memory"""
 # force rm to contain only last iter episodes
-replay_memory = ReplayMemoryDataset(args.num_ensembles, use_mean=args.use_mean)
+replay_memory = ReplayMemoryDataset(args.replay_memory_size, use_mean=args.use_mean)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""

@@ -52,12 +52,12 @@ parser.add_argument('--h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--early-stopping', type=int, default=-10, metavar='N',
+parser.add_argument('--early-stopping', type=int, default=-100, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=2, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -67,7 +67,7 @@ parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--v-early-stopping', type=int, default=0, metavar='N',
+parser.add_argument('--v-early-stopping', type=int, default=-100, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
@@ -90,7 +90,7 @@ parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
-parser.add_argument("--plot-every", type=int, default=1,
+parser.add_argument("--plot-every", type=int, default=5,
                     help='plot every n iter')
 parser.add_argument("--num-testing-points", type=int, default=1,
                     help='how many point to use as only testing during NP training')
@@ -270,6 +270,7 @@ def train_value_np(value_replay_memory):
 
 
 def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
+    value_np.training = False
     estimated_disc_rew = []
     value_stddevs = []
     if episode_specific_value:

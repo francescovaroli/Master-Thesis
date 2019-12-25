@@ -3,6 +3,21 @@ import torch
 import random
 
 
+def get_close_context(index, context_list, num_tot_context=1000):
+    num_all_context = 0
+    for e in context_list:
+        num_all_context += e[2]
+    num_tot_context = min(num_tot_context, num_all_context)
+    context_per_ep = num_tot_context//len(context_list)
+    start = max(0, index-context_per_ep//2)
+    end = min(start+context_per_ep, context_list[0][2])
+    chosen_context = [context_list[0][0][:, start:end, :], context_list[0][1][:, start:end, :]]
+    for ep in context_list[1:]:
+        end = min(start + context_per_ep, ep[2])
+        chosen_context[0] = torch.cat([chosen_context[0], ep[0][:, start:end, :]], dim=-2)
+        chosen_context[1] = torch.cat([chosen_context[1], ep[1][:, start:end, :]], dim=-2)
+    return chosen_context
+
 def merge_context(context_points_list):
     '''Transforms a list of episodes' context points (padded to max_len)
      into a vector with all points unpadded'''

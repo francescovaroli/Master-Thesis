@@ -7,8 +7,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
 from new_plotting_functions import *
 from core.common import discounted_rewards
+from core.agent_picker import AgentPicker
 from core.agent_ensembles_all_context import Agent
 from neural_process import NeuralProcess
+from training_leave_one_out_pick import NeuralProcessTrainerLooPick
 from training_leave_one_out import NeuralProcessTrainerLoo
 from training_module_RL import NeuralProcessTrainerRL
 from multihead_attention_np import *
@@ -25,7 +27,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=1e-1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
@@ -36,15 +38,18 @@ parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
 
-parser.add_argument('--use-mean', default=True, metavar='N',
-                    help='train & condit on improved means/actions'),
+parser.add_argument('--pick-context', default=True, metavar='N',
+                    help='pick context points depending on index')
+parser.add_argument('--num-context', default=50, type=int,
+                    help='pick context points depending on index')
+
 parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=128, metavar='N',
+parser.add_argument('--z-dim', type=int, default=100, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
@@ -55,7 +60,7 @@ parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
 parser.add_argument('--early-stopping', type=int, default=-100, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
-parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
+parser.add_argument('--v-epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--v-replay-memory-size', type=int, default=2, metavar='G',
                     help='size of training set in episodes')
@@ -103,8 +108,7 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
-                                                args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
+run_id = '/V&P_Pick_NP_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
@@ -133,10 +137,13 @@ else:
     policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
 
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
-np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer,
-                                    num_context_range=(num_context_points, num_context_points),
-                                    num_extra_target_range=(args.num_testing_points, args.num_testing_points),
-                                    print_freq=50)
+if args.pick_context:
+    np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, args.num_context, print_freq=50)
+else:
+    np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer,
+                                         num_context_range=(num_context_points, num_context_points),
+                                         num_extra_target_range=(args.num_testing_points, args.num_testing_points),
+                                         print_freq=50)
 
 if args.v_use_attentive_np:
     value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim,
@@ -150,12 +157,16 @@ value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optim
                                           print_freq=50)
 """create replay memory"""
 # force rm to contain only last iter episodes
-replay_memory = ReplayMemoryDataset(args.num_ensembles, use_mean=args.use_mean)
+replay_memory = ReplayMemoryDataset(args.num_ensembles, use_mean=True)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
-agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
-              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
+if args.pick_context:
+    agent = AgentPicker(env, policy_np, args.device_np, args.num_context, running_state=running_state, render=args.render,
+                  attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
+else:
+    agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
+                  attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
 def estimate_eta_2(actions, means, stddevs, disc_rews):
     """Compute learning step for an episode"""
@@ -215,7 +226,7 @@ def improvement_step_all(complete_dataset, estimated_adv):
                 i += 1
             episode['new_means'] = new_padded_means
             episode['new_actions'] = new_padded_actions
-            if args.use_mean:
+            if True:
                 all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
             else:
                 all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
@@ -245,7 +256,7 @@ def improvement_step(complete_dataset, estimated_disc_rew):
                 i += 1
             episode['new_means'] = new_padded_means
             episode['new_actions'] = new_padded_actions
-            if args.use_mean:
+            if True:
                 all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
             else:
                 all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
@@ -420,6 +431,8 @@ def main_loop():
             plot_rewards_history(avg_rewards, args)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(avg_rewards, args)
+            if args.pick_context:
+                plot_chosen_context(improved_context_list, args.num_context, i_iter, args)
         args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
 

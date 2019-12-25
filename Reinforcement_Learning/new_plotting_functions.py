@@ -267,3 +267,26 @@ def plot_initial_context(context_points, colors, env, args, i_iter):
         ax.scatter(xs_context, ys_context, z, c=colors[e], alpha=0.5)
     fig.savefig(args.directory_path + '/policy/'+ '/All policies samples/' + name)
     plt.close(fig)
+
+def plot_chosen_context(context_list, num_context, i_iter, args):
+    colors = []
+    num_tested_points = 6
+    for i in range(num_tested_points):
+        colors.append('#%06X' % randint(0, 0xFFFFFF))
+    name = 'Chosen context at iter ' + str(i_iter)
+    fig = plt.figure(figsize=(10, 10))
+    fig.suptitle(name, fontsize=16)
+    test_episode = context_list[0]
+    real_len = test_episode[-1]
+    e = 0
+    for index in np.arange(0, real_len, real_len//(num_tested_points-1)):
+        ax = fig.add_subplot(3, 2, e + 1, projection='3d')
+        ax.set_title('index: '+str(index))
+        x_context, y_context = get_close_context(index, context_list, num_tot_context=num_context)
+        ax.scatter(x_context[0, :, 0], x_context[0, :, 1], y_context[0, :, 0], c=colors[e], alpha=0.6, marker='+', label='Chosen context')
+        ax.scatter(test_episode[0][0, index, 0], test_episode[0][0, index, 1], test_episode[1][0, index, 0],
+                   c='k', alpha=1, label='Target point')
+        e += 1
+        leg = ax.legend(loc="upper right")
+    fig.savefig(args.directory_path + '/policy/'+ '/All policies samples/' + name)
+    plt.close(fig)

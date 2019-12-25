@@ -29,7 +29,7 @@ parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl', type=float, default=1e-1, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=1, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -40,7 +40,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
-parser.add_argument('--num-context', default=50, type=int,
+parser.add_argument('--num-context', default=100, type=int,
                     help='pick context points depending on index')
 
 parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
@@ -107,7 +107,7 @@ max_episode_len = 999
 num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
-                                                       args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
+                                                       args.epochs_per_iter, args.num_context, args.early_stopping, args.v_early_stopping)
 run_id = '/V&P_Pick_NP_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id

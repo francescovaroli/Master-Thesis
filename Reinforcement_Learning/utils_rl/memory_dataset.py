@@ -11,9 +11,13 @@ def get_close_context(index, context_list, num_tot_context=1000):
     context_per_ep = num_tot_context//len(context_list)
     start = max(0, index-context_per_ep//2)
     end = min(start+context_per_ep, context_list[0][2])
+    if end - start < context_per_ep:
+        start = max(0, end - context_per_ep)
     chosen_context = [context_list[0][0][:, start:end, :], context_list[0][1][:, start:end, :]]
     for ep in context_list[1:]:
         end = min(start + context_per_ep, ep[2])
+        if end - start < context_per_ep:
+            start = max(0, end-context_per_ep)
         chosen_context[0] = torch.cat([chosen_context[0], ep[0][:, start:end, :]], dim=-2)
         chosen_context[1] = torch.cat([chosen_context[1], ep[1][:, start:end, :]], dim=-2)
     return chosen_context

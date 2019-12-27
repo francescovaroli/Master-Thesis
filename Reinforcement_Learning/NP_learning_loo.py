@@ -27,9 +27,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=1e-1, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.2, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=1, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -40,7 +40,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
-parser.add_argument('--num-context', default=100, type=int,
+parser.add_argument('--num-context', default=10, type=int,
                     help='pick context points depending on index')
 
 parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
@@ -331,6 +331,9 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     #policy_np.apply(init_func)
+    sigma = 0.5
+    if args.fixed_sigma is not None:
+        sigma = args.fixed_sigma
 
     for e in range(num_episodes):
         states = torch.zeros([1, max_episode_len, state_dim])
@@ -339,7 +342,7 @@ def sample_initial_context_normal(num_episodes):
             states[:, i, :] = torch.from_numpy(env.observation_space.sample())
 
         dims = [1, max_episode_len, action_dim]
-        distr_init = Normal(zeros(dims), args.fixed_sigma*ones(dims))
+        distr_init = Normal(zeros(dims), sigma*ones(dims))
         actions_init = distr_init.sample()
 
         initial_episodes.append([states, actions_init, max_episode_len])

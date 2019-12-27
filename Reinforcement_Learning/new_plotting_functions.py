@@ -66,7 +66,10 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     ax_context.set_title('Context points improved', pad=30, fontsize=16)
 
     ax_samples = fig.add_subplot(223, projection='3d')
-    ax_samples.set_title('Samples from policy, fixed sigma {:.2f}'.format(args.fixed_sigma), pad=30, fontsize=16)
+    if args.fixed_sigma is not None:
+        ax_samples.set_title('Samples from policy, fixed sigma {:.2f}'.format(args.fixed_sigma), pad=30, fontsize=16)
+    else:
+        ax_samples.set_title('Samples from policy, sigma from NP', pad=30, fontsize=16)
     set_limits(ax_samples, env, args)
     set_labels(ax_samples)
 
@@ -98,8 +101,11 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     for e, z_distr in enumerate(z_distr_list):
         z_mean = z_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
         ax_mean.plot_surface(X1, X2, z_mean.cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
-
-        a_distr = Normal(z_distr.mean, args.fixed_sigma*torch.ones_like(z_distr.mean))
+        if args.fixed_sigma is None:
+            sigmas = z_distr.stddev
+        else:
+            sigmas = args.fixed_sigma * torch.ones_like(z_distr.mean)
+        a_distr = Normal(z_distr.mean, sigmas)
         z_sample = a_distr.sample().detach()[0].reshape(X1.shape)
         ax_samples.plot_surface(X1, X2, z_sample.cpu().numpy(), color=colors[e], alpha=0.2)
 

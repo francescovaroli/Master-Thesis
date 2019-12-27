@@ -43,7 +43,7 @@ parser.add_argument('--pick-context', default=True, metavar='N',
 parser.add_argument('--num-context', default=10, type=int,
                     help='pick context points depending on index')
 
-parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=None, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
@@ -168,22 +168,8 @@ else:
     agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
                   attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
-def estimate_eta_2(actions, means, stddevs, disc_rews):
-    """Compute learning step for an episode"""
-    d = actions.shape[-1]
-    if d > 1:
-        raise NotImplementedError('compute eta not implemented for action space of dim>1')
-    else:
-        stddev = args.fixed_sigma
-        iter_sum = 0
-        eps = tensor(args.max_kl).to(args.dtype)
-        T = tensor(actions.shape[0]).to(args.dtype)
-        for action, mean, stddev_np, disc_reward in zip(actions, means, stddevs, disc_rews):
-            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2*(stddev ** 4))
-        denominator = iter_sum.to(args.dtype)
-        return torch.sqrt((T*eps)/denominator)
 
-def estimate_eta_3(actions, means, advantages):
+def estimate_eta_3(actions, means, advantages, sigmas):
     """Compute learning step from all the samples of previous iteration"""
     d = actions.shape[-1]
     if d > 1:
@@ -193,7 +179,9 @@ def estimate_eta_3(actions, means, advantages):
         iter_sum = 0
         eps = tensor(args.max_kl).to(args.dtype)
         T = tensor(actions.shape[0]).to(args.dtype)
-        for action, mean, disc_reward in zip(actions, means, advantages):
+        for action, mean, disc_reward, sigma in zip(actions, means, advantages, sigmas):
+            if stddev is None:
+                stddev = sigma
             iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2 * (stddev ** 4))
         denominator = iter_sum.to(args.dtype)
         return torch.sqrt((T * eps) / denominator)
@@ -203,12 +191,13 @@ def improvement_step_all(complete_dataset, estimated_adv):
     """Perform improvement step using same eta for all episodes"""
     all_improved_context = []
     with torch.no_grad():
-        all_states, all_means, all_actions = merge_padded_lists([episode['states'] for episode in complete_dataset],
+        all_states, all_means, all_stdv, all_actions = merge_padded_lists([episode['states'] for episode in complete_dataset],
                                                                 [episode['means'] for episode in complete_dataset],
+                                                                [episode['stddevs'] for episode in complete_dataset],
                                                                 [episode['actions'] for episode in complete_dataset],
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
         all_advantages = [adv for ep in estimated_adv for adv in ep]
-        eta = estimate_eta_3(all_actions, all_means, all_advantages)
+        eta = estimate_eta_3(all_actions, all_means, all_advantages, all_stdv)
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
             states = episode['states'][:real_len]
@@ -217,39 +206,13 @@ def improvement_step_all(complete_dataset, estimated_adv):
             new_padded_actions = torch.zeros_like(episode['actions'])
             new_padded_means = torch.zeros_like(episode['means'])
             i = 0
-            for state, action, mean, advantage in zip(states, actions, means, episode_adv):
-                new_mean = mean + eta * advantage * ((action - mean) / args.fixed_sigma)
-                distr = Normal(new_mean, args.fixed_sigma)
-                new_action = distr.sample()
-                new_padded_actions[i, :] = new_action
-                new_padded_means[i, :] = new_mean
-                i += 1
-            episode['new_means'] = new_padded_means
-            episode['new_actions'] = new_padded_actions
-            if True:
-                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
-            else:
-                all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-
-    return all_improved_context
-
-def improvement_step(complete_dataset, estimated_disc_rew):
-    """Perform improvement step"""
-    all_improved_context = []
-    with torch.no_grad():
-        for episode, disc_rewards in zip(complete_dataset, estimated_disc_rew):
-            real_len = episode['real_len']
-            states = episode['states'][:real_len]
-            actions = episode['actions'][:real_len]
-            means = episode['means'][:real_len]
-            stddevs = episode['stddevs'][:real_len]
-            eta = estimate_eta_2(actions, means, stddevs, disc_rewards)
-            new_padded_actions = torch.zeros_like(episode['actions'])
-            new_padded_means = torch.zeros_like(episode['means'])
-            i = 0
-            for state, action, mean, stddev, disc_reward in zip(states, actions, means, stddevs, disc_rewards):
-                new_mean = mean + eta * disc_reward * ((action - mean) / args.fixed_sigma)
-                distr = Normal(new_mean, args.fixed_sigma)
+            for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
+                if args.fixed_sigma is None:
+                    sigma = stddev
+                else:
+                    sigma = args.fixed_sigma
+                new_mean = mean + eta * advantage * ((action - mean) / sigma)
+                distr = Normal(new_mean, sigma)
                 new_action = distr.sample()
                 new_padded_actions[i, :] = new_action
                 new_padded_means[i, :] = new_mean
@@ -436,7 +399,8 @@ def main_loop():
             plot_rewards_history(avg_rewards, args)
             if args.pick_context:
                 plot_chosen_context(improved_context_list, args.num_context, i_iter, args)
-        args.fixed_sigma = args.fixed_sigma * args.gamma
+        if args.fixed_sigma is not None:
+            args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
 
     """clean up gpu memory"""

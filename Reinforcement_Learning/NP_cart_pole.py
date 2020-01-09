@@ -19,6 +19,12 @@ from torch.distributions import Normal
 from weights_init import InitFunc
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 torch.set_default_tensor_type(torch.DoubleTensor)
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    torch.set_default_tensor_type('torch.cuda.DoubleTensor')
+else:
+    device = torch.device("cpu")
+print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
 parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
@@ -43,7 +49,7 @@ parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
 parser.add_argument('--fixed-sigma', default=0.2, metavar='N', type=float,
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=12, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes ')
@@ -60,7 +66,7 @@ parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=5, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -75,7 +81,7 @@ parser.add_argument('--v-early-stopping', type=int, default=-1000, metavar='N',
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
                     help='path to plots folder')
-parser.add_argument('--device-np', default=torch.device('cpu'),
+parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
@@ -87,7 +93,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=True, metavar='N',
+parser.add_argument('--use-attentive-np', default=False, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
@@ -106,12 +112,12 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/CARTPOLE_freeSigma V&P_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/CARTPOLE_freeSigma_gpu_VP_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
-torch.set_default_dtype(args.dtype)
+#torch.set_default_dtype(args.dtype)
 
 """environment"""
 env = gym.make(args.env_name)
@@ -274,8 +280,8 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
                 values_distr = value_np(all_states, all_rewards, x)
                 values = values_distr.mean
                 r_est = context_y - values
-                estimated_disc_rew.append(r_est.view(-1).numpy())
-                value_stddevs.append(values_distr.stddev.view(-1).numpy())
+                estimated_disc_rew.append(r_est.view(-1).cpu().numpy())
+                value_stddevs.append(values_distr.stddev.view(-1).cpu().numpy())
             all_values.append(values)
     #if i_iter % args.plot_every == 0:
     #    plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, value_replay_memory, env, args, i_iter)
@@ -515,11 +521,11 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
         a.set_ylabel('bar angle')
     for e, episode in enumerate(all_dataset):
         real_len = episode['real_len']
-        states = episode['states'][:real_len]
-        disc_rew = episode['discounted_rewards'][:real_len]
-        actions = episode['actions'][:real_len]
-        means = episode['means'][:real_len]
-        new_means = episode['new_means'][:real_len]
+        states = episode['states'][:real_len].cpu()
+        disc_rew = episode['discounted_rewards'][:real_len].cpu()
+        actions = episode['actions'][:real_len].cpu()
+        means = episode['means'][:real_len].cpu()
+        new_means = episode['new_means'][:real_len].cpu()
         est_rew = est_rewards[e]
         if e == 0:
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)

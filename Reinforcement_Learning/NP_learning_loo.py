@@ -17,7 +17,15 @@ from multihead_attention_np import *
 from torch.distributions import Normal
 from weights_init import InitFunc
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
+
+
 torch.set_default_tensor_type(torch.DoubleTensor)
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    torch.set_default_tensor_type('torch.cuda.DoubleTensor')
+else:
+    device = torch.device("cpu")
+print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
 parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G',
@@ -27,7 +35,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.01, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -40,10 +48,10 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
-parser.add_argument('--num-context', default=10, type=int,
+parser.add_argument('--num-context', default=50, type=int,
                     help='pick context points depending on index')
 
-parser.add_argument('--fixed-sigma', default=None, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
@@ -77,7 +85,7 @@ parser.add_argument('--v-early-stopping', type=int, default=-100, metavar='N',
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
                     help='path to plots folder')
-parser.add_argument('--device-np', default=torch.device('cpu'),
+parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
@@ -108,11 +116,10 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, args.num_context, args.early_stopping, args.v_early_stopping)
-run_id = '/V&P_Pick_NP_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
+run_id = '/VP_Pick_NP_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
-torch.set_default_dtype(args.dtype)
 
 """environment"""
 env = gym.make(args.env_name)
@@ -256,8 +263,8 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
                 values_distr = value_np(x, context_y, x)
                 values = values_distr.mean
                 r_est = context_y - values
-                estimated_disc_rew.append(r_est.view(-1).numpy())
-                value_stddevs.append(values_distr.stddev.view(-1).numpy())
+                estimated_disc_rew.append(r_est.view(-1).cpu().numpy())
+                value_stddevs.append(values_distr.stddev.view(-1).cpu().numpy())
         all_states = x
         all_values = [values]
         all_episodes = [all_episodes[-1]]
@@ -283,8 +290,8 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
                 values_distr = value_np(all_states, all_rewards, x)
                 values = values_distr.mean
                 r_est = context_y - values
-                estimated_disc_rew.append(r_est.view(-1).numpy())
-                value_stddevs.append(values_distr.stddev.view(-1).numpy())
+                estimated_disc_rew.append(r_est.view(-1).cpu().numpy())
+                value_stddevs.append(values_distr.stddev.view(-1).cpu().numpy())
             all_values.append(values)
     if i_iter % args.plot_every == 0:
         plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, value_replay_memory, env, args, i_iter)

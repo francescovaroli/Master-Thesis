@@ -50,7 +50,7 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
                 action_distribution = Normal(mean, sigma)
 
                 action = action_distribution.sample().squeeze(0).squeeze(0)  # sample from normal distribution
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                     next_state = running_state(next_state)
@@ -60,7 +60,7 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
                     min_c_reward = min(min_c_reward, reward)
                     max_c_reward = max(max_c_reward, reward)
 
-                episode.append(Transition(state, action.numpy(), next_state, reward, mean.numpy(), stddev.numpy(), None))
+                episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(), stddev.cpu().numpy(), None))
 
                 if render:
                     env.render()
@@ -140,13 +140,13 @@ class AgentPicker:
 
     def collect_episodes(self, context_list):
         t_start = time.time()
-        to_device(torch.device('cpu'), self.policy)
+        #to_device(torch.device('cpu'), self.policy)
 
         memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.num_context,
                                       self.render, self.running_state, context_list, self.attention, self.fixed_sigma)
 
         batch = memory.memory
-        to_device(self.device, self.policy)
+        #to_device(self.device, self.policy)
         t_end = time.time()
         mean_a, max_a, min_a = compute_stats(batch)
         log['sample_time'] = t_end - t_start

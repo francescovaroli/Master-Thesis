@@ -8,7 +8,7 @@ def get_close_context(index, context_list, num_tot_context=1000):
     for e in context_list:
         num_all_context += e[2]
     num_tot_context = min(num_tot_context, num_all_context)
-    context_per_ep = num_tot_context//len(context_list)
+    context_per_ep = max(1, num_tot_context//len(context_list))
     start = max(0, index-context_per_ep//2)
     end = min(start+context_per_ep, context_list[0][2])
     if end - start < context_per_ep:

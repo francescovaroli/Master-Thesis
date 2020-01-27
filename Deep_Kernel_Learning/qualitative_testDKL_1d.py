@@ -16,6 +16,7 @@ if torch.cuda.is_available() and False:
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 else:
     device = torch.device('cpu')
+    torch.set_default_tensor_type('torch.DoubleTensor')
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
@@ -27,9 +28,9 @@ parser.add_argument('--x-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--y-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--z-dim', type=int, default=2, metavar='N',
+parser.add_argument('--z-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-dim', type=int, default=200, metavar='N',
+parser.add_argument('--h-dim', type=int, default=100, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--epochs', type=int, default=30, metavar='G',
                     help='training epochs')
@@ -60,7 +61,7 @@ learning_rate = 3e-4
 l = '3e-4'
 x_range = (-3., 3.)
 
-id = 'DKM_{}fcts_{}e_{}b_{}lr_{}z_{}h'.format(args.num_tot_samples, args.epochs, args.batch_size,
+id = 'DKM_{}fcts_{}e_{}b_{}lr_{}z_{}h_Lesswide'.format(args.num_tot_samples, args.epochs, args.batch_size,
                                               l, args.z_dim, args.h_dim)
 
 args.directory_path += id

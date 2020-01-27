@@ -10,7 +10,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew'))
 
 def collect_samples(pid, env, policy, custom_reward, num_context, render,
-                    running_state, context_points_list, attention, fixed_sigma):
+                    running_state, context_points_list, pick_dist, fixed_sigma):
     # (2)
     torch.randn(pid)
     log = dict()
@@ -24,10 +24,9 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
     max_c_reward = -1e6
     num_episodes = 0
     num_ep = len(context_points_list)
-    #all_x_context, all_y_context = merge_context(context_points_list)
     with torch.no_grad():
         for ep in range(num_ep):
-
+            # print('ep: ', ep)
             episode = []
             reward_episode = 0
 
@@ -37,8 +36,12 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
             t_ep = time.time()
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0).unsqueeze(0)
-                all_x_context, all_y_context = get_close_context(t, context_points_list, num_tot_context=num_context)
-                pi = policy(all_x_context, all_y_context, state_var)
+                all_x_context, all_y_context = get_close_context(t, state_var, context_points_list, pick_dist, num_tot_context=num_context)
+                if policy.id == 'DKL':
+                    policy.set_train_data(all_x_context.squeeze(0), all_y_context.squeeze(0).squeeze(-1), strict=False)
+                    pi = policy(state_var)
+                else:
+                    pi = policy(all_x_context, all_y_context, state_var)
                 mean = pi.mean
                 stddev = pi.stddev
 
@@ -49,7 +52,7 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
 
                 action_distribution = Normal(mean, sigma)
 
-                action = action_distribution.sample().squeeze(0).squeeze(0)  # sample from normal distribution
+                action = action_distribution.sample().view(1)  # sample from normal distribution
                 next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
@@ -125,7 +128,7 @@ def merge_log(log_list):
 
 class AgentPicker:
 
-    def __init__(self, env, policy, device, num_context, custom_reward=None, attention=False,
+    def __init__(self, env, policy, device, num_context, custom_reward=None, pick_dist=None,
                  mean_action=False, render=False, running_state=None, fixed_sigma=None):
         self.env = env
         self.policy = policy
@@ -134,7 +137,7 @@ class AgentPicker:
         self.mean_action = mean_action
         self.running_state = running_state
         self.render = render
-        self.attention = attention
+        self.pick_dist = pick_dist
         self.fixed_sigma = fixed_sigma
         self.num_context = num_context
 
@@ -143,7 +146,7 @@ class AgentPicker:
         #to_device(torch.device('cpu'), self.policy)
 
         memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.num_context,
-                                      self.render, self.running_state, context_list, self.attention, self.fixed_sigma)
+                                      self.render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
 
         batch = memory.memory
         #to_device(self.device, self.policy)

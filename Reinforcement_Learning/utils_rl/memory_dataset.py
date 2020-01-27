@@ -1,26 +1,50 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
+import numpy as np
+
 import random
 
-
-def get_close_context(index, context_list, num_tot_context=1000):
-    num_all_context = 0
-    for e in context_list:
-        num_all_context += e[2]
-    num_tot_context = min(num_tot_context, num_all_context)
-    context_per_ep = max(1, num_tot_context//len(context_list))
-    start = max(0, index-context_per_ep//2)
-    end = min(start+context_per_ep, context_list[0][2])
-    if end - start < context_per_ep:
-        start = max(0, end - context_per_ep)
-    chosen_context = [context_list[0][0][:, start:end, :], context_list[0][1][:, start:end, :]]
-    for ep in context_list[1:]:
-        end = min(start + context_per_ep, ep[2])
+def get_close_context(index, target, context_list, dist, num_tot_context=1000):
+    if dist is not None:
+        x1_target = target[0, 0, 0].cpu()
+        x2_target = target[0, 0, 1].cpu()
+        x1_close = []
+        x2_close = []
+        x3_close = []
+        for episode in context_list:
+            real_len = episode[-1]
+            for x1, x2, x3 in zip(episode[0][0,:real_len,0], episode[0][0,:real_len,1], episode[1][0,:real_len,0]):
+                if np.linalg.norm([x1_target-x1.cpu(), x2_target-x2.cpu()]) < dist:
+                    x1_close.append(x1)
+                    x2_close.append(x2)
+                    x3_close.append(x3)
+        if len(x1_close) == 0:
+            x1_close.append(episode[0][0,index,0])
+            x2_close.append(episode[0][0,index,1])
+            x3_close.append(episode[1][0,index,0])
+        closer_context = [torch.tensor([x1_close, x2_close]).transpose(1,0).unsqueeze(0),
+                          torch.tensor(x3_close).view(1,-1,1)]
+        return closer_context
+    else:
+        num_all_context = 0
+        for e in context_list:
+            num_all_context += e[2]
+        num_tot_context = min(num_tot_context, num_all_context)
+        context_per_ep = max(1, num_tot_context // len(context_list))
+        start = max(0, index - context_per_ep // 2)
+        end = min(start + context_per_ep, context_list[0][2])
         if end - start < context_per_ep:
-            start = max(0, end-context_per_ep)
-        chosen_context[0] = torch.cat([chosen_context[0], ep[0][:, start:end, :]], dim=-2)
-        chosen_context[1] = torch.cat([chosen_context[1], ep[1][:, start:end, :]], dim=-2)
-    return chosen_context
+            start = max(0, end - context_per_ep)
+        chosen_context = [context_list[0][0][:, start:end, :], context_list[0][1][:, start:end, :]]
+        for ep in context_list[1:]:
+            end = min(start + context_per_ep, ep[2])
+            if end - start < context_per_ep:
+                start = max(0, end - context_per_ep)
+            chosen_context[0] = torch.cat([chosen_context[0], ep[0][:, start:end, :]], dim=-2)
+            chosen_context[1] = torch.cat([chosen_context[1], ep[1][:, start:end, :]], dim=-2)
+        return chosen_context
+
+
 
 def merge_context(context_points_list):
     '''Transforms a list of episodes' context points (padded to max_len)
@@ -66,7 +90,7 @@ class BaseDataset(Dataset):
         self.keys = ['states', 'actions', 'means', 'stddevs', 'rewards', 'discounted_rewards', 'real_len']
 
         state_dim = len(memory_list[0][0].state)
-        action_dim = len(memory_list[0][0].action)
+        action_dim = (memory_list[0][0].action).size
         unpadded_data = []
         for e, episode in enumerate(memory_list):
             trajectory_states = []

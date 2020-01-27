@@ -38,7 +38,7 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
 
 def discounted_rewards(batch, gamma):
     '''
-    :param rewards: list of list, each of the inner is a trajectory of rewards
+    :param rewards: list of list, each of the inner is a trajectory of transitions
     :return: list of list
     '''
 

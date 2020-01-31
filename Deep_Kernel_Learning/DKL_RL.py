@@ -6,12 +6,13 @@ import time
 from random import randint
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+# Axes3D import has side effects, it enables using projection='3d' in add_subplot
 import gpytorch
 from utils import context_target_split
 from plotting_functions_DKL import plot_posterior
 from torch.utils.data import DataLoader
-from dataset_generator import SineData, MultiGPData
-from DKModel import GPRegressionModel, DKMTrainer
+from core.agent_ensembles_all_context import Agent
+from DKModel import GPRegressionModel, DKMTrainer, DKMTrainer_loo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
 from new_plotting_functions import plot_initial_context, plot_rewards_history, set_labels, create_plot_grid
@@ -21,9 +22,9 @@ from core.agent_picker import AgentPicker
 from multihead_attention_np import *
 from torch.distributions import Normal
 from weights_init import InitFunc
-# Axes3D import has side effects, it enables using projection='3d' in add_subplot
+
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -38,7 +39,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.05, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -51,7 +52,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--z-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-dim', type=int, default=200, metavar='N',
+parser.add_argument('--h-dim', type=int, default=100, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--fixed-sigma', default=0.75, metavar='N', type=float,
                     help='sigma of the policy')
@@ -61,12 +62,15 @@ parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
+parser.add_argument('--scaling', default='uniform', metavar='N',
+                    help='feature extractor scaling')
 
 parser.add_argument('--num-context', type=int, default=1000, metavar='N',
                     help='dimension of latent variable in np')
-#parser.add_argument("--num-target", type=int, default=1,
-#                    help='how many point to use as only testing during NP training')
-
+parser.add_argument("--pick", type=bool, default=False,
+                    help='whether to select a subst of context points')
+parser.add_argument("--loo", type=bool, default=False,
+                    help='plot every n iter')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/DKL learning results/',
                     help='path to plots folder')
@@ -88,14 +92,15 @@ args = parser.parse_args()
 initial_training = True
 init_func = InitFunc.init_zero
 
-learning_rate = 3e-4
-l = '3e-4'
+learning_rate = 1e-3
+l = str(learning_rate)
 
 max_episode_len = 200
 
-dkl_spec = 'DKM_{}e_{}b_{}lr_{}z_{}h_v2/'.format(args.epochs_per_iter, args.batch_size, l, args.z_dim, args.h_dim)
-run_id = 'CARTPOLE_fixSTD:{}_{}ep_{}kl_{}gamma_{}ctx'.format(args.fixed_sigma, args.num_ensembles, args.max_kl,
-                                                             args.gamma, args.num_context) + dkl_spec
+dkl_spec = 'DKM_{}e_{}b_{}lr_{}z_{}h_{}_trainOnTarget_TrainEval_scale(grid)_autoGridSize/'.format(args.epochs_per_iter,
+                                                            args.batch_size, l, args.z_dim, args.h_dim, args.scaling)
+run_id = 'CARTPOLE_fixSTD:{}_{}ep_{}kl_{}gamma_pick{}_{}ctx_{}lr_loo{}'.format(args.fixed_sigma, args.num_ensembles, args.max_kl,
+                                                             args.gamma, args.pick, args.num_context, l, args.loo) + dkl_spec
 args.directory_path += run_id
 
 """environment"""
@@ -123,7 +128,7 @@ def sample_initial_context_normal(num_ensembles):
 
         states = torch.zeros([1, max_episode_len, state_dim])
         for i in range(max_episode_len):
-            states[:, i, :] = torch.randn(state_dim) #torch.from_numpy(env.observation_space.sample())
+            states[:, i, :] = torch.randn(state_dim)  # torch.from_numpy(env.observation_space.sample())
         actions_init = Normal(torch.zeros([1, max_episode_len, action_dim]),
                               sigma*torch.ones([1, max_episode_len, action_dim])).sample()
         initial_episodes.append([states, actions_init, max_episode_len])
@@ -131,33 +136,37 @@ def sample_initial_context_normal(num_ensembles):
 
 '''create policy model'''
 improved_context_list = sample_initial_context_normal(args.num_ensembles)
-x_init, y_init, _ = improved_context_list[0]
+x_init, y_init = merge_context(improved_context_list)
 
 likelihood = gpytorch.likelihoods.GaussianLikelihood().to(device)
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
-                          args.h_dim, args.z_dim, name_id='DKL').to(device)
+                          args.h_dim, args.z_dim, name_id='DKL', scaling=args.scaling).to(device)
 
 
 optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters()},
     {'params': model.covar_module.parameters()},
     {'params': model.mean_module.parameters()},
-    {'params': model.likelihood.parameters()}], lr=0.01)
-
+    {'params': model.likelihood.parameters()}], lr=learning_rate)
 
 
 # train
-model_trainer = DKMTrainer(device, model, optimizer, args, print_freq=10)
-print('start training')
+if args.loo:
+    model_trainer = DKMTrainer_loo(device, model, optimizer, args, print_freq=10)
+else:
+    model_trainer = DKMTrainer(device, model, optimizer, args, print_freq=10)
 
 """create replay memory"""
-# force rm to contain only last iter episodes
 replay_memory = ReplayMemoryDataset(args.replay_memory_size, use_mean=True)
 
 """create agent"""
+if args.pick:
+    agent = AgentPicker(env, model, args.device_np, args.num_context, running_state=running_state, render=args.render,
+                        pick_dist=None, fixed_sigma=args.fixed_sigma)
+else:
 
-agent = AgentPicker(env, model, args.device_np, args.num_context, running_state=running_state, render=args.render,
-                    pick_dist=None, fixed_sigma=args.fixed_sigma)
+    agent = Agent(env, model, args.device_np, custom_reward=None, attention=False, mean_action=False, render=args.render,
+                  running_state=running_state, fixed_sigma=args.fixed_sigma)
 
 def estimate_eta_3(actions, means, advantages, sigmas):
     """Compute learning step from all the samples of previous iteration"""
@@ -218,7 +227,11 @@ def improvement_step_all(complete_dataset, estimated_adv):
 def train_np(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
     data_loader = DataLoader(datasets, batch_size=args.batch_size, shuffle=True)
-    model_trainer.train(data_loader, args.epochs_per_iter, early_stopping=None)
+    model.train()
+    likelihood.train()
+    model_trainer.train_rl(data_loader, args.epochs_per_iter, early_stopping=None)
+    model.eval()
+    likelihood.eval()
 
 
 def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
@@ -274,7 +287,7 @@ def create_directories(directory_path):
 
     os.mkdir(directory_path)
     os.mkdir(directory_path + '/Mean improvement/')
-    os.mkdir(directory_path + '/All policies samples/')
+    os.mkdir(directory_path + '/z/')
 
 avg_rewards = []
 
@@ -286,12 +299,10 @@ def main_loop(improved_context_list):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
 
     for i_iter in range(args.max_iter_num):
-        print('sampling episodes')
-        # (1)
+        print('sampling episodes')        # (1)
         # generate multiple trajectories that reach the minimum batch_size
-        model.training = False
-        batch, log = agent.collect_episodes(improved_context_list)  # batch of batch_size transitions from multiple
-        #print(log['num_steps'], log['num_episodes'])                # episodes (separated by mask=0). Stored in Memory
+        model.eval()
+        batch, log = agent.collect_episodes(improved_context_list, render=(i_iter%10==0))
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
@@ -299,7 +310,6 @@ def main_loop(improved_context_list):
         t0 = time.time()
         improved_context_list = improvement_step_all(complete_dataset, disc_rew)
         t1 = time.time()
-        #plot_initial_context(improved_context_list, colors, env, args, i_iter)
 
         # create training set
         tn0 = time.time()
@@ -308,8 +318,9 @@ def main_loop(improved_context_list):
         tn1 = time.time()
 
         tv0 = time.time()
-        #plot_training_set(i_iter, replay_memory, env, args)
         if i_iter % args.plot_every == 0:
+            # plot_initial_context(improved_context_list, colors, env, args, i_iter)
+            # plot_training_set(i_iter, replay_memory, env, args)
             plot_policy(model, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
             plot_improvements(complete_dataset, disc_rew, env, i_iter, args, colors)
         tv1 = time.time()
@@ -324,7 +335,6 @@ def main_loop(improved_context_list):
             plot_rewards_history(avg_rewards, args)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(avg_rewards, args)
-        #args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
 
     """clean up gpu memory"""
@@ -369,9 +379,9 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
 
     for e, context_xy in enumerate(all_context_xy):
         x_context, y_context, real_len = context_xy
-        ax1c.scatter(x_context[0, :, [0]], x_context[0, :, [2]], y_context.view(-1, 1), cmap='viridis', vmin=-1.,
+        ax1c.scatter(x_context[0, :, [0]].cpu(), x_context[0, :, [2]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
                      vmax=1.)
-        ax2c.scatter(x_context[0, :, [1]], x_context[0, :, [3]], y_context.view(-1, 1), cmap='viridis', vmin=-1.,
+        ax2c.scatter(x_context[0, :, [1]].cpu(), x_context[0, :, [3]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
                      vmax=1.)
         with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
             model.set_train_data(x_context.squeeze(0), y_context.squeeze(0).squeeze(-1), strict=False)
@@ -412,7 +422,7 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
     ax2.set_ylabel('bar velocity')
     ax2.set_zlabel('action')
     ax2.set_zlim(-1, 1)
-    ax1c.set_title('context points for oneep')
+    ax1c.set_title('context points')
     ax1c.set_xlabel('cart position')
     ax1c.set_ylabel('bar angle')
     ax1c.set_zlabel('action')
@@ -430,7 +440,15 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
 
 
     fig.savefig(args.directory_path +str(iter_pred), dpi=250)
+    fig_z, az = plt.subplots(1, 1, figsize=(10,8))
+    with torch.no_grad():
+        z_proj = model.project(x)
+    az.scatter(torch.arange(len(z_proj)).cpu(), z_proj.cpu(), alpha=0.5, s=2)
+    az.set_title('Z projection of the 10x10x10x10 state space')
+    az.set_xlabel('z')
+    fig_z.savefig(args.directory_path +'z/'+str(iter_pred))
     plt.close(fig)
+    plt.close(fig_z)
 
 def set_bounds(axes, dims):
     bounds_high = env.observation_space.high
@@ -444,7 +462,7 @@ def set_bounds(axes, dims):
         nonInf_bounds.append([bound_low, bound_high])
     for ax in axes:
         ax.set_xlim(nonInf_bounds[dims[0]])
-        ax.set_xlim(nonInf_bounds[dims[1]])
+        ax.set_ylim(nonInf_bounds[dims[1]])
 
 
 def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
@@ -456,7 +474,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     name_c = 'Context improvement iter ' + str(i_iter)
     ax.set_title(name_c)
     ax_rew = fig.add_subplot(122, projection='3d')
-    set_bounds([ax, ax_rew], [0,3])
+    set_bounds([ax, ax_rew], [0,2])
     for a in [ax, ax_rew]:
         a.set_zlim(-1, 1)
         a.set_xlabel('cart position')
@@ -507,7 +525,8 @@ def plot_DKL_policy(context_set, model, id, args):
         ax_context.set_title('Context points')
         model.training = False
         with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-            model.set_train_data(x_context.squeeze(0), y_context.squeeze(0).squeeze(-1), strict=False)
+            z = model.project(x_context)
+            model.set_train_data(inputs=z, targets=y_context.view(-1), strict=False)
             p_y_pred = model(x[0:1])
             mu = p_y_pred.mean.reshape(X1.shape).cpu().numpy()
             sigma = p_y_pred.stddev.reshape(X1.shape).cpu().numpy()

@@ -7,12 +7,14 @@ from mpl_toolkits.mplot3d import Axes3D
 
 def plot_posterior(data_loader, model, id, args, title='Posterior', num_func=2):
     plt.figure(4)
+    plt.xlabel('x')
+    plt.ylabel('means of y distribution')
     colors = ['r', 'b', 'g', 'y']
     for j in range(num_func):
-        for data_test in data_loader:
-            break
-        x, y = data_test
 
+        x, y = data_loader.dataset.data[j]
+        x = x.unsqueeze(0)
+        y = y.unsqueeze(0)
         x_context, y_context, x_target, y_target = context_target_split(x[0:1], y[0:1],
                                                                         args.num_context,
                                                                         args.num_target)
@@ -26,8 +28,7 @@ def plot_posterior(data_loader, model, id, args, title='Posterior', num_func=2):
         # Extract mean of distribution
         mu = p_y_pred.loc.detach().cpu().numpy()
         stdv = p_y_pred.stddev.detach().cpu().numpy()
-        plt.xlabel('x')
-        plt.ylabel('means of y distribution')
+
         plt.plot(x[0:1].cpu().numpy()[0].squeeze(-1), mu,
                  alpha=0.9, c=colors[j])
         plt.fill_between(x[0:1].cpu().numpy()[0].squeeze(-1), mu - stdv, mu + stdv, color=colors[j], alpha=0.1)

@@ -355,6 +355,7 @@ class AttentiveNeuralProcess(nn.Module):
         self.xy_to_z = LatentEncoder(x_dim, y_dim, r_dim, z_dim, )
         self.xy_to_a = DeterministicEncoder(x_dim, y_dim, a_dim, Attention(a_dim))
         self.xz_to_y = Decoder(x_dim, z_dim+a_dim, h_dim, y_dim, fixed_sigma)
+        self.id = 'ANP'
 
     def forward(self, x_context, y_context, x_target, y_target=None):
         """

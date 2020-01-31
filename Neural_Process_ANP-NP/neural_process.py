@@ -113,8 +113,6 @@ class Decoder(nn.Module):
         self.fixed_sigma = fixed_sigma
 
         layers = [nn.Linear(x_dim + rep_dim, h_dim),
-                  nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
                   nn.ReLU(inplace=True)]
 
         self.xz_to_hidden = nn.Sequential(*layers)
@@ -188,7 +186,7 @@ class NeuralProcess(nn.Module):
         self.z_dim = z_dim
         self.h_dim = h_dim
         self.fixed_sigma = fixed_sigma
-
+        self.id = 'NP'
         # Initialize networks
         self.xy_to_r = Encoder(x_dim, y_dim, h_dim, r_dim)
         self.r_to_mu_sigma = MuSigmaEncoder(r_dim, z_dim)

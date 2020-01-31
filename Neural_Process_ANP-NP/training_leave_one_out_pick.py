@@ -6,6 +6,7 @@ from torch.distributions.kl import kl_divergence
 import time
 import numpy as np
 
+
 class NeuralProcessTrainerLooPick():
     """
     Class to handle training of Neural Processes and Attentive Neural Process
@@ -27,7 +28,7 @@ class NeuralProcessTrainerLooPick():
     print_freq : int
         Frequency with which to print loss information during training.
     """
-    def __init__(self, device, neural_process, optimizer, num_context, print_freq=100):
+    def __init__(self, device, neural_process, optimizer, pick_dist, num_context, print_freq=100):
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
@@ -35,6 +36,7 @@ class NeuralProcessTrainerLooPick():
         self.steps = 0
         self.epoch_loss_history = []
         self.num_context = num_context
+        self.pick_dist = pick_dist
 
     def train(self, data_loader, epochs, early_stopping=None):
         """
@@ -71,7 +73,9 @@ class NeuralProcessTrainerLooPick():
                 index = random.randint(0, num_points-1)
                 x_target = x[:, index, :].unsqueeze(0)
                 y_target = y[:, index, :].unsqueeze(0)
-                x_context, y_context = get_close_context(index, context_list, num_tot_context=self.num_context)
+                x_context, y_context = get_close_context(index, x_target, context_list,
+                                                         self.pick_dist, num_tot_context=self.num_context)
+                #x_context, y_context = get_close_context(index, context_list, num_tot_context=self.num_context)
                 #x_target = x.unsqueeze(0)
                 #y_target = y.unsqueeze(0)
                 p_y_pred, q_target, q_context = \

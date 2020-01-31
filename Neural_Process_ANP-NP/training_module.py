@@ -3,7 +3,7 @@ import numpy as np
 from random import randint
 from matplotlib import pyplot as plt
 from torch.distributions.kl import kl_divergence
-from utils import (context_target_split, batch_context_target_mask,
+from utils import (context_target_split_CinT, batch_context_target_mask,
                    img_mask_to_np_input)
 
 
@@ -68,7 +68,7 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std):
 
     # Make the plot pretty
     plt.grid('off')
-    plt.show()
+    #plt.show()
     plt.close(fig_train)
 
 class NeuralProcessTrainer():
@@ -134,7 +134,7 @@ class NeuralProcessTrainer():
 
                 x, y = data
                 x_context, y_context, x_target, y_target = \
-                    context_target_split(x, y, num_context, num_extra_target)
+                    context_target_split_CinT(x, y, num_context, num_extra_target)
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
 

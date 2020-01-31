@@ -133,7 +133,7 @@ class MultiGPData(Dataset):
                     # sample from current configuration
                     for i in range(num_samples//self.num_config+1):
                         y = gp.sample()
-                        self.data.append((x, y.unsqueeze(1)))
+                        self.data.append((x, (y+torch.randn(y.shape)*0).unsqueeze(1)))
 
     def __getitem__(self, index):
         return self.data[index]
@@ -199,7 +199,7 @@ class GPData2D(Dataset):
             gp = model(x)
             for i in range(num_samples):
                 y = gp.sample()
-                self.data.append((x, y.unsqueeze(1)))
+                self.data.append((x, (y+torch.randn(y.size())*0.2).unsqueeze(1)))
 
     def __getitem__(self, index):
         return self.data[index]

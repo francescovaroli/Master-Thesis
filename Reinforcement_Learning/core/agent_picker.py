@@ -141,12 +141,12 @@ class AgentPicker:
         self.fixed_sigma = fixed_sigma
         self.num_context = num_context
 
-    def collect_episodes(self, context_list):
+    def collect_episodes(self, context_list, render=False):
         t_start = time.time()
         #to_device(torch.device('cpu'), self.policy)
 
         memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.num_context,
-                                      self.render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
+                                      render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
 
         batch = memory.memory
         #to_device(self.device, self.policy)

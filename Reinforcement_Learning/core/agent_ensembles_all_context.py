@@ -26,16 +26,20 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
 
     all_x_context, all_y_context = merge_context(context_points_list)
     with torch.no_grad():
-        if attention:
-            encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
-        _, z_dist = policy.sample_z(all_x_context, all_y_context)
+        if policy.id == 'DKL':
+            policy.set_train_data(inputs=all_x_context.squeeze(0), targets=all_y_context.view(-1), strict=False)
+        else:
+            if attention:
+                encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
+            _, z_dist = policy.sample_z(all_x_context, all_y_context)
 
         for ep in range(len(context_points_list)):
             #print('episode', ep)
 
             episode = []
             reward_episode = 0
-            z_sample = z_dist.sample()
+            if not policy.id == 'DKL':
+                z_sample = z_dist.sample()
 
             state = env.reset()
             if running_state is not None:
@@ -43,12 +47,17 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
             t_ep = time.time()
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0).unsqueeze(0)
-                if attention:
-                    a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)
-                    representation = torch.cat([z_sample, a_repr.squeeze(0)], dim=-1)
-                    mean, stddev = policy.xz_to_y(state_var, representation)
+                if policy.id == 'DKL':
+                    pi = policy(state_var)
+                    mean = pi.mean
+                    stddev = pi.stddev
                 else:
-                    mean, stddev = policy.xz_to_y(state_var, z_sample)
+                    if attention:
+                        a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)
+                        representation = torch.cat([z_sample, a_repr.squeeze(0)], dim=-1)
+                        mean, stddev = policy.xz_to_y(state_var, representation)
+                    else:
+                        mean, stddev = policy.xz_to_y(state_var, z_sample)
 
                 if fixed_sigma is not None:
                     sigma = fixed_sigma
@@ -61,8 +70,8 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     action = mean  # use mean value
                     mean, stddev = policy.xz_to_y(state_var, z_dist.mean)
                 else:
-                    action = action_distribution.sample().squeeze(0).squeeze(0)  # sample from normal distribution
-                next_state, reward, done, _ = env.step(action.item())
+                    action = action_distribution.sample().view(1)   # sample from normal distribution
+                next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                     next_state = running_state(next_state)
@@ -149,7 +158,7 @@ class Agent:
         self.attention = attention
         self.fixed_sigma = fixed_sigma
 
-    def collect_episodes(self, context_list):
+    def collect_episodes(self, context_list, render=False):
         t_start = time.time()
         # to_device(torch.device('cpu'), self.policy)
 

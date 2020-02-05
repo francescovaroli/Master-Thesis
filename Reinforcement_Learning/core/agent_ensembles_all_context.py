@@ -5,6 +5,7 @@ import math
 import time
 from collections import namedtuple
 from torch.distributions import Normal
+import gpytorch
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew'))
@@ -28,7 +29,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
     with torch.no_grad():
         if policy.id == 'DKL':
             policy.set_train_data(inputs=all_x_context.squeeze(0), targets=all_y_context.view(-1), strict=False)
-        else:
+        elif policy.id == 'ANP':
             if attention:
                 encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
             _, z_dist = policy.sample_z(all_x_context, all_y_context)
@@ -38,7 +39,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
 
             episode = []
             reward_episode = 0
-            if not policy.id == 'DKL':
+            if policy.id == 'ANP':
                 z_sample = z_dist.sample()
 
             state = env.reset()
@@ -48,9 +49,15 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0).unsqueeze(0)
                 if policy.id == 'DKL':
-                    pi = policy(state_var)
+                    with gpytorch.settings.use_toeplitz(True), gpytorch.settings.fast_pred_var():
+                        pi = policy(state_var)
                     mean = pi.mean
                     stddev = pi.stddev
+                    if torch.isnan(stddev):
+                        print(stddev)
+                elif policy.id == 'MI':
+                    mean = policy(all_x_context, all_y_context, state_var)
+                    stddev = tensor([fixed_sigma])
                 else:
                     if attention:
                         a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)

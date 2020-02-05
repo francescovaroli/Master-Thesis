@@ -36,7 +36,7 @@ parser.add_argument('--epochs', type=int, default=100, metavar='G',
                     help='training epochs')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-tot-samples', type=int, default=50, metavar='N',
+parser.add_argument('--num-tot-samples', type=int, default=500, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--num-context', type=int, default=10, metavar='N',
                     help='dimension of latent variable in np')

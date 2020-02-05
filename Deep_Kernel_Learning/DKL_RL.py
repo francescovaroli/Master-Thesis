@@ -39,9 +39,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.5, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.8, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=6, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -52,7 +52,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--z-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-dim', type=int, default=100, metavar='N',
+parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--fixed-sigma', default=0.75, metavar='N', type=float,
                     help='sigma of the policy')
@@ -70,6 +70,12 @@ parser.add_argument('--num-context', type=int, default=1000, metavar='N',
 parser.add_argument("--pick", type=bool, default=False,
                     help='whether to select a subst of context points')
 parser.add_argument("--loo", type=bool, default=False,
+                    help='plot every n iter')
+parser.add_argument("--noise", type=float, default=1e-3,
+                    help='plot every n iter')
+parser.add_argument("--lr_gp", type=float, default=0.001,
+                    help='plot every n iter')
+parser.add_argument("--lr_nn", type=float, default=1e-3,
                     help='plot every n iter')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/DKL learning results/',
@@ -92,15 +98,12 @@ args = parser.parse_args()
 initial_training = True
 init_func = InitFunc.init_zero
 
-learning_rate = 1e-3
-l = str(learning_rate)
-
 max_episode_len = 200
 
-dkl_spec = 'DKM_{}e_{}b_{}lr_{}z_{}h_{}_trainOnTarget_TrainEval_scale(grid)_autoGridSize/'.format(args.epochs_per_iter,
-                                                            args.batch_size, l, args.z_dim, args.h_dim, args.scaling)
-run_id = 'CARTPOLE_fixSTD:{}_{}ep_{}kl_{}gamma_pick{}_{}ctx_{}lr_loo{}'.format(args.fixed_sigma, args.num_ensembles, args.max_kl,
-                                                             args.gamma, args.pick, args.num_context, l, args.loo) + dkl_spec
+dkl_spec = 'DKM_{}e_{}b_{}lr_gp_{}lr_nn_{}z_{}h_{}_{}<noise_trainOnTarget_scale(grid)_autoGridSize_noScale_toepl_/'.format(args.epochs_per_iter,
+                                                            args.batch_size, args.lr_gp, args.lr_nn, args.z_dim, args.h_dim, args.scaling, args.noise)
+run_id = 'CARTPOLE_fixSTD:{}_{}ep_{}kl_{}gamma_pick{}_{}ctx_loo{}_'.format(args.fixed_sigma, args.num_ensembles, args.max_kl,
+                                                             args.gamma, args.pick, args.num_context, args.loo) + dkl_spec
 args.directory_path += run_id
 
 """environment"""
@@ -138,18 +141,31 @@ def sample_initial_context_normal(num_ensembles):
 improved_context_list = sample_initial_context_normal(args.num_ensembles)
 x_init, y_init = merge_context(improved_context_list)
 
-likelihood = gpytorch.likelihoods.GaussianLikelihood().to(device)
+likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(args.noise)).to(device).double()  #
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
-                          args.h_dim, args.z_dim, name_id='DKL', scaling=args.scaling).to(device)
+                          args.h_dim, args.z_dim, name_id='DKL', scaling=args.scaling).to(device).double()
 
-
-optimizer = torch.optim.Adam([
+'''optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters()},
     {'params': model.covar_module.parameters()},
     {'params': model.mean_module.parameters()},
-    {'params': model.likelihood.parameters()}], lr=learning_rate)
+    {'params': model.likelihood.parameters()}], lr=0.01)'''
 
+model.initialize(**{
+    'likelihood.noise': 0.5,
+#    'covar_module.base_kernel.outputscale':.5,
+    'covar_module.base_kernel.lengthscale': 0.5
+})
 
+optimizer = torch.optim.Adam([
+    {'params': model.feature_extractor.parameters(), 'lr':args.lr_nn},
+    {'params': model.likelihood.parameters(), 'lr':args.lr_gp},
+    {'params': model.covar_module.parameters(), 'lr':args.lr_gp},
+    #{'params': model.covar_module.base_kernel.parameters(), 'lr':args.lr_gp},
+    {'params': model.mean_module.parameters(), 'lr':args.lr_gp}])
+
+"""optimizer = torch.optim.Adam([
+    {'params': model.parameters(), 'lr':args.lr_nn}])"""
 # train
 if args.loo:
     model_trainer = DKMTrainer_loo(device, model, optimizer, args, print_freq=10)
@@ -525,8 +541,7 @@ def plot_DKL_policy(context_set, model, id, args):
         ax_context.set_title('Context points')
         model.training = False
         with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-            z = model.project(x_context)
-            model.set_train_data(inputs=z, targets=y_context.view(-1), strict=False)
+            model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
             p_y_pred = model(x[0:1])
             mu = p_y_pred.mean.reshape(X1.shape).cpu().numpy()
             sigma = p_y_pred.stddev.reshape(X1.shape).cpu().numpy()

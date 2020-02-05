@@ -10,7 +10,7 @@ from dataset_generator import SineData, MultiGPData
 from DKModel import GPRegressionModel, DKMTrainer
 import os
 
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -38,11 +38,11 @@ parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='z scaling')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-tot-samples', type=int, default=50, metavar='N',
+parser.add_argument('--num-tot-samples', type=int, default=500, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-context', type=int, default=35, metavar='N',
+parser.add_argument('--num-context', type=int, default=15, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--num-target', type=int, default=65, metavar='N',
+parser.add_argument('--num-target', type=int, default=85, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/plots/DKL/1D/',
                     help='path to plots folder')
@@ -63,7 +63,7 @@ learning_rate = 3e-4
 l = '3e-4'
 x_range = (-5., 5.)
 
-id = 'DKM_{}fcts_{}e_{}b_{}lr_{}z_{}h_{}_2layers_contextTrain'.format(args.num_tot_samples, args.epochs, args.batch_size,
+id = 'DKM_{}fcts_{}e_{}b_{}lr_{}z_{}h_{}_2layers_targetTrain_noise>e-3'.format(args.num_tot_samples, args.epochs, args.batch_size,
                                               l, args.z_dim, args.h_dim, args.scaling)
 
 args.directory_path += id
@@ -88,21 +88,27 @@ x_init, y_init, _, _ = context_target_split(x_init[0:1], y_init[0:1],
 #x_init, y_init = dataset.data[0]
 print('dataset created')
 # create model
-likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-3)).to(device)
+likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.constraints.GreaterThan(1e-3)).to(device)  # noise_constraint=gpytorch.constraints.GreaterThan(1e-3)
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
                           args.h_dim, args.z_dim, name_id=id, scaling=args.scaling).to(device)
 
-
+'''optimizer = torch.optim.Adam([
+    {'params': model.feature_extractor.parameters(), 'lr':0.0001},
+    {'params': model.likelihood.parameters(), 'lr':0.1},
+    {'params': model.covar_module.parameters(), 'lr':0.1},
+    {'params': model.mean_module.parameters(), 'lr':0.1}])
+'''
 optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters()},
     {'params': model.covar_module.parameters()},
+    #{'params': model.covar_module.base_kernel.parameters()},
     {'params': model.mean_module.parameters()},
     {'params': model.likelihood.parameters()}], lr=0.01)
 
 # train
 os.mkdir(args.directory_path)
 
-model_trainer = DKMTrainer(device, model, optimizer, args, print_freq=2)
+model_trainer = DKMTrainer(device, model, optimizer, args, print_freq=20)
 print('start training')
 model.train()
 likelihood.train()

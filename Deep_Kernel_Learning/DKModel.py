@@ -6,22 +6,27 @@ import time
 import random
 from plotting_functions_DKL import plot_posterior, plot_posterior_2d
 from utils_rl.memory_dataset import get_close_context
+from torch import autograd
 
 class LargeFeatureExtractor(torch.nn.Sequential):
     def __init__(self, x_dim, h_dim, out_dim):
         super(LargeFeatureExtractor, self).__init__()
-        self.add_module('linear1', torch.nn.Linear(x_dim, h_dim))  # default h_dim = 1000
+        self.add_module('linear1', torch.nn.Linear(x_dim, h_dim))  # default h_dim = 256
         self.add_module('relu1', torch.nn.ReLU())
         self.add_module('linear2', torch.nn.Linear(h_dim, out_dim))
 
 
 class GPRegressionModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood, h_dim, z_dim, name_id, scaling='uniform'):
+    def __init__(self, train_x, train_y, likelihood, h_dim, z_dim, name_id, scaling='uniform', grid_size=None):
         super(GPRegressionModel, self).__init__(train_x, train_y, likelihood)
-        grid_size = gpytorch.utils.grid.choose_grid_size(train_x)
+        if grid_size is None:
+            grid_size = gpytorch.utils.grid.choose_grid_size(train_x)
+            print('grid_size:', grid_size)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.GridInterpolationKernel(gpytorch.kernels.ScaleKernel(
-            gpytorch.kernels.RBFKernel(ard_num_dims=z_dim)), num_dims=z_dim, grid_size=grid_size)
+        self.covar_module = gpytorch.kernels.GridInterpolationKernel(
+            gpytorch.kernels.RBFKernel(ard_num_dims=z_dim, is_stationary=False), num_dims=z_dim, grid_size=grid_size)  #gpytorch.kernels.ScaleKernel()
+        #self.covar_module = gpytorch.kernels.GridInterpolationKernel(gpytorch.kernels.SpectralMixtureKernel(
+        #                                      num_mixtures=2, ard_num_dims=z_dim), num_dims=z_dim, grid_size=grid_size)
         self.likelihood = likelihood
         _, num_points, x_dim = train_x.size()
         self.feature_extractor = LargeFeatureExtractor(x_dim, h_dim, z_dim)
@@ -35,7 +40,7 @@ class GPRegressionModel(gpytorch.models.ExactGP):
 
         if self.scaling == 'uniform':
             projected_x = projected_x - projected_x.min(-2)[0]
-            z = projected_x / projected_x.max(-2)[0]
+            z = (projected_x / projected_x.max(-2)[0])*100
 
         elif self.scaling == 'normal':
             z = (projected_x - projected_x.mean())/projected_x.std()
@@ -85,7 +90,8 @@ class DKMTrainer():
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 self.model.eval()
                 self.model.likelihood.eval()
-                try:
+                #try:
+                with gpytorch.settings.use_toeplitz(True):
                     predictions = self.model(x_target)
                     self.model.train()
                     self.model.likelihood.train()
@@ -96,12 +102,16 @@ class DKMTrainer():
                         self.model.eval()
                         self.model.likelihood.eval()
                         s = self.model(x_target)
-                except RuntimeError:
-                    predictions = self.model(x_target)
-                loss.backward()
+                    #except RuntimeError:
+                    #    predictions = self.model(x_target)
+                    loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
+            print('epoch %d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (epoch, loss.item(),
+                self.model.covar_module.base_kernel.lengthscale.item(),
+                #self.model.covar_module.base_kernel.outputscale.item(), outpuscale: %.3f .base_kernel
+                self.model.likelihood.noise.item()))
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
                 #plot_posterior_2d(data_loader, self.model, 'training '+str(epoch), self.args)
@@ -132,6 +142,10 @@ class DKMTrainer():
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
+            print('epoch %d - Loss: %.3f   lengthscale: %.9f  outpuscale: %.3f   noise: %.3f' % (epoch, loss.item(),
+                self.model.covar_module.base_kernel.base_kernel.lengthscale.item(),
+                self.model.covar_module.base_kernel.outputscale.item(),
+                self.model.likelihood.noise.item()))
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
                 #plot_posterior_2d(data_loader, self.model, 'training '+str(epoch), self.args)
@@ -153,12 +167,13 @@ class DKMTrainer():
                 # Get output from model
                 x, y = data  # add , num_points
 
-                x_context, y_context, x_target, y_target = context_target_split_CinT(x[0:1], y[0:1],
+                x_context, y_context, x_target, y_target = context_target_split(x[0:1], y[0:1],
                                                                                 self.args.num_context,
                                                                                 self.args.num_target)
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 #self.model.eval()
                 #self.model.likelihood.eval()
+                #with  gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
                 output = self.model(x_context)
                 #self.model.train()
                 #self.model.likelihood.train()
@@ -168,6 +183,10 @@ class DKMTrainer():
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
+            print('epoch %d - Loss: %.3f   lengthscale: %.3f  outpuscale: %.3f   noise: %.3f' % (epoch, loss.item(),
+                self.model.covar_module.base_kernel.base_kernel.lengthscale.item(),
+                self.model.covar_module.base_kernel.outputscale.item(),
+                self.model.likelihood.noise.item()))
             if epoch % self.print_freq == 0 or epoch == epochs - 1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
                 plot_posterior(data_loader, self.model, 'training ' + str(epoch), self.args,
@@ -222,6 +241,67 @@ class DKMTrainer_loo():
                 x_target = x.unsqueeze(0)
                 y_target = y.view(-1)
                 x_context, y_context = all_context_points
+                # Get output from model
+                self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
+                self.model.eval()
+                self.model.likelihood.eval()
+                predictions = self.model(x_target)
+                if any(torch.isnan(predictions.stddev.view(-1))):
+                    print('found Nan')
+                    #self.model.eval()
+                    #self.model.likelihood.eval()
+                    #predictions = self.model(x_target)
+
+                self.model.train()
+                self.model.likelihood.train()
+
+                loss = -self.mll(predictions, y_target.view(-1))
+
+                loss.backward()
+                self.optimizer.step()
+                epoch_loss += loss.item()
+                avg_loss = epoch_loss / len(data_loader)
+            if epoch % self.print_freq == 0 or epoch == epochs-1:
+                print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
+                #plot_posterior_2d(data_loader, self.model, 'training '+str(epoch), self.args)
+
+            self.epoch_loss_history.append(avg_loss)
+
+            if early_stopping is not None:
+                if avg_loss < early_stopping:
+                    break
+
+    def train_rl_pick(self, data_loader, epochs, early_stopping=None):
+        one_out_list = []
+        episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
+        for i in range(len(episode_fixed_list)):
+            context_list = []
+            if len(episode_fixed_list) == 1:
+                context_list = [ep for ep in episode_fixed_list]
+            else:
+                for j, ep in enumerate(episode_fixed_list):
+                    if j != i:
+                        context_list.append(ep)
+            one_out_list.append(context_list)
+
+        for epoch in range(epochs):
+            epoch_loss = 0.
+            for i, data in enumerate(data_loader):
+                t = time.time()
+                # Zero backprop gradients
+                self.optimizer.zero_grad()
+
+                all_context_points = one_out_list[i]
+                data = episode_fixed_list[i]
+
+                x, y, num_points = data
+                index = random.randint(0, num_points.item()-1)
+                x_target = x[:, index, :].unsqueeze(0)
+                y_target = y[:, index, :].view(-1)
+                #x_target = x.unsqueeze(0)
+                #y_target = y.view(-1)
+                x_context, y_context = get_close_context(index, x_target, all_context_points,
+                                                        None, num_tot_context=self.args.num_context)
                 # Get output from model
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 self.model.eval()

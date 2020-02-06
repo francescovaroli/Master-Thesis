@@ -7,10 +7,6 @@ from random import randint
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
-import gpytorch
-from utils import context_target_split
-from plotting_functions_DKL import plot_posterior
-from torch.utils.data import DataLoader
 from core.agent_ensembles_all_context import Agent
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -39,9 +35,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.1, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.25, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -62,14 +58,14 @@ parser.add_argument('--replay-memory-size', type=int, default=50, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--scaling', default=None, metavar='N',
+parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')
 
 parser.add_argument('--num-context', type=int, default=1000, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument("--pick", type=bool, default=False,
                     help='whether to select a subst of context points')
-parser.add_argument("--loo", type=bool, default=False,
+parser.add_argument("--loo", type=bool, default=True,
                     help='plot every n iter')
 
 parser.add_argument("--lr_nn", type=float, default=1e-3,
@@ -142,14 +138,11 @@ model = MeanInterpolator(state_dim, args.h_dim, args.z_dim, scaling=args.scaling
 
 
 optimizer = torch.optim.Adam([
-    {'params': model.feature_extractor.parameters(), 'lr':args.lr_nn},
-    {'params': model.interpolator.parameters(), 'lr':args.lr_nn}])
+    {'params': model.feature_extractor.parameters(), 'lr': args.lr_nn},
+    {'params': model.interpolator.parameters(), 'lr': args.lr_nn}])
 
 # train
-if args.loo:
-    raise  NotImplementedError
-else:
-    model_trainer = MITrainer(device, model, optimizer, args, print_freq=30)
+model_trainer = MITrainer(device, model, optimizer, args, print_freq=30)
 
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size, use_mean=True)
@@ -190,7 +183,7 @@ def improvement_step_all(complete_dataset, estimated_adv):
                                                                 [episode['stddevs'] for episode in complete_dataset],
                                                                 [episode['actions'] for episode in complete_dataset],
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
-        all_advantages = [adv for ep in estimated_adv for adv in ep]
+        all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
         eta = estimate_eta_3(all_actions, all_means, all_advantages, all_stdv)
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
@@ -222,7 +215,10 @@ def improvement_step_all(complete_dataset, estimated_adv):
 def train_np(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
     data_loader = DataLoader(datasets, batch_size=args.batch_size, shuffle=True)
-    model_trainer.train_rl(data_loader, args.epochs_per_iter, early_stopping=None)
+    if args.loo:
+        model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=None)
+    else:
+        model_trainer.train_rl(data_loader, args.epochs_per_iter, early_stopping=None)
 
 
 def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
@@ -272,6 +268,27 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
     #    plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, value_replay_memory, env, args, i_iter)
     return estimated_disc_rew, value_stddevs
 
+def estimate_v_a(complete_dataset, disc_rew):
+    ep_rewards = [tensor(rews) for rews in disc_rew]
+    ep_states = [ep['states'] for ep in complete_dataset]
+    real_lens = [ep['real_len'] for ep in complete_dataset]
+    estimated_advantages = []
+    for i in range(len(ep_states)):
+        context_list = []
+        j = 0
+        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+            if j != i:
+                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
+            else:
+                s_target = states[:real_len, :].unsqueeze(0)
+                r_target = rewards.view(1,-1,1)
+            j += 1
+        s_context, r_context = merge_context(context_list)
+        with torch.no_grad():
+            values = model(s_context, r_context, s_target)
+        advantages = r_target - values
+        estimated_advantages.append(advantages.squeeze(0))
+    return estimated_advantages
 
 
 def create_directories(directory_path):
@@ -297,10 +314,10 @@ def main_loop(improved_context_list):
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
-        #advantages, values = estimate_v_a(disc_rew, )
+        advantages = estimate_v_a(complete_dataset, disc_rew)
 
         t0 = time.time()
-        improved_context_list = improvement_step_all(complete_dataset, disc_rew)
+        improved_context_list = improvement_step_all(complete_dataset, advantages)
         t1 = time.time()
 
         # create training set
@@ -356,7 +373,7 @@ def create_plot_4d_grid(env, args, size=20):
     x = x.unsqueeze(0).to(args.dtype).to(args.device_np)
     return x, X1, X2, X3, X4, xs
 
-def plot_policy(model, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
+def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
     size = 10
     fig = plt.figure(figsize=(16,8))
     x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
@@ -365,40 +382,21 @@ def plot_policy(model, all_context_xy, rm, iter_pred, avg_rew, env, args, colors
     xp1, xp2 = np.meshgrid(xs[0], xs[2])
     xp3, xp4 = np.meshgrid(xs[1], xs[3])
     middle_vel = len(X2) // 2
-
-    ax1 = fig.add_subplot(2, 2, 1, projection='3d')
-    ax2 = fig.add_subplot(2, 2, 3, projection='3d')
     ax1c = fig.add_subplot(2,2,2, projection='3d')
     ax2c = fig.add_subplot(2,2,4, projection='3d')
-
-    bounds_high = env.observation_space.high
-    bounds_low = env.observation_space.low
-    x1 = np.linspace(bounds_low[0], bounds_high[0], 10)
-    x3 = np.linspace(bounds_low[2], bounds_high[2], 10)
-    x2 = np.linspace(-1, 1, 10)
-    x4 = np.linspace(-1, 1, 10)
-    X1, X3 = np.meshgrid(x1, x3)
-    X2, X4 = np.meshgrid(x2, x4)
-    middle_vel = len(X2) // 2
     x_context, y_context = merge_context(all_context_xy)
-    z_mean = torch.zeros([10,10,10,10])
+    ax1c.scatter(x_context[0, :, [0]].cpu(), x_context[0, :, [2]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
+                 vmax=1.)
+    ax2c.scatter(x_context[0, :, [1]].cpu(), x_context[0, :, [3]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
+                 vmax=1.)
     with torch.no_grad():
-        for e1, _x1 in enumerate(x1):
-            for e2, _x2 in enumerate(x2):
-                for e3, _x3 in enumerate(x3):
-                    for e4, _x4 in enumerate(x4):
-                        state = tensor([_x1, _x2, _x3, _x4], device=device).unsqueeze(0)
-                        z_mean[e1, e2, e3, e4] = model(x_context, y_context, state).item()
-    ax1.plot_surface(X1, X3, z_mean[:, middle_vel, :, middle_vel].numpy(), cmap='viridis', vmin=-1., vmax=1.)
-    ax2.plot_surface(X2, X4, z_mean[middle_vel, :, middle_vel, :].numpy(), cmap='viridis', vmin=-1., vmax=1.)
-
-    for e, context_xy in enumerate(all_context_xy):
-        x_context, y_context, real_len = context_xy
-        ax1c.scatter(x_context[0, :, [0]].cpu(), x_context[0, :, [2]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
-                     vmax=1.)
-        ax2c.scatter(x_context[0, :, [1]].cpu(), x_context[0, :, [3]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
-                     vmax=1.)
-
+        p_y_pred = model(x_context, y_context, x[0:1])
+        mu = p_y_pred.mean.reshape(X1.shape).cpu().numpy()
+        sigma = p_y_pred.stddev.reshape(X1.shape).cpu().numpy()
+        mu_list.append(mu)
+        stds_list.append([mu + sigma, mu - sigma])
+    ax1 = fig.add_subplot(2,2,1, projection='3d')
+    ax2 = fig.add_subplot(2,2,3, projection='3d')
 
     fig.suptitle('DKL policy for iteration {}, avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
     ax1.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
@@ -423,7 +421,86 @@ def plot_policy(model, all_context_xy, rm, iter_pred, avg_rew, env, args, colors
     ax2c.set_zlim(-1, 1)
 
 
+    for z_mean in mu_list:
+        ax1.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel], cmap='viridis', vmin=-1., vmax=1.)
+        ax2.plot_surface(xp3, xp4, z_mean[middle_vel, :, middle_vel, :], cmap='viridis', vmin=-1., vmax=1.)
+
+
     fig.savefig(args.directory_path +str(iter_pred), dpi=250)
+    fig_z, az = plt.subplots(1, 1, figsize=(10,8))
+    with torch.no_grad():
+        z_proj = model.project(x)
+    az.scatter(torch.arange(len(z_proj)).cpu(), z_proj.cpu(), alpha=0.5, s=2)
+    az.set_title('Z projection of the 10x10x10x10 state space')
+    az.set_xlabel('z')
+    fig_z.savefig(args.directory_path +'z/'+str(iter_pred))
+    plt.close(fig)
+    plt.close(fig_z)
+
+
+def plot_policy_single(model, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
+    size = 10
+    fig = plt.figure(figsize=(16,8))
+    #x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
+
+    ax1 = fig.add_subplot(2, 2, 1, projection='3d')
+    ax2 = fig.add_subplot(2, 2, 3, projection='3d')
+    ax1c = fig.add_subplot(2,2,2, projection='3d')
+    ax2c = fig.add_subplot(2,2,4, projection='3d')
+
+    bounds_high = env.observation_space.high
+    bounds_low = env.observation_space.low
+    x1 = np.linspace(bounds_low[0], bounds_high[0], 10)
+    x3 = np.linspace(bounds_low[2], bounds_high[2], 10)
+    x2 = np.linspace(-1, 1, 10)
+    x4 = np.linspace(-1, 1, 10)
+    X1, X3 = np.meshgrid(x1, x3)
+    X2, X4 = np.meshgrid(x2, x4)
+    middle_vel = len(X2) // 2
+    x_context, y_context = merge_context(all_context_xy)
+    z_mean = torch.zeros([10,10,10,10])
+    with torch.no_grad():
+        for e1, _x1 in enumerate(x1):
+            for e2, _x2 in enumerate(x2):
+                for e3, _x3 in enumerate(x3):
+                    for e4, _x4 in enumerate(x4):
+                        state = tensor([_x1, _x2, _x3, _x4], device=device).unsqueeze(0)
+                        z_mean[e1, e2, e3, e4] = model(x_context, y_context, state.unsqueeze(0))[0].item()
+    ax1.plot_surface(X1, X3, z_mean[:, middle_vel, :, middle_vel].numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    ax2.plot_surface(X2, X4, z_mean[middle_vel, :, middle_vel, :].numpy(), cmap='viridis', vmin=-1., vmax=1.)
+
+    for e, context_xy in enumerate(all_context_xy):
+        x_context, y_context, real_len = context_xy
+        ax1c.scatter(x_context[0, :, [0]].cpu(), x_context[0, :, [2]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
+                     vmax=1.)
+        ax2c.scatter(x_context[0, :, [1]].cpu(), x_context[0, :, [3]].cpu(), y_context.view(-1, 1).cpu(), cmap='viridis', vmin=-1.,
+                     vmax=1.)
+
+
+    fig.suptitle('DKL policy for iteration {}, avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
+    ax1.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(x2[middle_vel], x4[middle_vel]))
+    ax1.set_xlabel('cart position')
+    ax1.set_ylabel('bar angle')
+    ax1.set_zlabel('action')
+    ax1.set_zlim(-1, 1)
+    ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(x1[middle_vel], x3[middle_vel]))
+    ax2.set_xlabel('cart velocity')
+    ax2.set_ylabel('bar velocity')
+    ax2.set_zlabel('action')
+    ax2.set_zlim(-1, 1)
+    ax1c.set_title('context points')
+    ax1c.set_xlabel('cart position')
+    ax1c.set_ylabel('bar angle')
+    ax1c.set_zlabel('action')
+    ax1c.set_zlim(-1, 1)
+    ax2c.set_title('context points')
+    ax2c.set_xlabel('cart velocity')
+    ax2c.set_ylabel('bar velocity')
+    ax2c.set_zlabel('action')
+    ax2c.set_zlim(-1, 1)
+
+
+    fig.savefig(args.directory_path +str(iter_pred)+'single', dpi=250)
 
     plt.close(fig)
 

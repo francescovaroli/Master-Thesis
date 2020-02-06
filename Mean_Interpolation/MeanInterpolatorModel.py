@@ -11,11 +11,13 @@ class Interpolator(torch.nn.Module):
         self.W = torch.nn.Parameter(data=torch.Tensor(input_dim, input_dim), requires_grad=True)
         self.W.data.uniform_(-1, 1)
         self.z_dim = input_dim
+        self.thetas = []
 
     def forward(self, z_context, y_context, z_target):
-        z_diff = z_target-z_context
-        thetas = torch.exp(-(torch.matmul(z_diff, self.W) * z_diff).sum(-1))
-        return y_context.t().matmul(thetas)/thetas.sum()
+        z_diff = (z_target[:, None, :] - z_context[None, :, :]).squeeze(0)  # z_t: N x h_dim, z_c: M x h_dim -> N x M x h_dim
+        thetas = torch.exp(-(torch.matmul(z_diff, self.W) * z_diff).sum(-1))  # N x M
+        # y_context.matmul(thetas)/thetas.sum()
+        return thetas.matmul(y_context) / thetas.sum()  # (N x M)*(M x 1)
 
 class FeatureExtractor(torch.nn.Sequential):
     def __init__(self, x_dim, h_dim, out_dim):
@@ -77,6 +79,52 @@ class MITrainer():
         self.epoch_loss_history = []
         self.args = args
 
+    def train_rl_loo(self, data_loader, epochs, early_stopping=None):
+        one_out_list = []
+        episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
+        for i in range(len(episode_fixed_list)):
+            context_list = []
+            if len(episode_fixed_list) == 1:
+                context_list = [ep for ep in episode_fixed_list]
+            else:
+                for j, ep in enumerate(episode_fixed_list):
+                    if j != i:
+                        context_list.append(ep)
+                # context_list = [ep for j, ep in enumerate(data_loader) if j != i]
+            all_context_points = merge_context(context_list)
+            one_out_list.append(all_context_points)
+        for epoch in range(epochs):
+            epoch_loss = 0.
+            for i, data in enumerate(data_loader):
+                # Zero backprop gradients
+                self.optimizer.zero_grad()
+                # Get output from model
+                all_context_points = one_out_list[i]
+                data = episode_fixed_list[i]
+                x, y, num_points = data
+                x_context, y_context = all_context_points
+                index = random.randint(0, num_points - 1)
+                x_target = x[:, index, :].unsqueeze(0)
+                y_target = y[:, index, :].unsqueeze(0)
+
+                prediction = self.model(x_context, y_context, x_target)
+                if torch.isnan(prediction):
+                    prediction = self.model(x_context, y_context, x_target)
+                loss = self._loss(y_target.squeeze(0), prediction.squeeze(0))
+                loss.backward()
+                self.optimizer.step()
+                epoch_loss += loss.item()
+                avg_loss = epoch_loss / len(data_loader)
+
+            if epoch % self.print_freq == 0 or epoch == epochs-1 :
+                print("Epoch: {}, Avg_loss: {}, W_sum: {}".format(epoch, avg_loss, self.model.interpolator.W.sum().item()))
+
+            self.epoch_loss_history.append(avg_loss)
+            if early_stopping is not None:
+                if avg_loss < early_stopping:
+                    break
+
+
     def train_rl(self, data_loader, epochs, early_stopping=None):
         for epoch in range(epochs):
             epoch_loss = 0.
@@ -88,6 +136,7 @@ class MITrainer():
                 # divide context (N-1) and target (1)
                 x_context, y_context, x_target, y_target = context_target_split(x[:,:num_points,:], y[:,:num_points,:],
                                                                   num_points.item()-1, 1)
+                all_x_context, all_y_context = merge_context(context_points_list)
                 prediction = self.model(x_context, y_context, x_target)
                 if torch.isnan(prediction):
                     prediction = self.model(x_context, y_context, x_target)

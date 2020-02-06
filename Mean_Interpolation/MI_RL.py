@@ -378,7 +378,6 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
     fig = plt.figure(figsize=(16,8))
     x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
     mu_list = []
-    stds_list = []
     xp1, xp2 = np.meshgrid(xs[0], xs[2])
     xp3, xp4 = np.meshgrid(xs[1], xs[3])
     middle_vel = len(X2) // 2
@@ -391,12 +390,15 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
                  vmax=1.)
     with torch.no_grad():
         p_y_pred = model(x_context, y_context, x[0:1])
-        mu = p_y_pred.mean.reshape(X1.shape).cpu().numpy()
-        sigma = p_y_pred.stddev.reshape(X1.shape).cpu().numpy()
+        mu = p_y_pred.view(X1.shape).cpu().numpy()
         mu_list.append(mu)
-        stds_list.append([mu + sigma, mu - sigma])
+    
     ax1 = fig.add_subplot(2,2,1, projection='3d')
     ax2 = fig.add_subplot(2,2,3, projection='3d')
+
+    for z_mean in mu_list:
+        ax1.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel], cmap='viridis', vmin=-1., vmax=1.)
+        ax2.plot_surface(xp3, xp4, z_mean[middle_vel, :, middle_vel, :], cmap='viridis', vmin=-1., vmax=1.)
 
     fig.suptitle('DKL policy for iteration {}, avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
     ax1.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
@@ -427,15 +429,7 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
 
 
     fig.savefig(args.directory_path +str(iter_pred), dpi=250)
-    fig_z, az = plt.subplots(1, 1, figsize=(10,8))
-    with torch.no_grad():
-        z_proj = model.project(x)
-    az.scatter(torch.arange(len(z_proj)).cpu(), z_proj.cpu(), alpha=0.5, s=2)
-    az.set_title('Z projection of the 10x10x10x10 state space')
-    az.set_xlabel('z')
-    fig_z.savefig(args.directory_path +'z/'+str(iter_pred))
     plt.close(fig)
-    plt.close(fig_z)
 
 
 def plot_policy_single(model, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):

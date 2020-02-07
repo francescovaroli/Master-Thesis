@@ -20,7 +20,7 @@ from torch.distributions import Normal
 from weights_init import InitFunc
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -35,7 +35,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.25, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.35, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -374,7 +374,7 @@ def create_plot_4d_grid(env, args, size=20):
     return x, X1, X2, X3, X4, xs
 
 def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
-    size = 10
+    size = 8
     fig = plt.figure(figsize=(16,8))
     x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
     mu_list = []
@@ -421,11 +421,6 @@ def plot_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, co
     ax2c.set_ylabel('bar velocity')
     ax2c.set_zlabel('action')
     ax2c.set_zlim(-1, 1)
-
-
-    for z_mean in mu_list:
-        ax1.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel], cmap='viridis', vmin=-1., vmax=1.)
-        ax2.plot_surface(xp3, xp4, z_mean[middle_vel, :, middle_vel, :], cmap='viridis', vmin=-1., vmax=1.)
 
 
     fig.savefig(args.directory_path +str(iter_pred), dpi=250)

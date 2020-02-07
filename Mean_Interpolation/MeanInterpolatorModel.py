@@ -17,7 +17,7 @@ class Interpolator(torch.nn.Module):
         z_diff = (z_target[:, None, :] - z_context[None, :, :]).squeeze(0)  # z_t: N x h_dim, z_c: M x h_dim -> N x M x h_dim
         thetas = torch.exp(-(torch.matmul(z_diff, self.W) * z_diff).sum(-1))  # N x M
         # y_context.matmul(thetas)/thetas.sum()
-        return thetas.matmul(y_context) / thetas.sum()  # (N x M)*(M x 1)
+        return thetas.matmul(y_context) / thetas.sum(dim=-1, keepdim=True)  # (N x M)*(M x 1)
 
 class FeatureExtractor(torch.nn.Sequential):
     def __init__(self, x_dim, h_dim, out_dim):

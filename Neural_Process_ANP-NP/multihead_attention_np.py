@@ -118,10 +118,8 @@ class LatentEncoder(nn.Module):
         self.s_dim = s_dim
         self.z_dim = z_dim
 
-        self.self_attentions = nn.ModuleList([attention for _ in range(2)]) if attention is not None else None
+        self.self_attentions = nn.ModuleList([attention for _ in range(1)]) if attention is not None else None
         layers = [Linear(x_dim + y_dim, s_dim),
-                  nn.ReLU(inplace=True),
-                  Linear(s_dim, s_dim),
                   nn.ReLU(inplace=True),
                   Linear(s_dim, s_dim)]
 

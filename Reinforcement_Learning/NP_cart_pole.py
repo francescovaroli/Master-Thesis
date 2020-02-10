@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
 from new_plotting_functions import plot_initial_context, plot_rewards_history, set_labels, create_plot_grid
 from core.common import discounted_rewards
-from core.agent_ensembles_all_context import Agent
+from core.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
 from training_module_RL import NeuralProcessTrainerRL
@@ -18,8 +18,15 @@ from multihead_attention_np import *
 from torch.distributions import Normal
 from weights_init import InitFunc
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
+from models.mlp_policy import Policy
+from models.mlp_critic import Value
+from core.trpo import trpo_step
+from core.common import estimate_advantages
+from core.agent import Agent
+
+
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -31,6 +38,20 @@ parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
+
+parser.add_argument('--tau', type=float, default=0.95, metavar='G',
+                    help='gae (default: 0.95)')
+parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
+                    help='l2 regularization regression (default: 1e-3)')
+parser.add_argument('--max-kl-trpo', type=float, default=1e-2, metavar='G',
+                    help='max kl value (default: 1e-2)')
+parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
+                    help='damping (default: 1e-2)')
+parser.add_argument('--num-threads', type=int, default=5, metavar='N',
+                    help='number of threads for agent (default: 4)')
+parser.add_argument('--min-batch-size', type=int, default=1994, metavar='N',
+                    help='minimal batch size per TRPO update (default: 2048)')
+
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
@@ -47,13 +68,13 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=0.2, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.4, metavar='N', type=float,
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=12, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=60, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=128, metavar='N',
+parser.add_argument('--z-dim', type=int, default=4, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
@@ -66,20 +87,20 @@ parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=20, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--v-r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
-parser.add_argument('--v-h-dim', type=int, default=128, metavar='N',
-                    help='dimension of hidden layers in np')
+parser.add_argument('--a-dim', type=int, default=128, metavar='N',
+                    help='dimension of representation space in np')
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--v-early-stopping', type=int, default=-1000, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
-parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/',
+parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/NP learning results/compare/',
                     help='path to plots folder')
 parser.add_argument('--device-np', default=device,
                     help='device')
@@ -93,7 +114,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=False, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
@@ -112,7 +133,7 @@ num_context_points = max_episode_len - args.num_testing_points
 
 np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
                                                        args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/CARTPOLE_freeSigma_gpu_VP_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+run_id = '/CARTPOLE_gpu_VP_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
@@ -134,10 +155,35 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 env.seed(args.seed)
 
+policy_net = Policy(state_dim, action_dim, log_std=args.log_std)
+value_net = Value(state_dim)
+policy_net.to(device)
+value_net.to(device)
+
+agent_trpo = Agent(env, policy_net, device, running_state=running_state, render=args.render, num_threads=1)
+
+def update_params_trpo(batch):
+    # (3)
+    states = torch.from_numpy(np.stack(batch.state)).to(args.dtype).to(device)
+    actions = torch.from_numpy(np.stack(batch.action)).to(args.dtype).to(device)
+    rewards = torch.from_numpy(np.stack(batch.reward)).to(args.dtype).to(device)
+    masks = torch.from_numpy(np.stack(batch.mask)).to(args.dtype).to(device)
+    with torch.no_grad():
+        values = value_net(states)  # estimate value function of each state with NN
+
+    """get advantage estimation from the trajectories"""
+    advantages, returns = estimate_advantages(rewards, masks, values, args.gamma, args.tau, device)
+
+    """perform TRPO update"""
+    trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl_trpo, args.damping, args.l2_reg)
+
+
+
+
 '''create neural process'''
 if args.use_attentive_np:
     policy_np = AttentiveNeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim,
-                                                       args.z_dim, use_self_att=False).to(args.device_np)
+                                                       args.a_dim, use_self_att=False).to(args.device_np)
 else:
     policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
 
@@ -148,8 +194,8 @@ np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer,
                                     print_freq=50)
 
 if args.v_use_attentive_np:
-    value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim,
-                                      args.v_z_dim, use_self_att=False).to(args.device_np)
+    value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_r_dim,
+                                      args.a_dim, use_self_att=False).to(args.device_np)
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
@@ -157,13 +203,14 @@ value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optim
                                           num_context_range=(num_context_points, num_context_points),
                                           num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                           print_freq=50)
+value_np.training = False
 """create replay memory"""
 # force rm to contain only last iter episodes
 replay_memory = ReplayMemoryDataset(args.replay_memory_size, use_mean=args.use_mean)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
-agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
+agent = Agent_all_ctxt(env, policy_np, args.device_np, running_state=running_state, render=args.render,
               attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
 
@@ -194,7 +241,7 @@ def improvement_step_all(complete_dataset, estimated_adv):
                                                                 [episode['stddevs'] for episode in complete_dataset],
                                                                 [episode['actions'] for episode in complete_dataset],
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
-        all_advantages = [adv for ep in estimated_adv for adv in ep]
+        all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
         eta = estimate_eta_3(all_actions, all_means, all_advantages, all_stdv)
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
@@ -230,7 +277,7 @@ def train_np(datasets, epochs=args.epochs_per_iter):
     policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=args.np_batch_size, shuffle=True)
     np_trainer.train(data_loader, epochs, early_stopping=args.early_stopping)
-    #policy_np.training = False
+    policy_np.training = False
 
 def train_value_np(value_replay_memory):
     print('Value training')
@@ -287,6 +334,29 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
     #    plot_NP_value(value_np, all_states, all_values, all_episodes, all_rewards, value_replay_memory, env, args, i_iter)
     return estimated_disc_rew, value_stddevs
 
+def estimate_v_a(complete_dataset, disc_rew):
+    ep_rewards = [tensor(rews) for rews in disc_rew]
+    ep_states = [ep['states'] for ep in complete_dataset]
+    real_lens = [ep['real_len'] for ep in complete_dataset]
+    estimated_advantages = []
+    for i in range(len(ep_states)):
+        context_list = []
+        j = 0
+        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+            if j != i:
+                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
+            else:
+                s_target = states[:real_len, :].unsqueeze(0)
+                r_target = rewards.view(1, -1, 1)
+            j += 1
+        s_context, r_context = merge_context(context_list)
+        with torch.no_grad():
+            values = value_np(s_context, r_context, s_target)
+        advantages = r_target - values.mean
+        estimated_advantages.append(advantages.squeeze(0))
+    return estimated_advantages
+
+
 
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
@@ -320,6 +390,7 @@ def train_on_initial(initial_context_list):
     policy_np.training = True
     data_loader = DataLoader(train_list, batch_size=args.np_batch_size, shuffle=True)
     np_trainer.train(data_loader, 10*args.epochs_per_iter, early_stopping=100)
+    policy_np.training = False
 
 
 def create_directories(directory_path):
@@ -332,8 +403,10 @@ def create_directories(directory_path):
     #os.mkdir(directory_path + '/policy/' + '/Training/')
     os.mkdir(directory_path + '/policy/' + '/All policies samples/')
 
-avg_rewards = []
-
+avg_rewards_np = [0]
+tot_steps_np = [0]
+avg_rewards_trpo = [0]
+tot_steps_trpo = [0]
 
 def main_loop():
     colors = []
@@ -346,8 +419,12 @@ def main_loop():
     if initial_training:
         train_on_initial(improved_context_list)
     for i_iter in range(args.max_iter_num):
-        print('sampling episodes')
-        # (1)
+        if tot_steps_trpo[-1] - tot_steps_np[-1] < 1000:
+            batch_trpo, log_trpo, memory_trpo = agent_trpo.collect_samples(args.min_batch_size)  # batch of batch_size transitions from multiple
+            update_params_trpo(batch_trpo)  # generate multiple trajectories that reach the minimum batch_size
+            tot_steps_trpo.append(tot_steps_trpo[-1] + log_trpo['num_steps'])
+            avg_rewards_trpo.append(log_trpo['avg_reward'])
+
         # generate multiple trajectories that reach the minimum batch_size
         policy_np.training = False
         batch, log = agent.collect_episodes(improved_context_list)  # batch of batch_size transitions from multiple
@@ -355,57 +432,60 @@ def main_loop():
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
-        if not args.episode_specific_value:
-            iter_dataset = {}
-            iter_states, iter_q = merge_padded_lists([episode['states'] for episode in complete_dataset],
-                                                     [episode['discounted_rewards'] for episode in complete_dataset],
-                                                     max_lens=[episode['real_len'] for episode in complete_dataset])
-            iter_dataset['states'] = iter_states
-            iter_dataset['discounted_rewards'] = iter_q
-            iter_dataset['real_len'] = iter_states.shape[-2]
-            value_replay_memory.add([iter_dataset])
-        else:
-            value_replay_memory.add(complete_dataset)
 
-        estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
+        value_replay_memory.add(complete_dataset)
+
+        advantages = estimate_v_a(complete_dataset, disc_rew)
 
         tv0 = time.time()
         train_value_np(value_replay_memory)
         tv1 = time.time()
 
         t0 = time.time()
-        improved_context_list = improvement_step_all(complete_dataset, estimated_disc_rew)
+        improved_context_list = improvement_step_all(complete_dataset, advantages)
         t1 = time.time()
         #plot_initial_context(improved_context_list, colors, env, args, i_iter)
-        # plot improved context and actions' discounted rewards
-        if i_iter % args.plot_every == 0:
-            plot_improvements(complete_dataset, estimated_disc_rew, env, i_iter, args, colors)
 
         # create training set
         tn0 = time.time()
         replay_memory.add(complete_dataset)
         train_np(replay_memory)
         tn1 = time.time()
+        tot_steps_np.append(tot_steps_np[-1] + log['num_steps'])
 
         #plot_training_set(i_iter, replay_memory, env, args)
-        if i_iter % args.plot_every == 0:
-           plot_NP_policy(policy_np, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
+        if i_iter % args.plot_every == 0 and False:
+            plot_NP_policy(policy_np, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
+            plot_improvements(complete_dataset, advantages, env, i_iter, args, colors)
 
-        avg_rewards.append(log['avg_reward'])
+        avg_rewards_np.append(log['avg_reward'])
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f} \tT_update {:.4f} \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
             print('Training:  \tT_policy {:.2f}  \tT_value {:.2f}'.format(tn1-tn0, tv1-tv0))
-        if log['avg_reward'] > 195:
-            print('converged')
-            plot_rewards_history(avg_rewards, args)
-        if i_iter % args.plot_every == 0:
-            plot_rewards_history(avg_rewards, args)
-        #args.fixed_sigma = args.fixed_sigma * args.gamma
-    plot_rewards_history(avg_rewards, args)
+
+            if i_iter % args.plot_every == 0:
+                plot_rewards_history(trpo=[tot_steps_trpo, avg_rewards_trpo], mi=[tot_steps_np, avg_rewards_np],
+                                     args=args)
+        plot_rewards_history(trpo=[tot_steps_trpo, avg_rewards_trpo], mi=[tot_steps_np, avg_rewards_np], args=args)
 
     """clean up gpu memory"""
     torch.cuda.empty_cache()
+
+def plot_rewards_history(trpo=None, mi=None, args=args):
+    fig_rew, ax_rew = plt.subplots(1, 1)
+    colors = ['r', 'b']
+    labels = ['trpo', 'attentive neural process']
+    for i, log in enumerate([trpo, mi]):
+        tot_steps, avg_rewards = log
+        ax_rew.plot(tot_steps, avg_rewards, c=colors[i], label=labels[i])
+    ax_rew.set_xlabel('number of steps')
+    ax_rew.set_ylabel('average reward')
+    ax_rew.set_title('Average Reward History')
+    plt.legend()
+    plt.grid()
+    fig_rew.savefig(args.directory_path + run_id.replace('.', ','))
+    plt.close(fig_rew)
 
 def create_plot_4d_grid(env, args, size=20):
     import gpytorch
@@ -434,7 +514,6 @@ def create_plot_4d_grid(env, args, size=20):
 def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
     size = 10
     fig = plt.figure(figsize=(16,8))
-    policy_np.training = False
     fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
     x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
     stddev_low_list = []
@@ -468,23 +547,23 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     ax.set_zlim(-1, 1)
     for z_mean in z_means_list:
         ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
-    ax = fig.add_subplot(1,2,2, projection='3d')
-    ax.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
-    ax.set_xlabel('cart velocity')
-    ax.set_ylabel('bar velocity')
-    ax.set_zlabel('action')
-    ax.set_zlim(-1, 1)
+    ax2 = fig.add_subplot(1,2,2, projection='3d')
+    ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax2.set_xlabel('cart velocity')
+    ax2.set_ylabel('bar velocity')
+    ax2.set_zlabel('action')
+    ax2.set_zlim(-1, 1)
     xp1, xp2 = np.meshgrid(xs[1], xs[3])
     for stddev_low, stddev_high in zip(stddev_low_list, stddev_high_list):
         i = 0
         for y_slice in  xs[3]:
-            ax.add_collection3d(
+            ax2.add_collection3d(
                 plt.fill_between(xs[1], stddev_low[middle_vel, i, middle_vel, :].cpu(), stddev_high[middle_vel,i, middle_vel, :].cpu(), color='lightseagreen',
                                  alpha=0.01),
                 zs=y_slice, zdir='y')
             i += 1
     for z_mean in z_means_list:
-        ax.plot_surface(xp1, xp2, z_mean[middle_vel, :, middle_vel, :].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+        ax2.plot_surface(xp1, xp2, z_mean[middle_vel, :, middle_vel, :].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
 
 
     fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
@@ -528,14 +607,14 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
         new_means = episode['new_means'][:real_len].cpu()
         est_rew = est_rewards[e]
         if e == 0:
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.6)
+            ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)
+            ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.6)
             leg = ax.legend(loc="upper right")
         else:
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', alpha=0.3)
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', alpha=0.6)
+            ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', alpha=0.3)
+            ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', alpha=0.6)
 
-        a = ax_rew.scatter(states[:, 0].numpy(), states[:, 1].numpy(), actions[:, 0].numpy(), c=est_rew[:], cmap='viridis', alpha=0.5)
+        a = ax_rew.scatter(states[:, 0].numpy(), states[:, 1].numpy(), actions[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), cmap='viridis', alpha=0.5)
 
     cb = fig.colorbar(a)
     cb.set_label('Discounted rewards')

@@ -87,7 +87,8 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     total_c_reward += reward
                     min_c_reward = min(min_c_reward, reward)
                     max_c_reward = max(max_c_reward, reward)
-
+                if any(torch.isnan(state_var.view(-1))) or torch.isnan(action) or torch.isnan(mean):
+                    print('wat')
                 episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(), stddev.cpu().numpy(), None))
 
                 if render:
@@ -151,7 +152,7 @@ def merge_log(log_list):
     return log
 
 
-class Agent:
+class Agent_all_ctxt:
 
     def __init__(self, env, policy, device, custom_reward=None, attention=False,
                  mean_action=False, render=False, running_state=None, fixed_sigma=None):

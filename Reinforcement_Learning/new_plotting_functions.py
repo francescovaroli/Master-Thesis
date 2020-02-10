@@ -95,7 +95,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
         for y_slice in x2:
             ax_mean.add_collection3d(
                 plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen',
-                                 alpha=0.01),
+                                 alpha=0.1),
                 zs=y_slice, zdir='y')
             i += 1
     for e, z_distr in enumerate(z_distr_list):
@@ -179,14 +179,14 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     plt.close(fig)
 
 
-def plot_rewards_history(avg_rewards, args):
+def plot_rewards_history(avg_rewards, tot_steps, args):
     fig_rew, ax_rew = plt.subplots(1, 1)
-    ax_rew.plot(np.arange(len(avg_rewards)), avg_rewards)
-    ax_rew.set_xlabel('iterations')
+    ax_rew.plot(tot_steps, avg_rewards)
+    ax_rew.set_xlabel('number of steps')
     ax_rew.set_ylabel('average reward')
     ax_rew.set_title('Average Reward History')
     plt.grid()
-    fig_rew.savefig(args.directory_path + '/average reward')
+    fig_rew.savefig(args.directory_path + '/00_average reward')
     plt.close(fig_rew)
 
 def plot_NP_value(value_np, all_states, all_values, all_episodes, all_rews, rm, env, args, i_iter):
@@ -274,7 +274,7 @@ def plot_initial_context(context_points, colors, env, args, i_iter):
     fig.savefig(args.directory_path + '/policy/'+ '/All policies samples/' + name)
     plt.close(fig)
 
-def plot_chosen_context(context_list, num_context, i_iter, args):
+def plot_chosen_context(context_list, num_context, i_iter, args, env):
     colors = []
     num_tested_points = 6
     for i in range(num_tested_points):
@@ -287,12 +287,18 @@ def plot_chosen_context(context_list, num_context, i_iter, args):
     e = 0
     for index in np.arange(0, real_len, real_len//(num_tested_points-1)):
         ax = fig.add_subplot(3, 2, e + 1, projection='3d')
-        ax.set_title('index: '+str(index))
-        x_context, y_context = get_close_context(index, context_list, num_tot_context=num_context)
-        ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=colors[e], alpha=0.6, marker='+', label='Chosen context')
-        ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(), test_episode[1][0, index, 0].cpu(),
-                   c='k', alpha=1, label='Target point')
+        ax.set_title('index: '+str(index) + ' dist: {}'.format(args.pick_dist))
+        set_limits(ax, env, args, np_id='policy')
+        if args.pick_context:
+            x_context, y_context = get_close_context(index, test_episode[0][:, index, :].unsqueeze(0), context_list,
+                                                     args.pick_dist, num_tot_context=num_context)
+        else:
+            x_context, y_context = merge_context(context_list)
+        ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=colors[e], alpha=0.5,
+                   marker='+', label='Chosen context', zorder=-1)
+        ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(),
+                   test_episode[1][0, index, 0].cpu(),c='k', alpha=1, label='Target point', zorder=1)
         e += 1
         leg = ax.legend(loc="upper right")
-    fig.savefig(args.directory_path + '/policy/'+ '/All policies samples/' + name)
+    fig.savefig(args.directory_path + '/policy/' + '/All policies samples/' + name)
     plt.close(fig)

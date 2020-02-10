@@ -7,7 +7,7 @@ from random import randint
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
-from core.agent_ensembles_all_context import Agent
+from core.agent_ensembles_all_context import Agent_all_ctxt
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
@@ -35,7 +35,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.35, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -50,7 +50,7 @@ parser.add_argument('--z-dim', type=int, default=4, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--fixed-sigma', default=0.75, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.1, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=60, metavar='G',
                     help='training epochs of NP')
@@ -297,8 +297,8 @@ def create_directories(directory_path):
     os.mkdir(directory_path + '/Mean improvement/')
     os.mkdir(directory_path + '/z/')
 
-avg_rewards = []
-
+avg_rewards = [0]
+tot_steps = [0]
 
 def main_loop(improved_context_list):
     colors = []
@@ -309,7 +309,6 @@ def main_loop(improved_context_list):
     for i_iter in range(args.max_iter_num):
         print('sampling episodes')        # (1)
         # generate multiple trajectories that reach the minimum batch_size
-        model.eval()
         batch, log = agent.collect_episodes(improved_context_list, render=(i_iter%10==0))
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
@@ -333,18 +332,16 @@ def main_loop(improved_context_list):
             plot_policy(model, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
             plot_improvements(complete_dataset, disc_rew, env, i_iter, args, colors)
         tv1 = time.time()
-
+        tot_steps.append(tot_steps[-1] + log['num_steps'])
         avg_rewards.append(log['avg_reward'])
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f} \tT_update {:.4f} \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
             print('Training:  \tT_policy {:.2f}  \nT_plots {:.2f}'.format(tn1-tn0, tv1-tv0))
-        if log['avg_reward'] > 195:
-            print('converged')
-            plot_rewards_history(avg_rewards, args)
+
         if i_iter % args.plot_every == 0:
-            plot_rewards_history(avg_rewards, args)
-    plot_rewards_history(avg_rewards, args)
+            plot_rewards_history(avg_rewards, tot_steps, args)
+    plot_rewards_history(avg_rewards, tot_steps, args)
 
     """clean up gpu memory"""
     torch.cuda.empty_cache()

@@ -2,6 +2,7 @@ import torch
 from random import randint
 import random
 from utils_rl.memory_dataset import merge_context
+from utils import context_target_split
 from torch.distributions.kl import kl_divergence
 import time
 import numpy as np
@@ -27,15 +28,15 @@ class NeuralProcessTrainerLoo():
     print_freq : int
         Frequency with which to print loss information during training.
     """
-    def __init__(self, device, neural_process, optimizer, num_context_range,
-                 num_extra_target_range, print_freq=100):
+    def __init__(self, device, neural_process, optimizer, num_context_range=None,
+                 num_extra_target_range=100, print_freq=100):
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
         self.print_freq = print_freq
         self.steps = 0
         self.epoch_loss_history = []
-
+        self.num_target = num_extra_target_range
     def train(self, data_loader, epochs, early_stopping=None):
         """
         Trains Neural Process.
@@ -70,11 +71,10 @@ class NeuralProcessTrainerLoo():
                 data = episode_fixed_list[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points
-                index = random.randint(0, num_points-1)
-                x_target = x[:, index, :].unsqueeze(0)
-                y_target = y[:, index, :].unsqueeze(0)
-                #x_target = x.unsqueeze(0)
-                #y_target = y.unsqueeze(0)
+                #index = random.randint(0, num_points-1)
+                #x_target = x[:, index, :].unsqueeze(0)
+                #y_target = y[:, index, :].unsqueeze(0)
+                _, _, x_target, y_target = context_target_split(x, y, 0, self.num_target)
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)

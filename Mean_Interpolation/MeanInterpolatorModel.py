@@ -106,10 +106,8 @@ class MITrainer():
                 index = random.randint(0, num_points - 1)
                 x_target = x[:, index, :].unsqueeze(0)
                 y_target = y[:, index, :].unsqueeze(0)
-
+                # _, _, x_target, y_target = context_target_split(x, y, 0, self.num_target)
                 prediction = self.model(x_context, y_context, x_target)
-                if torch.isnan(prediction):
-                    prediction = self.model(x_context, y_context, x_target)
                 loss = self._loss(y_target.squeeze(0), prediction.squeeze(0))
                 loss.backward()
                 self.optimizer.step()

@@ -32,7 +32,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
                 if mean_action:
                     action = policy(state_var)[0][0].numpy()  # use mean value
                 else:
-                    action = policy.select_action(state_var)[0].numpy()  # sample from normal distribution
+                    action = policy.select_action(state_var)[0].cpu().numpy()  # sample from normal distribution
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
@@ -112,7 +112,7 @@ class Agent:
 
     def collect_samples(self, min_batch_size):
         t_start = time.time()
-        to_device(torch.device('cpu'), self.policy)
+        # to_device(torch.device('cpu'), self.policy)
         thread_batch_size = int(math.floor(min_batch_size / self.num_threads))
         queue = multiprocessing.Queue()
         workers = []
@@ -139,7 +139,7 @@ class Agent:
         if self.num_threads > 1:
             log_list = [log] + worker_logs
             log = merge_log(log_list)
-        to_device(self.device, self.policy)
+        # to_device(self.device, self.policy)
         t_end = time.time()
         log['sample_time'] = t_end - t_start
         log['action_mean'] = np.mean(np.vstack(batch.action), axis=0)

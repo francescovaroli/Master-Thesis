@@ -9,7 +9,7 @@ class Interpolator(torch.nn.Module):
     def __init__(self, input_dim):
         super(Interpolator, self).__init__()
         self.W = torch.nn.Parameter(data=torch.Tensor(input_dim, input_dim), requires_grad=True)
-        self.W.data.uniform_(-1, 1)
+        self.W.data.uniform_(-0.1, 0.1)
         self.z_dim = input_dim
         self.thetas = []
 
@@ -24,7 +24,9 @@ class FeatureExtractor(torch.nn.Sequential):
         super(FeatureExtractor, self).__init__()
         self.add_module('linear1', torch.nn.Linear(x_dim, h_dim))  # default h_dim = 256
         self.add_module('relu1', torch.nn.ReLU())
-        self.add_module('linear2', torch.nn.Linear(h_dim, out_dim))
+        self.add_module('linear2', torch.nn.Linear(h_dim, h_dim//2))
+        self.add_module('relu2', torch.nn.ReLU())
+        self.add_module('linear3', torch.nn.Linear(h_dim//2, out_dim))
 
 
 class MeanInterpolator(torch.nn.Module):
@@ -50,7 +52,7 @@ class MeanInterpolator(torch.nn.Module):
         elif self.scaling is None:
             z = projected_x
 
-        z[torch.isnan(z)] = 10000
+        #z[torch.isnan(z)] = 10000
         return z
 
     def forward(self, x_context, y_context, x_target):

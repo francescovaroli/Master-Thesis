@@ -58,7 +58,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                         print(stddev)
                 elif policy.id == 'MI':
                     mean = policy(all_x_context, all_y_context, state_var)
-                    stddev = tensor(fixed_sigma)
+                    stddev = fixed_sigma
                 else:
                     if attention:
                         a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)

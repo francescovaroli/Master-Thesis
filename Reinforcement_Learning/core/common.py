@@ -1,5 +1,6 @@
 import torch
 from utils_rl import to_device
+from utils_rl.memory_dataset import rewards_from_batch
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
@@ -14,7 +15,7 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
     :return:
     """
     # (4)
-    rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
+    #rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
     tensor_type = type(rewards)
     deltas = tensor_type(rewards.size(0), 1)
     advantages = tensor_type(rewards.size(0), 1)
@@ -42,12 +43,7 @@ def discounted_rewards(batch, gamma):
     :return: list of list
     '''
 
-    rewards = []
-    for episode in batch:
-        episode_rewards = []
-        for transition in episode:
-            episode_rewards.append(transition.reward)
-        rewards.append(episode_rewards)
+    rewards = rewards_from_batch(batch)
 
     disc_rewards = []
 

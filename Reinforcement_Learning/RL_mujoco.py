@@ -13,7 +13,7 @@ from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
 from training_module_RL import NeuralProcessTrainerRL
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
-
+import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
 from models.mlp_policy import Policy
@@ -24,7 +24,7 @@ from core.agent import Agent
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -54,13 +54,13 @@ parser.add_argument('--num-threads', type=int, default=5, metavar='N',
 parser.add_argument('--min-batch-size', type=int, default=2994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 
-parser.add_argument('--z-mi-dim', type=int, default=34, metavar='N',
+parser.add_argument('--z-mi-dim', type=int, default=50, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-mi-dim', type=int, default=256, metavar='N',
+parser.add_argument('--h-mi-dim', type=int, default=356, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')
-parser.add_argument("--lr_nn", type=float, default=1e-3,
+parser.add_argument("--lr_nn", type=float, default=1e-4,
                     help='plot every n iter')
 
 parser.add_argument('--use-running-state', default=False,
@@ -112,6 +112,10 @@ parser.add_argument('--v-early-stopping', type=int, default=-1000, metavar='N',
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/',
                     help='path to plots folder')
+parser.add_argument('--tot-steps', default=1000000,
+                    help='total steps in the run')
+
+
 parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
@@ -138,12 +142,23 @@ args = parser.parse_args()
 initial_training = True
 
 
-np_spec = '_{}z_{}rm_{}vrm_{},{}epo_MI_{}z_{}h'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
-                                                       args.epochs_per_iter,args.v_epochs_per_iter, args.z_mi_dim, args.h_mi_dim)
-run_id = '/{}_VP_NP_decreaseStdKL_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.env_name, args.use_mean,
-                                                args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
-                                                args.num_ensembles, args.max_kl, args.gamma) + np_spec
-#args.directory_path += run_id
+np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
+                                                                args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
+                                                                args.h_dim, args.use_attentive_np, args.a_dim)
+
+mi_spec = '_MI_{}rm_{}epo_{}z_{}h'.format(args.replay_memory_size, args.epochs_per_iter, args.z_mi_dim,
+                                          args.h_mi_dim, args.scaling)
+
+run_id = '/{}_NP:{}_MI:{}_{}epi_fixSTD:{}_{}kl_{}gamma_'.format(args.env_name, args.use_np, args.use_mi,
+                                                                   args.num_ensembles, args.fixed_sigma,
+                                                                   args.max_kl, args.gamma) + np_spec + mi_spec
+run_id = run_id.replace('.', ',')
+args.directory_path += run_id
+
+trpo_file = args.directory_path + '/trpo/{}.csv'.format(args.seed)
+np_file = args.directory_path + '/np/{}.csv'.format(args.seed)
+mi_file = args.directory_path + '/mi/{}.csv'.format(args.seed)
+
 max_episode_len = 1000
 #torch.set_default_dtype(args.dtype)
 
@@ -159,10 +174,9 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 env.seed(args.seed)
 
-policy_net = Policy(state_dim, action_dim, log_std=args.log_std)
-value_net = Value(state_dim)
-policy_net.to(device)
-value_net.to(device)
+policy_net = Policy(state_dim, action_dim, log_std=args.log_std).to(device)
+value_net = Value(state_dim).to(device)
+
 
 agent_trpo = Agent(env, policy_net, device, running_state=None, render=args.render, num_threads=1)
 
@@ -307,7 +321,7 @@ def improvement_step_all(complete_dataset, estimated_adv):
 
 
 def estimate_v_a(complete_dataset, disc_rew):
-    ep_rewards = [tensor(rews) for rews in disc_rew]
+    ep_rewards = disc_rew
     ep_states = [ep['states'] for ep in complete_dataset]
     real_lens = [ep['real_len'] for ep in complete_dataset]
     estimated_advantages = []
@@ -330,7 +344,7 @@ def estimate_v_a(complete_dataset, disc_rew):
 
 
 def estimate_v_a_mi(complete_dataset, disc_rew):
-    ep_rewards = [tensor(rews) for rews in disc_rew]
+    ep_rewards = disc_rew
     ep_states = [ep['states'] for ep in complete_dataset]
     real_lens = [ep['real_len'] for ep in complete_dataset]
     estimated_advantages = []
@@ -346,7 +360,9 @@ def estimate_v_a_mi(complete_dataset, disc_rew):
             j += 1
         s_context, r_context = merge_context(context_list)
         with torch.no_grad():
-            values = model(s_context, r_context, s_target)
+            # values = model(s_context, r_context, s_target)
+            values = torch.cat([model(s_context, r_context, s_target[:, :real_lens[i]//2, :]),
+                                model(s_context, r_context, s_target[:, real_lens[i]//2:, :])], dim=-2)
         advantages = r_target - values
         estimated_advantages.append(advantages.squeeze(0))
     return estimated_advantages
@@ -395,6 +411,21 @@ tot_steps_trpo = [0]
 avg_rewards_mi = [0]
 tot_steps_mi = [0]
 
+def store_rewards_trpo(batch, rewards_file):
+    rewards = [tr.reward for tr in batch]
+    with open(rewards_file, mode='a+') as employee_file:
+        reward_writer = csv.writer(employee_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        for rew in rewards:
+            reward_writer.writerow([rew.item()])
+
+
+def store_rewards(batch, rewards_file):
+    ep_rewards = rewards_from_batch(batch)
+    with open(rewards_file, mode='a+') as employee_file:
+        reward_writer = csv.writer(employee_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        for rewards in ep_rewards:
+            for rew in rewards:
+                reward_writer.writerow([rew.item()])
 
 def main_loop():
     colors = []
@@ -407,16 +438,18 @@ def main_loop():
             if initial_training:
                 train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
-        if args.use_trpo:
+        if args.use_trpo and tot_steps_trpo[-1] < args.tot_steps:
             batch_trpo, log, memory_trpo = agent_trpo.collect_samples(args.min_batch_size)  # batch of batch_size transitions from multiple
+            store_rewards_trpo(memory_trpo.memory, trpo_file)
             update_params_trpo(batch_trpo)  # generate multiple trajectories that reach the minimum batch_size
             tot_steps_trpo.append(tot_steps_trpo[-1] + log['num_steps'])
             avg_rewards_trpo.append(log['avg_reward'])
             print('trpo avg actions: ', log['action_mean'])
-        if args.use_np:
+        if args.use_np and tot_steps_np[-1] < args.tot_steps:
             # generate multiple trajectories that reach the minimum batch_size
             policy_np.training = False
             batch_np, log_np = agent_np.collect_episodes(improved_context_list_np)  # batch of batch_size transitions from multiple
+            store_rewards(batch_np.memory, np_file)
             disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
             complete_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
             print('np avg actions: ', log_np['action_mean'])
@@ -434,9 +467,10 @@ def main_loop():
             tot_steps_np.append(tot_steps_np[-1] + log_np['num_steps'])
             avg_rewards_np.append(log_np['avg_reward'])
 
-        if args.use_mi:
+        if args.use_mi and tot_steps_mi[-1] < args.tot_steps:
             # generate multiple trajectories that reach the minimum batch_size
             batch_mi, log_mi = agent_mi.collect_episodes(improved_context_list_mi)  # batch of batch_size transitions from multiple
+            store_rewards(batch_mi.memory, mi_file)
             #print(log['num_steps'], log['num_episodes'])                # episodes (separated by mask=0). Stored in Memory
             print('mi avg actions: ', log_mi['action_mean'])
 
@@ -458,7 +492,8 @@ def main_loop():
             avg_rewards_mi.append(log_mi['avg_reward'].item())
         if i_iter % args.log_interval == 0:
             print(i_iter)
-            print('trpo: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log['min_reward'], log['max_reward'], log['avg_reward']))
+            if args.use_trpo:
+                print('trpo: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log['min_reward'], log['max_reward'], log['avg_reward']))
             if args.use_np:
                 print('np: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_np['min_reward'], log_np['max_reward'], log_np['avg_reward']))
             if args.use_mi:
@@ -489,4 +524,13 @@ def plot_rewards_history(steps, rews):
     fig_rew.savefig(args.directory_path + run_id.replace('.', ','))
     plt.close(fig_rew)
 
+
+def create_directories(directory_path):
+
+    os.mkdir(directory_path)
+    os.mkdir(directory_path + '/trpo')
+    os.mkdir(directory_path + '/np')
+    os.mkdir(directory_path + '/mi')
+
+create_directories(args.directory_path)
 main_loop()

@@ -4,6 +4,23 @@ import numpy as np
 
 import random
 
+def merge_csv():
+    ep_rewards = rewards_from_batch(batch)
+    rewards = np.concatenate(ep_rewards, axis=0)
+    all_rewards = np.genfromtxt(rewards_file, delimiter=',')
+    all_rewards = np.column_stack([all_rewards, rewards])
+    np.savetxt(rewards_file, all_rewards)
+
+def rewards_from_batch(batch):
+    rewards = []
+    for episode in batch:
+        episode_rewards = []
+        for transition in episode:
+            episode_rewards.append(transition.reward)
+        rewards.append(episode_rewards)
+    return rewards
+
+
 def get_close_context(index, target, context_list, dist, num_tot_context=1000):
     if dist is not None:
         x1_target = target[0, 0, 0].cpu()

@@ -34,7 +34,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
                 else:
                     action = policy.select_action(state_var)[0].numpy()  # sample from normal distribution
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
-            next_state, reward, done, _ = env.step(action[0])
+            next_state, reward, done, _ = env.step(action)
             reward_episode += reward
             if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                 next_state = running_state(next_state)

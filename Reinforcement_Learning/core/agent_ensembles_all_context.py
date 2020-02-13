@@ -8,7 +8,7 @@ from torch.distributions import Normal
 import gpytorch
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
-                                       'reward', 'mean', 'stddev', 'disc_rew'))
+                                       'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
 def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     running_state, context_points_list, attention, fixed_sigma):
@@ -24,6 +24,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
     min_c_reward = 1e6
     max_c_reward = -1e6
     num_episodes = 0
+    action_sum = zeros(context_points_list[0][1].shape[-1])
 
     all_x_context, all_y_context = merge_context(context_points_list)
     with torch.no_grad():
@@ -57,7 +58,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                         print(stddev)
                 elif policy.id == 'MI':
                     mean = policy(all_x_context, all_y_context, state_var)
-                    stddev = tensor([fixed_sigma])
+                    stddev = tensor(fixed_sigma)
                 else:
                     if attention:
                         a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)
@@ -77,7 +78,8 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     action = mean  # use mean value
                     mean, stddev = policy.xz_to_y(state_var, z_dist.mean)
                 else:
-                    action = action_distribution.sample().view(1)   # sample from normal distribution
+                    action = action_distribution.sample().view(-1)   # sample from normal distribution
+                    cov = torch.diag(sigma)
                 next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
@@ -87,10 +89,11 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     total_c_reward += reward
                     min_c_reward = min(min_c_reward, reward)
                     max_c_reward = max(max_c_reward, reward)
-                if any(torch.isnan(state_var.view(-1))) or torch.isnan(action) or torch.isnan(mean):
+                if any(torch.isnan(state_var.view(-1))) or any(torch.isnan(action.view(-1))) or any(torch.isnan(mean.view(-1))):
                     print('wat')
-                episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(), stddev.cpu().numpy(), None))
-
+                episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
+                                          stddev.cpu().numpy(), None, cov))
+                action_sum += action
                 if render:
                     env.render()
                 if done:
@@ -111,6 +114,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
     log['avg_reward'] = total_reward / num_episodes
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward
+    log['action_mean'] = action_sum / num_steps
     if custom_reward is not None:
         log['total_c_reward'] = total_c_reward
         log['avg_c_reward'] = total_c_reward / num_steps
@@ -119,20 +123,6 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
 
     return memory, log
 
-def compute_stats(batch):
-    s = 0
-    ma = -100
-    mi = 100
-    l = 0
-    for ep in batch:
-        l += len(ep)
-        for tr in ep:
-            action = tr.action
-            s += action
-            ma = max(ma, action)
-            mi = min(mi, action)
-    avg = s / l
-    return avg, ma, mi
 
 
 def merge_log(log_list):
@@ -176,9 +166,6 @@ class Agent_all_ctxt:
         batch = memory.memory
         # to_device(self.device, self.policy)
         t_end = time.time()
-        mean_a, max_a, min_a = compute_stats(batch)
         log['sample_time'] = t_end - t_start
-        log['action_mean'] = mean_a
-        log['action_min'] = min_a
-        log['action_max'] = max_a
+
         return memory, log

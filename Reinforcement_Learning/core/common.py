@@ -52,16 +52,21 @@ def discounted_rewards(batch, gamma):
     disc_rewards = []
 
     for traj_rewards in rewards:
-        traj_disc_rew = [0]
-        num_steps = len(traj_rewards)
-        for t in reversed(range(num_steps)):
-            curr_disc_rew = gamma * (traj_disc_rew[0] + traj_rewards[t])
-            traj_disc_rew.insert(0, curr_disc_rew)
-        disc_rewards.append(traj_disc_rew[:-1])
-
+        T = len(traj_rewards) - 1
+        R = torch.zeros(T + 1)
+        R[-1] = traj_rewards[-1]
+        for t in range(T-1, -1, -1):
+            # R[t] = R[t + 1] + gamma ** (T - t) * traj_rewards[t]
+            R[t] = gamma * R[t + 1] + traj_rewards[t]
+        disc_rewards.append(R)
     return disc_rewards
 
 
 
 #rewards = [[1]*10, [1]*5, [1]*2]
 #print(discounted_rewards(rewards, 0.9))
+    # traj_disc_rew = [0]
+    #        num_steps = len(traj_rewards)
+    #    for t in reversed(range(num_steps)):
+    #        curr_disc_rew = gamma * (traj_disc_rew[0] + traj_rewards[t])
+#        traj_disc_rew.insert(0, curr_disc_rew)

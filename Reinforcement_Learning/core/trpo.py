@@ -128,3 +128,67 @@ def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_k
     set_flat_params_to(policy_net, new_params)
 
     return success
+
+def trpo_step_no_value(policy_net, states, actions, returns, advantages, max_kl, damping, l2_reg, use_fim=True):
+
+    """update policy"""
+    with torch.no_grad():
+        fixed_log_probs = policy_net.get_log_prob(states, actions)
+    """define the loss function for TRPO"""
+    def get_loss(volatile=False):
+        with torch.set_grad_enabled(not volatile):
+            log_probs = policy_net.get_log_prob(states, actions)
+            action_loss = -advantages * torch.exp(log_probs - fixed_log_probs)
+            return action_loss.mean()
+
+    """use fisher information matrix for Hessian*vector"""
+    def Fvp_fim(v):
+        M, mu, info = policy_net.get_fim(states)
+        mu = mu.view(-1)
+        filter_input_ids = set() if policy_net.is_disc_action else set([info['std_id']])
+
+        t = ones(mu.size(), requires_grad=True, device=mu.device)
+        mu_t = (mu * t).sum()
+        Jt = compute_flat_grad(mu_t, policy_net.parameters(), filter_input_ids=filter_input_ids, create_graph=True)
+        Jtv = (Jt * v).sum()
+        Jv = torch.autograd.grad(Jtv, t)[0]
+        MJv = M * Jv.detach()
+        mu_MJv = (MJv * mu).sum()
+        JTMJv = compute_flat_grad(mu_MJv, policy_net.parameters(), filter_input_ids=filter_input_ids).detach()
+        JTMJv /= states.shape[0]
+        if not policy_net.is_disc_action:
+            std_index = info['std_index']
+            JTMJv[std_index: std_index + M.shape[0]] += 2 * v[std_index: std_index + M.shape[0]]
+        return JTMJv + v * damping
+
+    """directly compute Hessian*vector from KL"""
+    def Fvp_direct(v):
+        kl = policy_net.get_kl(states)
+        kl = kl.mean()
+
+        grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True)
+        flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
+
+        kl_v = (flat_grad_kl * v).sum()
+        grads = torch.autograd.grad(kl_v, policy_net.parameters())
+        flat_grad_grad_kl = torch.cat([grad.contiguous().view(-1) for grad in grads]).detach()
+
+        return flat_grad_grad_kl + v * damping
+
+    Fvp = Fvp_fim if use_fim else Fvp_direct
+
+    loss = get_loss()  # compute TRPO loss
+    grads = torch.autograd.grad(loss, policy_net.parameters())  # compute its gradients
+    loss_grad = torch.cat([grad.view(-1) for grad in grads]).detach()
+    stepdir = conjugate_gradients(Fvp, -loss_grad, 10)  # gradient direction
+
+    shs = 0.5 * (stepdir.dot(Fvp(stepdir)))  # line search to find the step size
+    lm = math.sqrt(max_kl / shs)
+    fullstep = stepdir * lm
+    expected_improve = -loss_grad.dot(fullstep)
+
+    prev_params = get_flat_params_from(policy_net)
+    success, new_params = line_search(policy_net, get_loss, prev_params, fullstep, expected_improve)
+    set_flat_params_to(policy_net, new_params)
+
+    return success

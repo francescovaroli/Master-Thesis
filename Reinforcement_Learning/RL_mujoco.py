@@ -432,7 +432,8 @@ def main_loop():
             train_np(replay_memory)
             tn1 = time.time()
             tot_steps_np.append(tot_steps_np[-1] + log_np['num_steps'])
-            # avoid np divergence to mess up the plot
+            avg_rewards_np.append(log_np['avg_reward'])
+
         if args.use_mi:
             # generate multiple trajectories that reach the minimum batch_size
             batch_mi, log_mi = agent_mi.collect_episodes(improved_context_list_mi)  # batch of batch_size transitions from multiple

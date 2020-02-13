@@ -64,7 +64,7 @@ def merge_padded_list(points_list, max_lens):
     first_len = max_lens[0]
     all_points = points_list[0][:first_len,:]
     for points, real_len in zip(points_list[1:], max_lens[1:]):
-        all_points = torch.cat((all_points, points[:first_len,:]), dim=-2)
+        all_points = torch.cat((all_points, points[:first_len,:]), dim=0)
     return all_points
 
 def merge_padded_lists(*args, max_lens=[]):
@@ -75,7 +75,7 @@ def merge_padded_lists(*args, max_lens=[]):
     for points_list in args:
         all_points = points_list[0][:first_len,:]
         for points, real_len in zip(points_list[1:], max_lens[1:]):
-            all_points = torch.cat((all_points, points[:real_len,:]), dim=-2)
+            all_points = torch.cat((all_points, points[:real_len,:]), dim=0)
         merged.append(all_points)
     return merged
 
@@ -87,7 +87,7 @@ class BaseDataset(Dataset):
     """
     def __init__(self, memory_list, disc_rew, device, dtype, max_len=None):
         self.data = []
-        self.keys = ['states', 'actions', 'means', 'stddevs', 'rewards', 'discounted_rewards', 'real_len']
+        self.keys = ['states', 'actions', 'means', 'stddevs', 'rewards', 'covariances', 'discounted_rewards', 'real_len']
 
         state_dim = len(memory_list[0][0].state)
         action_dim = (memory_list[0][0].action).size
@@ -98,6 +98,7 @@ class BaseDataset(Dataset):
             trajectory_means = []
             trajectory_stddevs = []
             trajectory_rewards = []
+            trajectory_covariances = []
             trajectory_discounted_rewards = []
             len_traj = len(episode)
             for t, transition in enumerate(episode):
@@ -106,6 +107,7 @@ class BaseDataset(Dataset):
                 trajectory_means.append(transition.mean)
                 trajectory_stddevs.append(transition.stddev)
                 trajectory_rewards.append(transition.reward)
+                trajectory_covariances.append(transition.covariance)
                 trajectory_discounted_rewards.append(disc_rew[e][t])
 
             unpadded_data.append([torch.tensor(trajectory_states).to(dtype).to(device).view(-1, state_dim),
@@ -113,17 +115,21 @@ class BaseDataset(Dataset):
                                   torch.tensor(trajectory_means).to(dtype).to(device).view(-1, action_dim),
                                   torch.tensor(trajectory_stddevs).to(dtype).to(device).view(-1, action_dim),
                                   torch.tensor(trajectory_rewards).to(dtype).to(device).view(-1, 1),
+                                  torch.stack(trajectory_covariances).to(dtype).to(device),
                                   torch.tensor(trajectory_discounted_rewards).to(dtype).to(device).view(-1, 1),
                                   len_traj])
-        _, _, _, _, _, _, lengths = zip(*unpadded_data)
+        _, _, _, _, _, _, _, lengths = zip(*unpadded_data)
         if max_len is None:
             max_len = max(lengths)
 
-        for unpad_traj in unpadded_data:
+        for unpad_traj in unpadded_data:  # pad the trajectory to max_len
             pad_traj = {}
             for i, unpad_values in enumerate(unpad_traj[:-1]):
-                pad_v = torch.zeros([max_len, unpad_values.shape[-1]]).to(dtype).to(device)
-                pad_v[:unpad_traj[-1], :] = unpad_traj[i]
+                if unpad_values.dim() == 3:
+                    pad_v = torch.zeros([max_len, unpad_values.shape[-2], unpad_values.shape[-1]]).to(dtype).to(device)
+                else:
+                    pad_v = torch.zeros([max_len, unpad_values.shape[-1]]).to(dtype).to(device)
+                pad_v[:unpad_traj[-1], ...] = unpad_traj[i]
                 pad_traj[self.keys[i]] = pad_v
             pad_traj['real_len'] = unpad_traj[-1]
             self.data.append(pad_traj)
@@ -177,10 +183,10 @@ class ReplayMemoryDataset(Dataset):
             del self.data[0:excess]
 
         for episode in dataset:
-            if self.use_mean:
-                self.data.append([episode['states'], episode['new_means'], episode['real_len']])
-            else:
-                self.data.append([episode['states'], episode['new_actions'], episode['real_len']])
+            #if self.use_mean:
+            self.data.append([episode['states'], episode['new_means'], episode['real_len']])
+            #else:
+            #    self.data.append([episode['states'], episode['new_actions'], episode['real_len']])
 
     def __getitem__(self, index):
         return self.data[index]

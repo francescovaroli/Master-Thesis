@@ -385,7 +385,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -398,7 +398,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=1., metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.75, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -748,11 +748,11 @@ def main_loop():
             value_replay_memory.add([iter_dataset])
         else:
             value_replay_memory.add(complete_dataset)
+
+        estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
         tv0 = time.time()
         train_value_np(value_replay_memory)
         tv1 = time.time()
-        estimated_disc_rew, values_stdevs = estimate_disc_rew(complete_dataset, i_iter, episode_specific_value=args.episode_specific_value)
-
         t0 = time.time()
         improved_context_list = improvement_step_all(complete_dataset, estimated_disc_rew)
         t1 = time.time()

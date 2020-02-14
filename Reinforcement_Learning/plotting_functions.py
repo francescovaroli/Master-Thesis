@@ -183,17 +183,17 @@ def plot_NP_value(value_np, states, disc_rew, values, r_est, env, args, i_iter):
     x, X1, X2, x1, x2 = create_plot_grid(env, args)
     # Plot a realization
     V_distr = value_np(states, disc_rew, x)  # B x num_points x z_dim  (B=1)
-    V_mean = V_distr.mean.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
-    V_stddev = V_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+    V_mean = V_distr.mean.cpu()[0].reshape(X1.shape)  # x1_dim x x2_dim
+    V_stddev = V_distr.stddev.cpu()[0].reshape(X1.shape)  # x1_dim x x2_dim
     stddev_low = V_mean - V_stddev
     stddev_high = V_mean + V_stddev
-    vmin = stddev_low.min()
-    vmax = stddev_high.max()
+    vmin = stddev_low.min().cpu()
+    vmax = stddev_high.max().cpu()
     ax_mean = fig.add_subplot(221, projection='3d')
     ax_mean.plot_surface(X1, X2, V_mean.cpu().numpy(), cmap='viridis', vmin=vmin, vmax=vmax)
     set_labels(ax_mean)
     set_limits(ax_mean, env, args, np_id='value')
-    ax_mean.set_zlim(vmin, vmax)
+    ax_mean.set_zlim(vmin, vmax)  # lim to stdv
 
     ax_mean.set_title('Mean of the value NP', pad=20, fontsize=16)
 
@@ -208,21 +208,22 @@ def plot_NP_value(value_np, states, disc_rew, values, r_est, env, args, i_iter):
     i = 0
     for y_slice in x2:
         ax_stdv.add_collection3d(
-            plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen', alpha=0.2),
+            plt.fill_between(x1, stddev_low[i, :].cpu().numpy(), stddev_high[i, :].cpu().numpy(), color='lightseagreen', alpha=0.2),
             zs=y_slice, zdir='y')
         i += 1
 
     ax = fig.add_subplot(223, projection='3d')
     set_limits(ax_stdv, env, args, np_id='value')
     set_labels(ax_stdv, np_id='value')
-    ax.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), disc_rew[0, :, 0].detach(), c='r', label='Discounted rewards')
-    ax.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), values[0, :, 0].detach(), c='b', label='Estimated values')
+
+    ax.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), disc_rew[0, :, 0].cpu(), c='r', label='Discounted rewards')
+    ax.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), values[0, :, 0].cpu(), c='b', label='Estimated values')
     leg = ax.legend(loc="upper right")
     set_labels(ax, np_id='value')
     ax_diff = fig.add_subplot(224, projection='3d')
     set_labels(ax_diff, np_id='value')
     set_limits(ax_stdv, env, args, np_id='value')
     ax_diff.set_title('Difference btw Disc. rew and Values')
-    ax_diff.scatter(states[0, :, 0].detach(), states[0, :, 1].detach(), r_est[0, :, 0].detach(), c='g', label='R-V')
+    ax_diff.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), r_est[0, :, 0].cpu(), c='g', label='R-V')
     fig.savefig(args.directory_path+'/value/'+name)
     plt.close(fig)

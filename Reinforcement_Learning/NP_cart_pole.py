@@ -131,12 +131,12 @@ init_func = InitFunc.init_zero
 max_episode_len = 200
 num_context_points = max_episode_len - args.num_testing_points
 
-np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
-                                                       args.epochs_per_iter, num_context_points, args.early_stopping, args.v_early_stopping)
-run_id = '/CARTPOLE_gpu_VP_NP_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
+np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
+                                                       args.epochs_per_iter, num_context_points)
+run_id = '/CARTPOLE_VP_NP_decreaseStdKL_mean:{}_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_mean,
                                                 args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
-args.directory_path += run_id
+#args.directory_path += run_id
 
 #torch.set_default_dtype(args.dtype)
 
@@ -415,7 +415,6 @@ def main_loop():
         colors.append('#%06X' % randint(0, 0xFFFFFF))
 
     improved_context_list = sample_initial_context_normal(args.num_ensembles)
-    plot_initial_context(improved_context_list, colors, env, args, '00')
     if initial_training:
         train_on_initial(improved_context_list)
     for i_iter in range(args.max_iter_num):
@@ -468,7 +467,8 @@ def main_loop():
                 plot_rewards_history(trpo=[tot_steps_trpo, avg_rewards_trpo], mi=[tot_steps_np, avg_rewards_np],
                                      args=args)
         plot_rewards_history(trpo=[tot_steps_trpo, avg_rewards_trpo], mi=[tot_steps_np, avg_rewards_np], args=args)
-
+    args.max_kl = args.max_kl*0.99
+    args.fixed_sigma = args.fixed_sigma*0.96
     """clean up gpu memory"""
     torch.cuda.empty_cache()
 
@@ -623,7 +623,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     plt.close(fig)
 
 
-create_directories(args.directory_path)
+#create_directories(args.directory_path)
 main_loop()
 '''thetas = np.arange(0,20,2)
 for i, theta in enumerate(thetas):

@@ -35,7 +35,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.01, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -48,10 +48,12 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
-parser.add_argument('--num-context', default=50, type=int,
+parser.add_argument('--num-context', default=10, type=int,
                     help='pick context points depending on index')
+parser.add_argument('--pick-dist', default=None, type=float,
+                    help='if None use index, else defines limit distance for chosing a point')
 
-parser.add_argument('--fixed-sigma', default=0.8, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=None, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
@@ -103,7 +105,7 @@ parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
-parser.add_argument("--plot-every", type=int, default=5,
+parser.add_argument("--plot-every", type=int, default=3,
                     help='plot every n iter')
 parser.add_argument("--num-testing-points", type=int, default=1,
                     help='how many point to use as only testing during NP training')
@@ -114,9 +116,9 @@ init_func = InitFunc.init_zero
 max_episode_len = 999
 num_context_points = max_episode_len - args.num_testing_points
 
-np_spec = '_{}z_{}rm_{}vrm_{}e_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
-                                                       args.epochs_per_iter, args.num_context, args.early_stopping, args.v_early_stopping)
-run_id = '/VP_Pick_NP_A_p:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
+np_spec = '_{}z_{}rm_{}vrm_{}e_{}dist_num_context:{}_earlystop{}|{}'.format(args.z_dim, args.replay_memory_size, args.v_replay_memory_size,
+                                                       args.epochs_per_iter, args.pick_dist, args.num_context, args.early_stopping, args.v_early_stopping)
+run_id = '/VP_freeRM_Pick:{}_NP_A:{}_A_v:{}_fixSTD:{}_epV:{}_{}ep_{}kl_{}gamma_'.format(args.pick_context, args.use_attentive_np,  args.v_use_attentive_np, args.fixed_sigma, args.episode_specific_value,
                                                 args.num_ensembles, args.max_kl, args.gamma) + np_spec
 args.directory_path += run_id
 
@@ -145,7 +147,7 @@ else:
 
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 if args.pick_context:
-    np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, args.num_context, print_freq=50)
+    np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, args.pick_dist, args.num_context, print_freq=50)
 else:
     np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer,
                                          num_context_range=(num_context_points, num_context_points),
@@ -163,14 +165,13 @@ value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optim
                                           num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                           print_freq=50)
 """create replay memory"""
-# force rm to contain only last iter episodes
-replay_memory = ReplayMemoryDataset(args.num_ensembles, use_mean=True)
+replay_memory = ReplayMemoryDataset(args.replay_memory_size, use_mean=True)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
 if args.pick_context:
     agent = AgentPicker(env, policy_np, args.device_np, args.num_context, running_state=running_state, render=args.render,
-                  attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
+                  pick_dist=args.pick_dist, fixed_sigma=args.fixed_sigma)
 else:
     agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
                   attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
@@ -361,6 +362,7 @@ def main_loop():
         disc_rew = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
         if not args.episode_specific_value:
+            # merge all the episodes' estimated values into one tensor
             iter_dataset = {}
             iter_states, iter_q = merge_padded_lists([episode['states'] for episode in complete_dataset],
                                                      [episode['discounted_rewards'] for episode in complete_dataset],
@@ -404,8 +406,7 @@ def main_loop():
             plot_rewards_history(avg_rewards, args)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(avg_rewards, args)
-            if args.pick_context:
-                plot_chosen_context(improved_context_list, args.num_context, i_iter, args)
+            plot_chosen_context(improved_context_list, args.num_context, i_iter, args, env)
         if args.fixed_sigma is not None:
             args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
@@ -414,7 +415,7 @@ def main_loop():
     torch.cuda.empty_cache()
 
 
-create_directories(args.directory_path)
+#create_directories(args.directory_path)
 main_loop()
 
 

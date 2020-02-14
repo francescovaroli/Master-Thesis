@@ -10,7 +10,7 @@ from dataset_generator import SineData, MultiGPData
 from utils import context_target_split
 import os
 
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -53,7 +53,7 @@ x_range = (-3., 3.)
 x_dim = 1
 y_dim = 1
 r_dim = 4*128  # Dimension of representation of context points in NP
-z_dim = 2*128  # Dimension of sampled latent variable
+z_dim = 2  # Dimension of sampled latent variable
 h_dim = 4*128  # Dimension of hidden layers in encoder and decoder
 a_dim = 128  # Dimension of attention output
 
@@ -64,7 +64,7 @@ if use_attention:
 if use_self_att:
     mdl = 'self & ' + mdl
 
-id = mdl + '{}e_{}b_{}c{}t_{}lr_{}r_{}z_{}a'.format(epochs, batch_size, num_context, num_target, l,r_dim, z_dim, a_dim)
+id = mdl + '{}e_{}b_{}c{}t_{}lr_{}r_{}z_{}a_lessDeep'.format(epochs, batch_size, num_context, num_target, l,r_dim, z_dim, a_dim)
 
 
 # Create dataset

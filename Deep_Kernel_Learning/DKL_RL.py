@@ -11,7 +11,7 @@ import gpytorch
 from utils import context_target_split
 from plotting_functions_DKL import plot_posterior
 from torch.utils.data import DataLoader
-from core.agent_ensembles_all_context import Agent
+from core.agent_ensembles_all_context import Agent_all_ctxt
 from DKModel import GPRegressionModel, DKMTrainer, DKMTrainer_loo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
@@ -22,6 +22,11 @@ from core.agent_picker import AgentPicker
 from multihead_attention_np import *
 from torch.distributions import Normal
 from weights_init import InitFunc
+from models.mlp_policy import Policy
+from models.mlp_critic import Value
+from core.trpo import trpo_step
+from core.common import estimate_advantages
+from core.agent import Agent
 
 torch.set_default_tensor_type(torch.DoubleTensor)
 if torch.cuda.is_available() and False:
@@ -37,11 +42,27 @@ parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
+
+parser.add_argument('--tau', type=float, default=0.95, metavar='G',
+                    help='gae (default: 0.95)')
+parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
+                    help='l2 regularization regression (default: 1e-3)')
+parser.add_argument('--max-kl-trpo', type=float, default=1e-2, metavar='G',
+                    help='max kl value (default: 1e-2)')
+parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
+                    help='damping (default: 1e-2)')
+parser.add_argument('--num-threads', type=int, default=5, metavar='N',
+                    help='number of threads for agent (default: 4)')
+parser.add_argument('--min-batch-size', type=int, default=1994, metavar='N',
+                    help='minimal batch size per TRPO update (default: 2048)')
+
+
+
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.8, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=6, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -52,9 +73,9 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--z-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-dim', type=int, default=256, metavar='N',
+parser.add_argument('--h-dim', type=int, default=64, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--fixed-sigma', default=0.75, metavar='N', type=float,
+parser.add_argument('--fixed-sigma', default=0.5, metavar='N', type=float,
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=30, metavar='G',
                     help='training epochs of NP')
@@ -65,7 +86,7 @@ parser.add_argument('--batch-size', type=int, default=1, metavar='N',
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')
 
-parser.add_argument('--num-context', type=int, default=1000, metavar='N',
+parser.add_argument('--num-context', type=int, default=200, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument("--pick", type=bool, default=False,
                     help='whether to select a subst of context points')
@@ -75,10 +96,10 @@ parser.add_argument("--noise", type=float, default=1e-3,
                     help='plot every n iter')
 parser.add_argument("--lr_gp", type=float, default=0.001,
                     help='plot every n iter')
-parser.add_argument("--lr_nn", type=float, default=1e-3,
+parser.add_argument("--lr_nn", type=float, default=1e-4,
                     help='plot every n iter')
 
-parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/DKL learning results/',
+parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/comparison/',
                     help='path to plots folder')
 parser.add_argument('--device-np', default=device,
                     help='device')
@@ -100,11 +121,11 @@ init_func = InitFunc.init_zero
 
 max_episode_len = 200
 
-dkl_spec = 'DKM_{}e_{}b_{}lr_gp_{}lr_nn_{}z_{}h_{}_{}<noise_trainOnTarget_scale(grid)_autoGridSize_noScale_toepl_/'.format(args.epochs_per_iter,
+dkl_spec = 'DKM_{}e_{}b_{}lr_gp_{}lr_nn_{}z_{}h_{}_{}<noise_trainLoo_scale(grid)_autoGridSize_noScale_toepl_'.format(args.epochs_per_iter,
                                                             args.batch_size, args.lr_gp, args.lr_nn, args.z_dim, args.h_dim, args.scaling, args.noise)
 run_id = 'CARTPOLE_fixSTD:{}_{}ep_{}kl_{}gamma_pick{}_{}ctx_loo{}_'.format(args.fixed_sigma, args.num_ensembles, args.max_kl,
                                                              args.gamma, args.pick, args.num_context, args.loo) + dkl_spec
-args.directory_path += run_id
+#args.directory_path += run_id
 
 """environment"""
 env = gym.make(args.env_name)
@@ -120,6 +141,29 @@ else:
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 env.seed(args.seed)
+
+policy_net = Policy(state_dim, action_dim, log_std=args.log_std)
+value_net = Value(state_dim)
+policy_net.to(device)
+value_net.to(device)
+
+agent_trpo = Agent(env, policy_net, device, running_state=running_state, render=args.render, num_threads=1)
+
+def update_params_trpo(batch):
+    # (3)
+    states = torch.from_numpy(np.stack(batch.state)).to(args.dtype).to(device)
+    actions = torch.from_numpy(np.stack(batch.action)).to(args.dtype).to(device)
+    rewards = torch.from_numpy(np.stack(batch.reward)).to(args.dtype).to(device)
+    masks = torch.from_numpy(np.stack(batch.mask)).to(args.dtype).to(device)
+    with torch.no_grad():
+        values = value_net(states)  # estimate value function of each state with NN
+
+    """get advantage estimation from the trajectories"""
+    advantages, returns = estimate_advantages(rewards, masks, values, args.gamma, args.tau, device)
+
+    """perform TRPO update"""
+    trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl_trpo, args.damping, args.l2_reg)
+
 
 #torch.set_default_dtype(args.dtype)
 def sample_initial_context_normal(num_ensembles):
@@ -145,14 +189,9 @@ likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_constraint=gpytorch.c
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
                           args.h_dim, args.z_dim, name_id='DKL', scaling=args.scaling).to(device).double()
 
-'''optimizer = torch.optim.Adam([
-    {'params': model.feature_extractor.parameters()},
-    {'params': model.covar_module.parameters()},
-    {'params': model.mean_module.parameters()},
-    {'params': model.likelihood.parameters()}], lr=0.01)'''
 
 model.initialize(**{
-    'likelihood.noise': 0.5,
+    'likelihood.noise': args.noise,
 #    'covar_module.base_kernel.outputscale':.5,
     'covar_module.base_kernel.lengthscale': 0.5
 })
@@ -161,11 +200,9 @@ optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters(), 'lr':args.lr_nn},
     {'params': model.likelihood.parameters(), 'lr':args.lr_gp},
     {'params': model.covar_module.parameters(), 'lr':args.lr_gp},
-    #{'params': model.covar_module.base_kernel.parameters(), 'lr':args.lr_gp},
     {'params': model.mean_module.parameters(), 'lr':args.lr_gp}])
 
-"""optimizer = torch.optim.Adam([
-    {'params': model.parameters(), 'lr':args.lr_nn}])"""
+
 # train
 if args.loo:
     model_trainer = DKMTrainer_loo(device, model, optimizer, args, print_freq=10)
@@ -181,7 +218,7 @@ if args.pick:
                         pick_dist=None, fixed_sigma=args.fixed_sigma)
 else:
 
-    agent = Agent(env, model, args.device_np, custom_reward=None, attention=False, mean_action=False, render=args.render,
+    agent = Agent_all_ctxt(env, model, args.device_np, custom_reward=None, attention=False, mean_action=False, render=args.render,
                   running_state=running_state, fixed_sigma=args.fixed_sigma)
 
 def estimate_eta_3(actions, means, advantages, sigmas):
@@ -211,7 +248,7 @@ def improvement_step_all(complete_dataset, estimated_adv):
                                                                 [episode['stddevs'] for episode in complete_dataset],
                                                                 [episode['actions'] for episode in complete_dataset],
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
-        all_advantages = [adv for ep in estimated_adv for adv in ep]
+        all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
         eta = estimate_eta_3(all_actions, all_means, all_advantages, all_stdv)
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
@@ -298,6 +335,30 @@ def estimate_disc_rew(all_episodes, i_iter, episode_specific_value=False):
     return estimated_disc_rew, value_stddevs
 
 
+def estimate_v_a(complete_dataset, disc_rew):
+    ep_rewards = [tensor(rews) for rews in disc_rew]
+    ep_states = [ep['states'] for ep in complete_dataset]
+    real_lens = [ep['real_len'] for ep in complete_dataset]
+    estimated_advantages = []
+    all_values = []
+    for i in range(len(ep_states)):
+        context_list = []
+        j = 0
+        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+            if j != i:
+                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
+            else:
+                s_target = states[:real_len, :].unsqueeze(0)
+                r_target = rewards.view(1,-1,1)
+            j += 1
+        s_context, r_context = merge_context(context_list)
+        with torch.no_grad(), gpytorch.settings.use_toeplitz(False):
+            model.set_train_data(s_context.squeeze(0), r_context.squeeze(0).squeeze(-1), strict=False)
+            values = model(s_target)
+        all_values.append(values)
+        advantages = r_target.view(-1) - values.mean
+        estimated_advantages.append(advantages)
+    return estimated_advantages, all_values
 
 def create_directories(directory_path):
 
@@ -305,7 +366,11 @@ def create_directories(directory_path):
     os.mkdir(directory_path + '/Mean improvement/')
     os.mkdir(directory_path + '/z/')
 
-avg_rewards = []
+
+avg_rewards_np = [0]
+tot_steps_np = [0]
+avg_rewards_trpo = [0]
+tot_steps_trpo = [0]
 
 
 def main_loop(improved_context_list):
@@ -315,16 +380,20 @@ def main_loop(improved_context_list):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
 
     for i_iter in range(args.max_iter_num):
-        print('sampling episodes')        # (1)
-        # generate multiple trajectories that reach the minimum batch_size
+        if tot_steps_trpo[-1] - tot_steps_np[-1] < 1000:
+            batch_trpo, log_trpo, memory_trpo = agent_trpo.collect_samples(args.min_batch_size)  # batch of batch_size transitions from multiple
+            update_params_trpo(batch_trpo)  # generate multiple trajectories that reach the minimum batch_size
+            tot_steps_trpo.append(tot_steps_trpo[-1] + log_trpo['num_steps'])
+            avg_rewards_trpo.append(log_trpo['avg_reward'])        # generate multiple trajectories that reach the minimum batch_size
         model.eval()
-        batch, log = agent.collect_episodes(improved_context_list, render=(i_iter%10==0))
+        batch, log = agent.collect_episodes(improved_context_list, render=False)
 
         disc_rew = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew, args.device_np, args.dtype,  max_len=max_episode_len)
+        advantages, values = estimate_v_a(complete_dataset, disc_rew)
 
         t0 = time.time()
-        improved_context_list = improvement_step_all(complete_dataset, disc_rew)
+        improved_context_list = improvement_step_all(complete_dataset, advantages)
         t1 = time.time()
 
         # create training set
@@ -334,27 +403,40 @@ def main_loop(improved_context_list):
         tn1 = time.time()
 
         tv0 = time.time()
-        if i_iter % args.plot_every == 0:
+        if i_iter % args.plot_every == 0 and False:
             # plot_initial_context(improved_context_list, colors, env, args, i_iter)
             # plot_training_set(i_iter, replay_memory, env, args)
             plot_policy(model, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
             plot_improvements(complete_dataset, disc_rew, env, i_iter, args, colors)
         tv1 = time.time()
-
-        avg_rewards.append(log['avg_reward'])
+        avg_rewards_np.append(log['avg_reward'])
+        tot_steps_np.append(tot_steps_np[-1] + log['num_steps'])
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f} \tT_update {:.4f} \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
             print('Training:  \tT_policy {:.2f}  \nT_plots {:.2f}'.format(tn1-tn0, tv1-tv0))
-        if log['avg_reward'] > 195:
-            print('converged')
-            plot_rewards_history(avg_rewards, args)
         if i_iter % args.plot_every == 0:
-            plot_rewards_history(avg_rewards, args)
-    plot_rewards_history(avg_rewards, args)
+            plot_rewards_history(trpo=[tot_steps_trpo, avg_rewards_trpo], mi=[tot_steps_np, avg_rewards_np],
+                                 args=args)
+        plot_rewards_history(trpo=[tot_steps_trpo, avg_rewards_trpo], mi=[tot_steps_np, avg_rewards_np], args=args)
 
     """clean up gpu memory"""
     torch.cuda.empty_cache()
+
+def plot_rewards_history(trpo=None, mi=None, args=args):
+    fig_rew, ax_rew = plt.subplots(1, 1)
+    colors = ['r', 'orange']
+    labels = ['trpo', 'dkl']
+    for i, log in enumerate([trpo, mi]):
+        tot_steps, avg_rewards = log
+        ax_rew.plot(tot_steps, avg_rewards, c=colors[i], label=labels[i])
+    ax_rew.set_xlabel('number of steps')
+    ax_rew.set_ylabel('average reward')
+    ax_rew.set_title('Average Reward History')
+    plt.legend()
+    plt.grid()
+    fig_rew.savefig(args.directory_path + run_id.replace('.', ','))
+    plt.close(fig_rew)
 
 def create_plot_4d_grid(env, args, size=20):
     import gpytorch
@@ -504,8 +586,8 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
         new_means = episode['new_means'][:real_len].cpu()
         est_rew = est_rewards[e]
         if e == 0:
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)
-            ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.6)
+            ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)
+            ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.6)
             leg = ax.legend(loc="upper right")
         else:
             ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', alpha=0.3)
@@ -571,5 +653,5 @@ def plot_DKL_policy(context_set, model, id, args):
     return
 
 
-create_directories(args.directory_path)
+#create_directories(args.directory_path)
 main_loop(improved_context_list)

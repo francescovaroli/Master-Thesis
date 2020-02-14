@@ -7,6 +7,7 @@ import random
 from plotting_functions_DKL import plot_posterior, plot_posterior_2d
 from utils_rl.memory_dataset import get_close_context
 from torch import autograd
+from torch.distributions import MultivariateNormal
 
 class LargeFeatureExtractor(torch.nn.Sequential):
     def __init__(self, x_dim, h_dim, out_dim):
@@ -91,20 +92,20 @@ class DKMTrainer():
                 self.model.eval()
                 self.model.likelihood.eval()
                 #try:
-                with gpytorch.settings.use_toeplitz(True):
+                with gpytorch.settings.use_toeplitz(False):
                     predictions = self.model(x_target)
-                    self.model.train()
-                    self.model.likelihood.train()
+                self.model.train()
+                self.model.likelihood.train()
 
-                    loss = -self.mll(predictions, y_target.view(-1))
-                    if torch.isnan(loss):
-                        print(loss)
-                        self.model.eval()
-                        self.model.likelihood.eval()
-                        s = self.model(x_target)
-                    #except RuntimeError:
-                    #    predictions = self.model(x_target)
-                    loss.backward()
+                loss = -self.mll(predictions, y_target.view(-1))
+                if torch.isnan(loss):
+                    print(loss)
+                    self.model.eval()
+                    self.model.likelihood.eval()
+                    s = self.model(x_target)
+                #except RuntimeError:
+                #    predictions = self.model(x_target)
+                loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
@@ -231,21 +232,23 @@ class DKMTrainer_loo():
                 t = time.time()
                 # Zero backprop gradients
                 self.optimizer.zero_grad()
-
-                all_context_points = merge_context(one_out_list[i])
                 data = episode_fixed_list[i]
                 x, y, num_points = data
-                index = random.randint(0, num_points.item()-1)
-                #x_target = x[:, index, :].unsqueeze(0)
-                #y_target = y[:, index, :].view(-1)
-                x_target = x.unsqueeze(0)
-                y_target = y.view(-1)
-                x_context, y_context = all_context_points
+                index = random.randint(0, num_points.item() - 1)
+                x_target = x[:, index, :].unsqueeze(0)
+                y_target = y[:, index, :].view(-1)
+                #x_target = x.unsqueeze(0)
+                #y_target = y.view(-1)
+                x_context, y_context = merge_context(one_out_list[i])
+                #x_context, y_context, _, _ = context_target_split(all_x_context, all_y_context,
+                #                                                  num_context=all_x_context.shape[-2]//2,
+                #                                                  num_extra_target=0)
                 # Get output from model
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 self.model.eval()
                 self.model.likelihood.eval()
-                predictions = self.model(x_target)
+                with gpytorch.settings.use_toeplitz(False):
+                    predictions = self.model(x_target)
                 if any(torch.isnan(predictions.stddev.view(-1))):
                     print('found Nan')
                     #self.model.eval()

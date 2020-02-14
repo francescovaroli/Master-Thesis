@@ -53,6 +53,8 @@ parser.add_argument('--num-threads', type=int, default=5, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--min-batch-size', type=int, default=2994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
+parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
+                    help='log std for the policy (default: -1.0)')
 
 parser.add_argument('--z-mi-dim', type=int, default=50, metavar='N',
                     help='dimension of latent variable in np')
@@ -65,14 +67,14 @@ parser.add_argument("--lr_nn", type=float, default=1e-4,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.3, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.06, metavar='G',
+                    help='max kl value (default: 1e-2)')
+parser.add_argument('--max-kl-mi', type=float, default=0.06, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=3, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
-parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
-                    help='log std for the policy (default: -1.0)')
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
 
@@ -142,16 +144,16 @@ args = parser.parse_args()
 initial_training = True
 
 
-np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
+np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
                                                                 args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
-                                                                args.h_dim, args.use_attentive_np, args.a_dim)
+                                                                args.h_dim, args.max_kl_np, args.use_attentive_np, args.a_dim)
 
-mi_spec = '_MI_{}rm_{}epo_{}z_{}h'.format(args.replay_memory_size, args.epochs_per_iter, args.z_mi_dim,
-                                          args.h_mi_dim, args.scaling)
+mi_spec = '_MI_{}rm_{}epo_{}z_{}h_{}kl_{}'.format(args.replay_memory_size, args.epochs_per_iter, args.z_mi_dim,
+                                          args.h_mi_dim,args.max_kl_mi, args.scaling)
 
-run_id = '/{}_NP:{}_MI:{}_{}epi_fixSTD:{}_{}kl_{}gamma_'.format(args.env_name, args.use_np, args.use_mi,
+run_id = '/{}_NP:{}_MI:{}_{}epi_fixSTD:{}_{}gamma_'.format(args.env_name, args.use_np, args.use_mi,
                                                                    args.num_ensembles, args.fixed_sigma,
-                                                                   args.max_kl, args.gamma) + np_spec + mi_spec
+                                                                    args.gamma) + np_spec + mi_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
@@ -257,11 +259,15 @@ def train_mi(datasets, epochs=args.epochs_per_iter):
     model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=None)
 
 
-def estimate_eta_3(actions, means, advantages, sigmas, covariances):
+def estimate_eta_3(actions, means, advantages, sigmas, covariances, is_np):
     """Compute learning step from all the samples of previous iteration"""
     n,  _, d = actions.size()
     stddev = args.fixed_sigma
-    eps = tensor(args.max_kl).to(args.dtype)
+    if is_np:
+        eps = tensor(args.max_kl_np).to(args.dtype)
+    else:
+        eps = tensor(args.max_kl_mi).to(args.dtype)
+
     T = tensor(actions.shape[0]).to(args.dtype)
     if d > 1:  # a, m, s: Nx1xD, disc_r: Nx1, cov: NxDxD
         diff_vector = (actions - means) / sigmas   # Nx1xD
@@ -278,7 +284,7 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances):
     return torch.sqrt((T * eps) / denominator)
 
 
-def improvement_step_all(complete_dataset, estimated_adv):
+def improvement_step_all(complete_dataset, estimated_adv, is_np):
     """Perform improvement step using same eta for all episodes"""
     all_improved_context = []
     with torch.no_grad():
@@ -289,7 +295,8 @@ def improvement_step_all(complete_dataset, estimated_adv):
                                                                 [episode['covariances'] for episode in complete_dataset],
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
         all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
-        eta = estimate_eta_3(all_actions.unsqueeze(1), all_means.unsqueeze(1), all_advantages, all_stdv.unsqueeze(1), all_covariances)
+        eta = estimate_eta_3(all_actions.unsqueeze(1), all_means.unsqueeze(1), all_advantages, all_stdv.unsqueeze(1),
+                             all_covariances, is_np)
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
             states = episode['states'][:real_len]
@@ -455,7 +462,7 @@ def main_loop():
             print('np avg actions: ', log_np['action_mean'])
             advantages_np = estimate_v_a(complete_dataset_np, disc_rew_np)
 
-            improved_context_list_np = improvement_step_all(complete_dataset_np, advantages_np)
+            improved_context_list_np = improvement_step_all(complete_dataset_np, advantages_np, is_np=True)
             # training
             value_replay_memory.add(complete_dataset_np)
             train_value_np(value_replay_memory)
@@ -479,7 +486,7 @@ def main_loop():
             advantages_mi = estimate_v_a_mi(complete_dataset_mi, disc_rew_mi)
 
             t0 = time.time()
-            improved_context_list_mi = improvement_step_all(complete_dataset_mi, advantages_mi)
+            improved_context_list_mi = improvement_step_all(complete_dataset_mi, advantages_mi, is_np=False)
             t1 = time.time()
 
             # create training set
@@ -499,8 +506,6 @@ def main_loop():
             if args.use_mi:
                 print('mi: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_mi['min_reward'], log_mi['max_reward'], log_mi['avg_reward']))
 
-        args.max_kl = args.max_kl * 0.99
-        args.fixed_sigma = args.fixed_sigma * 0.96
         if i_iter % args.plot_every == 0:
             plot_rewards_history([tot_steps_trpo, tot_steps_np, tot_steps_mi],
                                  [avg_rewards_trpo, avg_rewards_np, avg_rewards_mi])
@@ -532,5 +537,9 @@ def create_directories(directory_path):
     os.mkdir(directory_path + '/np')
     os.mkdir(directory_path + '/mi')
 
-create_directories(args.directory_path)
+try:
+    create_directories(args.directory_path)
+except FileExistsError:
+    pass
+
 main_loop()

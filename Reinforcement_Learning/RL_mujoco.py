@@ -114,7 +114,7 @@ parser.add_argument('--v-early-stopping', type=int, default=-1000, metavar='N',
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/',
                     help='path to plots folder')
-parser.add_argument('--tot-steps', default=1000000, type=int,
+parser.add_argument('--tot-steps', default=1000000, type=intC,
                     help='total steps in the run')
 
 

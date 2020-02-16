@@ -80,7 +80,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
-parser.add_argument('--fixed-sigma', default=0.35, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=60, metavar='G',
                     help='training epochs of NP')

@@ -67,9 +67,9 @@ parser.add_argument("--lr_nn", type=float, default=1e-4,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.06, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.1, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--max-kl-mi', type=float, default=0.06, metavar='G',
+parser.add_argument('--max-kl-mi', type=float, default=0.2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=3, metavar='N',
                     help='episode to collect per iteration')
@@ -161,11 +161,12 @@ trpo_file = args.directory_path + '/trpo/{}.csv'.format(args.seed)
 np_file = args.directory_path + '/np/{}.csv'.format(args.seed)
 mi_file = args.directory_path + '/mi/{}.csv'.format(args.seed)
 
-max_episode_len = 1000
 #torch.set_default_dtype(args.dtype)
 
 """environment"""
 env = gym.make(args.env_name)
+max_episode_len = env._max_episode_steps
+
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 is_disc_action = len(env.action_space.shape) == 0
@@ -445,7 +446,7 @@ def main_loop():
             if initial_training:
                 train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
-        if args.use_trpo and tot_steps_trpo[-1] < args.tot_steps:
+        if args.use_trpo and tot_steps_trpo[-1] < args.tot_steps and tot_steps_trpo[-1] - max(tot_steps_mi[-1], tot_steps_np[-1]) < 1000:
             batch_trpo, log, memory_trpo = agent_trpo.collect_samples(args.min_batch_size)  # batch of batch_size transitions from multiple
             store_rewards_trpo(memory_trpo.memory, trpo_file)
             update_params_trpo(batch_trpo)  # generate multiple trajectories that reach the minimum batch_size

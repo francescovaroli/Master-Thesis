@@ -32,7 +32,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="Ant-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -122,7 +122,7 @@ parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
-parser.add_argument('--seed', type=int, default=7, metavar='N',
+parser.add_argument('--seed', type=int, default=0, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
@@ -217,7 +217,7 @@ else:
     policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
 
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
-np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer,
+np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=max_episode_len//2,
                                     print_freq=50)
 
 if args.v_use_attentive_np:
@@ -226,7 +226,7 @@ if args.v_use_attentive_np:
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
+value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer, num_target=max_episode_len//2,
                                           print_freq=50)
 value_np.training = False
 """create replay memory"""
@@ -521,7 +521,7 @@ def plot_rewards_history(steps, rews):
     labels = ['TRPO', 'NP', 'MI']
     colors = ['r', 'b', 'g']
     for i in range(len(steps)):
-        ax_rew.plot(steps[i], rews[i], c=colors[i], label=labels[i])
+        ax_rew.plot(steps[i][1:], rews[i][1:], c=colors[i], label=labels[i])
     ax_rew.set_xlabel('number of steps')
     ax_rew.set_ylabel('average reward')
     ax_rew.set_title('Average Reward History')

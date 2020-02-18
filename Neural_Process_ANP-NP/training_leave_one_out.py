@@ -29,14 +29,15 @@ class NeuralProcessTrainerLoo():
         Frequency with which to print loss information during training.
     """
     def __init__(self, device, neural_process, optimizer, num_context_range=None,
-                 num_extra_target_range=100, print_freq=100):
+                 num_target=100, print_freq=100):
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
         self.print_freq = print_freq
         self.steps = 0
         self.epoch_loss_history = []
-        self.num_target = num_extra_target_range
+        self.num_target = num_target
+
     def train(self, data_loader, epochs, early_stopping=None):
         """
         Trains Neural Process.

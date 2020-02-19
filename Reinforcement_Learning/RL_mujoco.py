@@ -6,8 +6,9 @@ import time
 from random import randint
 import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils_rl import *
-from core.common import discounted_rewards
+from utils_rl.torch import *
+from utils_rl.memory_dataset import *
+
 from core.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
@@ -19,7 +20,7 @@ from torch.distributions import Normal
 from models.mlp_policy import Policy
 from models.mlp_critic import Value
 from core.trpo import trpo_step
-from core.common import estimate_advantages
+from core.common import estimate_advantages, discounted_rewards
 from core.agent import Agent
 
 
@@ -40,6 +41,7 @@ parser.add_argument('--use-trpo', default=True, help='trpo')
 parser.add_argument('--use-np', default=True, help='np')
 parser.add_argument('--use-mi', default=True, help='mi')
 
+parser.add_argument('--learn-sigma', default=False, help='update the stddev of the policy')
 
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='gae (default: 0.95)')
@@ -67,7 +69,7 @@ parser.add_argument("--lr_nn", type=float, default=1e-4,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.1, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.3, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--max-kl-mi', type=float, default=0.2, metavar='G',
                     help='max kl value (default: 1e-2)')
@@ -260,18 +262,14 @@ def train_mi(datasets, epochs=args.epochs_per_iter):
     model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=None)
 
 
-def estimate_eta_3(actions, means, advantages, sigmas, covariances, is_np):
+def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps):
     """Compute learning step from all the samples of previous iteration"""
     n,  _, d = actions.size()
     stddev = args.fixed_sigma
-    if is_np:
-        eps = tensor(args.max_kl_np).to(args.dtype)
-    else:
-        eps = tensor(args.max_kl_mi).to(args.dtype)
 
     T = tensor(actions.shape[0]).to(args.dtype)
     if d > 1:  # a, m, s: Nx1xD, disc_r: Nx1, cov: NxDxD
-        diff_vector = (actions - means) / sigmas   # Nx1xD
+        diff_vector = (actions - means) / sigmas**2   # Nx1xD
         squared_normalized = (diff_vector.matmul(covariances)).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
         denominator = (0.5 * (advantages ** 2).matmul(squared_normalized))  # (1xN)(Nx1) -> 1
 
@@ -280,12 +278,12 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances, is_np):
         for action, mean, disc_reward, sigma in zip(actions, means, advantages, sigmas):
             if stddev is None:
                 stddev = sigma
-            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2 * (stddev ** 4))
+            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2 * (stddev ** 6))
         denominator = iter_sum.to(args.dtype)
     return torch.sqrt((T * eps) / denominator)
 
 
-def improvement_step_all(complete_dataset, estimated_adv, is_np):
+def improvement_step_all(complete_dataset, estimated_adv, eps):
     """Perform improvement step using same eta for all episodes"""
     all_improved_context = []
     with torch.no_grad():
@@ -297,33 +295,36 @@ def improvement_step_all(complete_dataset, estimated_adv, is_np):
                                                                  max_lens=[episode['real_len'] for episode in complete_dataset])
         all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
         eta = estimate_eta_3(all_actions.unsqueeze(1), all_means.unsqueeze(1), all_advantages, all_stdv.unsqueeze(1),
-                             all_covariances, is_np)
+                             all_covariances, eps)
+        new_sigmas = []
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
             states = episode['states'][:real_len]
             actions = episode['actions'][:real_len]
             means = episode['means'][:real_len]
-            new_padded_actions = torch.zeros_like(episode['actions'])
             new_padded_means = torch.zeros_like(episode['means'])
+
+            new_padded_sigmas = torch.zeros(actions.shape[-1])
+
             i = 0
             for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
                 if args.fixed_sigma is None:
                     sigma = stddev
                 else:
                     sigma = args.fixed_sigma
-                new_mean = mean + eta * advantage * ((action - mean) / sigma)
-                distr = Normal(new_mean, sigma)
-                new_action = distr.sample()
-                # new_padded_actions[i, :] = new_action
+                new_mean = mean + eta * advantage * ((action - mean) / sigma**2)
                 new_padded_means[i, :] = new_mean
+                new_padded_sigmas += eta * advantage * ((action - mean)**2 - sigma**2)/sigma**3
+                #distr = Normal(new_mean, new_sigma)
+
                 i += 1
             episode['new_means'] = new_padded_means
-            # episode['new_actions'] = new_padded_actions
-            #if args.use_mean:
+            new_sigmas.append(new_padded_sigmas/i)
             all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
-            #else:
-            #    all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-
+            # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
+    new_sigma = torch.stack(new_sigmas, dim=0).mean(dim=0)
+    if args.learn_sigma:
+        args.fixed_sigma += new_sigma
     return all_improved_context
 
 
@@ -463,7 +464,7 @@ def main_loop():
             print('np avg actions: ', log_np['action_mean'])
             advantages_np = estimate_v_a(complete_dataset_np, disc_rew_np)
 
-            improved_context_list_np = improvement_step_all(complete_dataset_np, advantages_np, is_np=True)
+            improved_context_list_np = improvement_step_all(complete_dataset_np, advantages_np, args.max_kl_np)
             # training
             value_replay_memory.add(complete_dataset_np)
             train_value_np(value_replay_memory)
@@ -487,7 +488,7 @@ def main_loop():
             advantages_mi = estimate_v_a_mi(complete_dataset_mi, disc_rew_mi)
 
             t0 = time.time()
-            improved_context_list_mi = improvement_step_all(complete_dataset_mi, advantages_mi, is_np=False)
+            improved_context_list_mi = improvement_step_all(complete_dataset_mi, advantages_mi, args.max_kl_mi)
             t1 = time.time()
 
             # create training set

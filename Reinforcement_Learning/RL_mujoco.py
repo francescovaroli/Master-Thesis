@@ -32,7 +32,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Ant-v2", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -71,7 +71,7 @@ parser.add_argument('--max-kl-np', type=float, default=0.1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--max-kl-mi', type=float, default=0.2, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=3, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -82,9 +82,9 @@ parser.add_argument('--use-mean', default=True, metavar='N',
                     help='train & condit on improved means/actions'),
 parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=60, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
@@ -99,7 +99,7 @@ parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=60, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=4, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -442,9 +442,9 @@ def main_loop():
         colors.append('#%06X' % randint(0, 0xFFFFFF))
         improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
         improved_context_list_mi = improved_context_list_np
-        if args.use_np:
-            if initial_training:
-                train_on_initial(improved_context_list_np)
+    if args.use_np:
+        if initial_training:
+            train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
         if args.use_trpo and tot_steps_trpo[-1] < args.tot_steps and tot_steps_trpo[-1] - max(tot_steps_mi[-1], tot_steps_np[-1]) < 1000:
             batch_trpo, log, memory_trpo = agent_trpo.collect_samples(args.min_batch_size)  # batch of batch_size transitions from multiple

@@ -507,7 +507,7 @@ def main_loop():
                 print('np: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_np['min_reward'], log_np['max_reward'], log_np['avg_reward']))
             if args.use_mi:
                 print('mi: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_mi['min_reward'], log_mi['max_reward'], log_mi['avg_reward']))
-
+        print(args.fixed_sigma)
         if i_iter % args.plot_every == 0:
             plot_rewards_history([tot_steps_trpo, tot_steps_np, tot_steps_mi],
                                  [avg_rewards_trpo, avg_rewards_np, avg_rewards_mi])

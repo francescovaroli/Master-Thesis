@@ -1,6 +1,6 @@
 import torch
 from utils_rl import to_device
-from utils_rl.memory_dataset import rewards_from_batch
+from utils_rl.memory_dataset import rewards_from_batch, merge_padded_lists
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
@@ -59,10 +59,63 @@ def discounted_rewards(batch, gamma):
 
 
 
-#rewards = [[1]*10, [1]*5, [1]*2]
-#print(discounted_rewards(rewards, 0.9))
-    # traj_disc_rew = [0]
-    #        num_steps = len(traj_rewards)
-    #    for t in reversed(range(num_steps)):
-    #        curr_disc_rew = gamma * (traj_disc_rew[0] + traj_rewards[t])
-#        traj_disc_rew.insert(0, curr_disc_rew)
+def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps, args):
+    """Compute learning step from all the samples of previous iteration"""
+    n,  _, d = actions.size()
+    stddev = args.fixed_sigma
+
+    T = torch.tensor(actions.shape[0]).to(args.dtype)
+    if d > 1:  # a, m, s: Nx1xD, disc_r: Nx1, cov: NxDxD
+        diff_vector = (actions - means) / sigmas   # Nx1xD
+        squared_normalized = (diff_vector.matmul(covariances)).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
+        denominator = (0.5 * (advantages ** 2).matmul(squared_normalized))  # (1xN)(Nx1) -> 1
+
+    else:
+        iter_sum = 0
+        for action, mean, disc_reward, sigma in zip(actions, means, advantages, sigmas):
+            if stddev is None:
+                stddev = sigma
+            iter_sum += ((disc_reward ** 2) * (action - mean) ** 2) / (2 * (stddev ** 4))
+        denominator = iter_sum.to(args.dtype)
+    return torch.sqrt((T * eps) / denominator)
+
+
+def improvement_step_all(complete_dataset, estimated_adv, eps, args):
+    """Perform improvement step using same eta for all episodes"""
+    all_improved_context = []
+    with torch.no_grad():
+        all_states, all_means, all_stdv, all_actions, all_covariances = merge_padded_lists([episode['states'] for episode in complete_dataset],
+                                                                [episode['means'] for episode in complete_dataset],
+                                                                [episode['stddevs'] for episode in complete_dataset],
+                                                                [episode['actions'] for episode in complete_dataset],
+                                                                [episode['covariances'] for episode in complete_dataset],
+                                                                 max_lens=[episode['real_len'] for episode in complete_dataset])
+        all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
+        eta = estimate_eta_3(all_actions.unsqueeze(1), all_means.unsqueeze(1), all_advantages, all_stdv.unsqueeze(1),
+                             all_covariances, eps, args)
+        for episode, episode_adv in zip(complete_dataset, estimated_adv):
+            real_len = episode['real_len']
+            states = episode['states'][:real_len]
+            actions = episode['actions'][:real_len]
+            means = episode['means'][:real_len]
+            new_padded_sigmas = torch.zeros_like(episode['stddevs'])
+            new_padded_means = torch.zeros_like(episode['means'])
+            i = 0
+            for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
+                if args.fixed_sigma is None:
+                    sigma = stddev
+                else:
+                    sigma = args.fixed_sigma
+                new_mean = mean + eta * advantage * ((action - mean) / sigma)
+                new_sigma = sigma + eta * advantage * (((action - mean)**2 / 2*sigma**2 - 1))/sigma
+                #distr = Normal(new_mean, new_sigma)
+                new_padded_sigmas[i, :] = new_sigma
+                new_padded_means[i, :] = new_mean
+                i += 1
+            episode['new_means'] = new_padded_means
+            episode['new_sigmas'] = new_padded_sigmas
+            all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
+            # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
+
+    return all_improved_context
+

@@ -41,7 +41,7 @@ parser.add_argument('--use-trpo', default=True, help='trpo')
 parser.add_argument('--use-np', default=True, help='np')
 parser.add_argument('--use-mi', default=True, help='mi')
 
-parser.add_argument('--learn-sigma', default=False, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='gae (default: 0.95)')

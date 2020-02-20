@@ -38,7 +38,7 @@ parser.add_argument('--learn-sigma', default=True, help='update the stddev of th
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.5, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.8, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')

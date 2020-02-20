@@ -79,7 +79,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                     mean, stddev = policy.xz_to_y(state_var, z_dist.mean)
                 else:
                     action = action_distribution.sample().view(-1)   # sample from normal distribution
-                    cov = torch.diag(sigma)
+                    cov = torch.diag(sigma**2)
                 next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std

@@ -38,7 +38,7 @@ parser.add_argument('--learn-sigma', default=True, help='update the stddev of th
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.4, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -53,12 +53,14 @@ parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=32, metavar='N',
+parser.add_argument('--z-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
+parser.add_argument('--a-dim', type=int, default=128, metavar='N',
+                    help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
@@ -72,8 +74,7 @@ parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--v-r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
-parser.add_argument('--a-dim', type=int, default=128, metavar='N',
-                    help='dimension of representation space in np')
+
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--v-early-stopping', type=int, default=-1000, metavar='N',

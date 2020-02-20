@@ -311,5 +311,11 @@ if __name__ == '__main__':
         tot_steps.append(tot_steps[-1] + log['num_steps'])
 
         avg_rewards.append(log['avg_reward'].item())
-    plt.plot(tot_steps[1:], avg_rewards[1:])
-    plt.show()
+        try:
+            os.mkdir('/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/mlp')
+        except FileExistsError:
+            pass
+        fig = plt.figure()
+        plt.plot(tot_steps[1:], avg_rewards[1:])
+        fig.savefig('/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/mlp/')
+        plt.show()

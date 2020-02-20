@@ -64,10 +64,10 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps, args):
     n,  _, d = actions.size()
     stddev = args.fixed_sigma
 
-    T = torch.tensor(actions.shape[0]).to(args.dtype)
+    T = torch.tensor(n).to(args.dtype)
     if d > 1:  # a, m, s: Nx1xD, disc_r: Nx1, cov: NxDxD
         diff_vector = (actions - means) / sigmas**2   # Nx1xD
-        squared_normalized = (diff_vector.matmul(covariances)).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
+        squared_normalized = (diff_vector.matmul(torch.inverse(covariances))).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
         denominator = (0.5 * (advantages ** 2).matmul(squared_normalized))  # (1xN)(Nx1) -> 1
 
     else:

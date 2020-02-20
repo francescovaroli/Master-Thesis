@@ -92,7 +92,7 @@ def collect_samples(pid, env, policy, custom_reward, mean_action, render,
                 if any(torch.isnan(state_var.view(-1))) or any(torch.isnan(action.view(-1))) or any(torch.isnan(mean.view(-1))):
                     print('wat')
                 episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
-                                          stddev.cpu().numpy(), None, cov))
+                                          sigma.cpu().numpy(), None, cov))
                 action_sum += action
                 if render:
                     env.render()

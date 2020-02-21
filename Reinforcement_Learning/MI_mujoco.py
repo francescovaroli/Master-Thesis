@@ -27,7 +27,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -231,7 +231,8 @@ def main_loop():
         print('new sigma', args.fixed_sigma)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(tot_steps_mi,avg_rewards_mi)
-
+        if tot_steps_mi[-1] > args.tot_steps:
+            break
     """clean up gpu memory"""
     torch.cuda.empty_cache()
 

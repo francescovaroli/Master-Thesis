@@ -51,7 +51,7 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
                 action_distribution = Normal(mean, sigma)
 
                 action = action_distribution.sample() # sample from normal distribution
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:
                     next_state = running_state(next_state)
@@ -61,8 +61,8 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
                     min_c_reward = min(min_c_reward, reward)
                     max_c_reward = max(max_c_reward, reward)
 
-                episode.append(Transition(state, action.numpy(), next_state, reward, mean.numpy(), stddev.numpy(),
-                                          None, cov))
+                episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
+                                          stddev.cpu().numpy(), None, cov))
 
                 if render:
                     env.render()
@@ -108,13 +108,11 @@ class AgentMLP:
 
     def collect_episodes(self):
         t_start = time.time()
-        to_device(torch.device('cpu'), self.policy)
 
         memory, log = collect_samples_mlp(0, self.env, self.policy, self.num_episodes, self.custom_reward,
                                       self.render, self.running_state, self.fixed_sigma)
 
         batch = memory.memory
-        to_device(self.device, self.policy)
         t_end = time.time()
 
         return memory, log
@@ -129,10 +127,6 @@ class MultiLayerPerceptron(nn.Module):
 
     y_dim : int
         Dimension of y values.
-
-    r_dim : int
-        Dimension of output representation r.
-
 
     h_dim : int
         Dimension of hidden layer in encoder.

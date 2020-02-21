@@ -9,7 +9,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
 
-from core.agent_ensembles_all_context import Agent_all_ctxt
 from MLPmodel import *
 import csv
 from multihead_attention_np import *
@@ -36,7 +35,7 @@ parser.add_argument('--learn-sigma', default=True, help='update the stddev of th
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.8, metavar='G',
+parser.add_argument('--max-kl-mlp', type=float, default=0.8, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -51,17 +50,13 @@ parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=64, metavar='N',
-                    help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=128, metavar='N',
-                    help='dimension of representation space in np')
+
 parser.add_argument('--h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--a-dim', type=int, default=128, metavar='N',
-                    help='dimension of representation space in np')
+
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
+parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=60, metavar='G',
@@ -70,12 +65,10 @@ parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--v-r-dim', type=int, default=128, metavar='N',
-                    help='dimension of representation space in np')
 
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--v-early-stopping', type=int, default=-1000, metavar='N',
+parser.add_argument('--v-early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/',
@@ -96,10 +89,6 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=True, metavar='N',
-                     help='use attention in policy and value NPs')
-parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
-                     help='use attention in policy and value NPs')
 parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
@@ -110,17 +99,16 @@ args = parser.parse_args()
 initial_training = True
 
 
-np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
-                                                                args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
-                                                                args.h_dim, args.max_kl_np, args.use_attentive_np, args.a_dim)
+np_spec = '_{},{}rm_{},{}epo_{}h_{}kl_'.format(args.replay_memory_size, args.v_replay_memory_size, args.epochs_per_iter,
+                                               args.v_epochs_per_iter, args.h_dim, args.max_kl_mlp)
 
 
-run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                           args.gamma) + np_spec
+run_id = '/{}_MLP_{}epi_fixSTD:{}_{}gamma_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                   args.gamma) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
-np_file = args.directory_path + '/{}.csv'.format(args.seed)
+mlp_file = args.directory_path + '/{}.csv'.format(args.seed)
 
 #torch.set_default_dtype(args.dtype)
 
@@ -143,48 +131,32 @@ env.seed(args.seed)
 
 
 '''create neural process'''
-if args.use_attentive_np:
-    policy_np = AttentiveNeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim,
-                                                       args.a_dim, use_self_att=False).to(args.device_np)
-else:
-    policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
-optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
-np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=max_episode_len//2,
-                                    print_freq=50)
+policy = MultiLayerPerceptron(state_dim, action_dim, args.h_dim).to(args.device_np)
+optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
+np_trainer = MLPTrainer(args.device_np, policy, optimizer, print_freq=50)
 
-if args.v_use_attentive_np:
-    value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_r_dim,
-                                      args.a_dim, use_self_att=False).to(args.device_np)
-else:
-    value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
-value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer, num_target=max_episode_len//2,
-                                          print_freq=50)
-value_np.training = False
+value_net = MultiLayerPerceptron(state_dim, 1, args.h_dim).to(args.device_np)
+
+value_optimizer = torch.optim.Adam(value_net.parameters(), lr=3e-4)
+value_np_trainer = MLPTrainer(args.device_np, value_net, value_optimizer, print_freq=50)
+
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
-agent_np = Agent_all_ctxt(env, policy_np, args.device_np, running_state=None, render=args.render,
-              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
+agent = AgentMLP(env, policy, args.num_ensembles, args.device_np, fixed_sigma=args.fixed_sigma)
 
 
-def train_np(datasets, epochs=args.epochs_per_iter):
+def train_policy(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
-    policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=args.np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, epochs, early_stopping=args.early_stopping)
-    policy_np.training = False
+    np_trainer.train(data_loader, epochs, early_stopping=None)
 
-def train_value_np(value_replay_memory):
+def train_value(value_replay_memory):
     print('Value training')
-    value_np.training = True
     value_data_loader = DataLoader(value_replay_memory, batch_size=args.v_np_batch_size, shuffle=True)
-    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=args.v_early_stopping)
-    value_np.training = False
-
-
+    value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=None)
 
 
 def estimate_v_a(complete_dataset, disc_rew):
@@ -192,62 +164,19 @@ def estimate_v_a(complete_dataset, disc_rew):
     ep_states = [ep['states'] for ep in complete_dataset]
     real_lens = [ep['real_len'] for ep in complete_dataset]
     estimated_advantages = []
-    for i in range(len(ep_states)):
-        context_list = []
-        j = 0
-        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
-            if j != i:
-                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
-            else:
-                s_target = states[:real_len, :].unsqueeze(0)
-                r_target = rewards.view(1, -1, 1)
-            j += 1
-        s_context, r_context = merge_context(context_list)
+
+    for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+        s_target = states[:real_len, :].unsqueeze(0)
+        r_target = rewards.view(1, -1, 1)
         with torch.no_grad():
-            values = value_np(s_context, r_context, s_target)
+            values = value_net(s_target)
         advantages = r_target - values.mean
         estimated_advantages.append(advantages.squeeze(0))
     return estimated_advantages
 
 
-
-def sample_initial_context_normal(num_episodes):
-    initial_episodes = []
-    #policy_np.apply(init_func)
-    sigma = args.fixed_sigma*0.1
-
-    for e in range(num_episodes):
-        states = torch.zeros([1, max_episode_len, state_dim])
-
-        for i in range(max_episode_len):
-            states[:, i, :] = torch.randn(state_dim) #torch.from_numpy(env.observation_space.sample())
-
-        if args.use_attentive_np or True:
-            dims = [1, max_episode_len, action_dim]
-            distr_init = Normal(zeros(dims), sigma*ones(dims))
-            actions_init = distr_init.sample()
-        else:
-            z_sample = torch.randn((1, args.z_dim)).unsqueeze(1).repeat(1, max_episode_len, 1)
-            means_init, stds_init = policy_np.xz_to_y(states, z_sample)
-            actions_init = Normal(means_init, stds_init).sample()
-        initial_episodes.append([states, actions_init, max_episode_len])
-    return initial_episodes
-
-def train_on_initial(initial_context_list):
-    #print('training on initial context')
-    train_list = []
-    for episode in initial_context_list:
-        train_list.append([episode[0].squeeze(0), episode[1].squeeze(0), episode[2]])
-
-    policy_np.training = True
-    data_loader = DataLoader(train_list, batch_size=args.np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, 10*args.epochs_per_iter, early_stopping=0)
-    policy_np.training = False
-
-
-
-avg_rewards_np = [0]
-tot_steps_np = [0]
+avg_rewards = [0]
+tot_steps = [0]
 
 def store_rewards(batch, rewards_file):
     ep_rewards = rewards_from_batch(batch)
@@ -262,40 +191,34 @@ def main_loop():
     num_episodes = args.num_ensembles
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
-        improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
-        improved_context_list_mi = improved_context_list_np
-    if initial_training:
-        train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
 
+        batch, log = agent.collect_episodes()
         # generate multiple trajectories that reach the minimum batch_size
-        policy_np.training = False
-        batch_np, log_np = agent_np.collect_episodes(improved_context_list_np)  # batch of batch_size transitions from multiple
-        store_rewards(batch_np.memory, np_file)
-        disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
-        complete_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
-        print('np avg actions: ', log_np['action_mean'])
-        advantages_np = estimate_v_a(complete_dataset_np, disc_rew_np)
+        store_rewards(batch.memory, mlp_file)
+        disc_rew_np = discounted_rewards(batch.memory, args.gamma)
+        complete_dataset = BaseDataset(batch.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
+        advantages = estimate_v_a(complete_dataset, disc_rew_np)
 
-        improved_context_list_np = improvement_step_all(complete_dataset_np, advantages_np, args.max_kl_np, args)
+        improved_context_list_np = improvement_step_all(complete_dataset, advantages, args.max_kl_mlp, args)
         # training
-        value_replay_memory.add(complete_dataset_np)
-        train_value_np(value_replay_memory)
+        value_replay_memory.add(complete_dataset)
+        train_value(value_replay_memory)
 
         tn0 = time.time()
-        replay_memory.add(complete_dataset_np)
-        train_np(replay_memory)
+        replay_memory.add(complete_dataset)
+        train_policy(replay_memory)
         tn1 = time.time()
-        tot_steps_np.append(tot_steps_np[-1] + log_np['num_steps'])
-        avg_rewards_np.append(log_np['avg_reward'])
+        tot_steps.append(tot_steps[-1] + log['num_steps'])
+        avg_rewards.append(log['avg_reward'])
 
         if i_iter % args.log_interval == 0:
             print(i_iter)
-            print('np: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_np['min_reward'], log_np['max_reward'], log_np['avg_reward']))
+            print('mlp: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log['min_reward'], log['max_reward'], log['avg_reward']))
         print('new sigma', args.fixed_sigma)
         if i_iter % args.plot_every == 0:
-            plot_rewards_history(tot_steps_np, avg_rewards_np)
-        if tot_steps_np[-1] > args.tot_steps:
+            plot_rewards_history(tot_steps, avg_rewards)
+        if tot_steps[-1] > args.tot_steps:
             break
     """clean up gpu memory"""
     torch.cuda.empty_cache()

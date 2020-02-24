@@ -11,10 +11,10 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/MI_walker2d/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/NP_walker2d'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
-alpha = 2/num_folders
+alpha = 2.5/num_folders
 max_len = 1000000
 chunk_size = 5000
 num_seeds = 3
@@ -46,7 +46,7 @@ for s, subfolder_path in enumerate(all_folders[1:]):
         avg_rews.append(avg)
         start = end
 
-    ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c='g', label='Mean Kernel Interpolation')
+    ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c='b', label='Mean Kernel Interpolation')
 
     if s == 0: plt.legend()
 plt.grid()

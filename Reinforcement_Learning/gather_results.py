@@ -46,7 +46,7 @@ for s, subfolder_path in enumerate(all_folders[1:]):
         avg_rews.append(avg)
         start = end
 
-    ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c='b', label='Mean Kernel Interpolation')
+    ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c='b', label='Attentive Neural Process')
 
     if s == 0: plt.legend()
 plt.grid()

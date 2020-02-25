@@ -38,8 +38,8 @@ parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--use-trpo', default=True, help='trpo')
-parser.add_argument('--use-np', default=True, help='np')
-parser.add_argument('--use-mi', default=True, help='mi')
+parser.add_argument('--use-np', default=False, help='np')
+parser.add_argument('--use-mi', default=False, help='mi')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 
@@ -124,7 +124,7 @@ parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
-parser.add_argument('--seed', type=int, default=0, metavar='N',
+parser.add_argument('--seed', type=int, default=2, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
@@ -447,7 +447,7 @@ def main_loop():
         if initial_training:
             train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
-        if args.use_trpo and tot_steps_trpo[-1] < args.tot_steps and tot_steps_trpo[-1] - max(tot_steps_mi[-1], tot_steps_np[-1]) < 1000:
+        if args.use_trpo and tot_steps_trpo[-1] < args.tot_steps:  #  and tot_steps_trpo[-1] - max(tot_steps_mi[-1], tot_steps_np[-1]) < 1000:
             batch_trpo, log, memory_trpo = agent_trpo.collect_samples(args.min_batch_size)  # batch of batch_size transitions from multiple
             store_rewards_trpo(memory_trpo.memory, trpo_file)
             update_params_trpo(batch_trpo)  # generate multiple trajectories that reach the minimum batch_size

@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
+from utils_rl.store_results import *
 
-from MLPmodel import *
+from MLPmodel import MLPTrainer, MultiLayerPerceptron, AgentMLP
 import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
@@ -178,14 +179,6 @@ def estimate_v_a(complete_dataset, disc_rew):
 avg_rewards = [0]
 tot_steps = [0]
 
-def store_rewards(batch, rewards_file):
-    ep_rewards = rewards_from_batch(batch)
-    with open(rewards_file, mode='a+') as employee_file:
-        reward_writer = csv.writer(employee_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for rewards in ep_rewards:
-            for rew in rewards:
-                reward_writer.writerow([rew.item()])
-
 def main_loop():
     colors = []
     num_episodes = args.num_ensembles
@@ -216,12 +209,13 @@ def main_loop():
             print(i_iter)
             print('mlp: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log['min_reward'], log['max_reward'], log['avg_reward']))
         print('new sigma', args.fixed_sigma)
+        store_avg_rewards(tot_steps[-1], avg_rewards[-1], mlp_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
         if i_iter % args.plot_every == 0:
             plot_rewards_history(tot_steps, avg_rewards)
         if tot_steps[-1] > args.tot_steps:
             break
     """clean up gpu memory"""
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
 
 
 

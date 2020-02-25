@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
+from utils_rl.store_results import *
 
 from core.agent_ensembles_all_context import Agent_all_ctxt
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
@@ -181,14 +182,6 @@ def sample_initial_context_normal(num_episodes):
     return initial_episodes
 
 
-def store_rewards(batch, rewards_file):
-    ep_rewards = rewards_from_batch(batch)
-    with open(rewards_file, mode='a+') as employee_file:
-        reward_writer = csv.writer(employee_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for rewards in ep_rewards:
-            for rew in rewards:
-                reward_writer.writerow([rew.item()])
-
 
 avg_rewards_mi = [0]
 tot_steps_mi = [0]
@@ -229,12 +222,13 @@ def main_loop():
             print(i_iter)
             print('mi: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_mi['min_reward'], log_mi['max_reward'], log_mi['avg_reward']))
         print('new sigma', args.fixed_sigma)
+        store_avg_rewards(tot_steps_mi[-1], log_mi['avg_reward'], mi_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
         if i_iter % args.plot_every == 0:
             plot_rewards_history(tot_steps_mi,avg_rewards_mi)
         if tot_steps_mi[-1] > args.tot_steps:
             break
     """clean up gpu memory"""
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
 
 
 

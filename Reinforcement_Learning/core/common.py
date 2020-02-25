@@ -1,6 +1,7 @@
 import torch
 from utils_rl import to_device
-from utils_rl.memory_dataset import rewards_from_batch, merge_padded_lists
+from utils_rl.memory_dataset import merge_padded_lists
+from utils_rl.store_results import rewards_from_batch
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):

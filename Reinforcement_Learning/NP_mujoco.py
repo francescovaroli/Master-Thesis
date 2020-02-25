@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
-
+from utils_rl.store_results import *
 from core.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
@@ -251,13 +251,6 @@ def train_on_initial(initial_context_list):
 avg_rewards_np = [0]
 tot_steps_np = [0]
 
-def store_rewards(batch, rewards_file):
-    ep_rewards = rewards_from_batch(batch)
-    with open(rewards_file, mode='a+') as employee_file:
-        reward_writer = csv.writer(employee_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for rewards in ep_rewards:
-            for rew in rewards:
-                reward_writer.writerow([rew.item()])
 
 def main_loop():
     colors = []
@@ -265,7 +258,6 @@ def main_loop():
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
         improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
-        improved_context_list_mi = improved_context_list_np
     if initial_training:
         train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
@@ -295,12 +287,12 @@ def main_loop():
             print(i_iter)
             print('np: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_np['min_reward'], log_np['max_reward'], log_np['avg_reward']))
         print('new sigma', args.fixed_sigma)
-        if i_iter % args.plot_every == 0:
-            plot_rewards_history(tot_steps_np, avg_rewards_np)
+        plot_rewards_history(tot_steps_np, avg_rewards_np)
+        store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
         if tot_steps_np[-1] > args.tot_steps:
             break
     """clean up gpu memory"""
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
 
 
 

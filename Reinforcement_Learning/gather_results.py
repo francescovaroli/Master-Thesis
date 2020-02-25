@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/Walker2d-v2_NP:False_MI:False_10epi_fixSTD:0,35_0,999gamma__NP_30,10rm_40,60epo_32z_128h_0,3kl_attention:True_128a_MI_30rm_40epo_50z_356h_0,2kl_uniform'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_hopper'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 2.5/num_folders
@@ -47,7 +47,8 @@ for s, subfolder_path in enumerate(all_folders[1:]):
         start = end
     #label = 'Multi Layer Perceptron'
     #label = 'Mean Kearnel Interpolation'
-    ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=0.6, c='r', label='TRPO')
+    label = 'Attentive Neural Process'
+    ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=0.6, c='b', label=label)
 
     if s == 0: plt.legend()
 plt.grid()

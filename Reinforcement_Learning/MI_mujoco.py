@@ -28,7 +28,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
+parser.add_argument('--env-name', default="Swimmer-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -111,7 +111,8 @@ max_episode_len = env._max_episode_steps
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 is_disc_action = len(env.action_space.shape) == 0
-
+print('state_dim', state_dim)
+print('action_dim', action_dim)
 args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
 """seeding"""
 np.random.seed(args.seed)

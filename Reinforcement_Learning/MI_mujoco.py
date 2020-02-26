@@ -200,7 +200,7 @@ def main_loop():
 
         # generate multiple trajectories that reach the minimum batch_size
         batch_mi, log_mi = agent_mi.collect_episodes(improved_context_list_mi)
-        store_rewards(batch_mi.memory, mi_file)
+        # store_rewards(batch_mi.memory, mi_file)
         print('mi avg actions: ', log_mi['action_mean'])
 
         disc_rew_mi = discounted_rewards(batch_mi.memory, args.gamma)
@@ -242,7 +242,7 @@ def plot_rewards_history(steps, rews):
     ax_rew.set_title('Average Reward History')
     plt.legend()
     plt.grid()
-    fig_rew.savefig(args.directory_path + run_id.replace('.', ','))
+    fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
 
 

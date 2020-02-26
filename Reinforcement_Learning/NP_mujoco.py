@@ -265,7 +265,7 @@ def main_loop():
         # generate multiple trajectories that reach the minimum batch_size
         policy_np.training = False
         batch_np, log_np = agent_np.collect_episodes(improved_context_list_np)  # batch of batch_size transitions from multiple
-        store_rewards(batch_np.memory, np_file)
+        # store_rewards(batch_np.memory, np_file)
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         complete_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
         print('np avg actions: ', log_np['action_mean'])

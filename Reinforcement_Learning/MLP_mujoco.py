@@ -188,7 +188,7 @@ def main_loop():
 
         batch, log = agent.collect_episodes()
         # generate multiple trajectories that reach the minimum batch_size
-        store_rewards(batch.memory, mlp_file)
+        # store_rewards(batch.memory, mlp_file)
         disc_rew_np = discounted_rewards(batch.memory, args.gamma)
         complete_dataset = BaseDataset(batch.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
         advantages = estimate_v_a(complete_dataset, disc_rew_np)

@@ -48,7 +48,7 @@ parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-mi', type=float, default=0.6, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -158,8 +158,14 @@ def estimate_v_a_mi(complete_dataset, disc_rew):
         s_context, r_context = merge_context(context_list)
         with torch.no_grad():
             # values = model(s_context, r_context, s_target)
-            values = torch.cat([model(s_context, r_context, s_target[:, :real_lens[i]//2, :]),
-                                model(s_context, r_context, s_target[:, real_lens[i]//2:, :])], dim=-2)
+            try:
+                values = torch.cat([model(s_context, r_context, s_target[:, :real_lens[i]//2, :]),
+                                    model(s_context, r_context, s_target[:, real_lens[i]//2:, :])], dim=-2)
+            except RuntimeError:
+                values = torch.zeros(1, s_target.shape[1], 1)
+                for n in range(s_target.shape[1]):
+                    values[:, n, :] = model(s_context, r_context, s_target[:, [n],:])
+
         advantages = r_target - values
         estimated_advantages.append(advantages.squeeze(0))
     return estimated_advantages

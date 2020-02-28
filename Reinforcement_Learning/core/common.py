@@ -70,7 +70,8 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps, args):
         diff_vector = (actions - means) / sigmas**2   # Nx1xD
         squared_normalized = (diff_vector.matmul(torch.inverse(covariances))).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
         denominator = (0.5 * (advantages ** 2).matmul(squared_normalized))  # (1xN)(Nx1) -> 1
-
+        if torch.isnan(torch.sqrt((T * eps) / denominator)):
+            print('nan')
     else:
         iter_sum = 0
         for action, mean, disc_reward, sigma in zip(actions, means, advantages, sigmas):
@@ -84,6 +85,7 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps, args):
 def improvement_step_all(complete_dataset, estimated_adv, eps, args):
     """Perform improvement step using same eta for all episodes"""
     all_improved_context = []
+    new_sigma_list = []
     with torch.no_grad():
         all_states, all_means, all_stdv, all_actions, all_covariances = merge_padded_lists([episode['states'] for episode in complete_dataset],
                                                                 [episode['means'] for episode in complete_dataset],
@@ -94,15 +96,12 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
         all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
         eta = estimate_eta_3(all_actions.unsqueeze(1), all_means.unsqueeze(1), all_advantages, all_stdv.unsqueeze(1),
                              all_covariances, eps, args)
-        new_sigmas = []
         for episode, episode_adv in zip(complete_dataset, estimated_adv):
             real_len = episode['real_len']
             states = episode['states'][:real_len]
             actions = episode['actions'][:real_len]
             means = episode['means'][:real_len]
             new_padded_means = torch.zeros_like(episode['means'])
-
-            new_padded_sigmas = torch.zeros(actions.shape[-1])
 
             i = 0
             for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
@@ -112,16 +111,15 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
                     sigma = args.fixed_sigma
                 new_mean = mean + eta * advantage * ((action - mean) / sigma**2)
                 new_padded_means[i, :] = new_mean
-                new_padded_sigmas += eta * advantage * ((action - mean)**2 - sigma**2)/sigma**3
-                #distr = Normal(new_mean, new_sigma)
+                new_sigma_list.append(eta * advantage * (((action - mean)**2 - sigma**2)/sigma**3))
 
                 i += 1
             episode['new_means'] = new_padded_means
-            new_sigmas.append(new_padded_sigmas/i)
             all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
             # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-    new_sigma = torch.stack(new_sigmas, dim=0).mean(dim=0)
+    new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
     if args.learn_sigma:
         args.fixed_sigma += new_sigma
-    return all_improved_context
+
+    return all_improved_context, args.fixed_sigma + new_sigma
 

@@ -36,9 +36,9 @@ parser.add_argument('--learn-sigma', default=True, help='update the stddev of th
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-mlp', type=float, default=0.8, metavar='G',
+parser.add_argument('--max-kl-mlp', type=float, default=0.6, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -57,7 +57,7 @@ parser.add_argument('--h-dim', type=int, default=128, metavar='N',
 
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
+parser.add_argument('--early-stopping', type=int, default=-1, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=60, metavar='G',
@@ -69,7 +69,7 @@ parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
 
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--v-early-stopping', type=int, default=-100000, metavar='N',
+parser.add_argument('--v-early-stopping', type=int, default=-1, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/',
@@ -171,7 +171,7 @@ def estimate_v_a(complete_dataset, disc_rew):
         r_target = rewards.view(1, -1, 1)
         with torch.no_grad():
             values = value_net(s_target)
-        advantages = r_target - values.mean
+        advantages = r_target - values
         estimated_advantages.append(advantages.squeeze(0))
     return estimated_advantages
 
@@ -185,7 +185,6 @@ def main_loop():
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
     for i_iter in range(args.max_iter_num):
-
         batch, log = agent.collect_episodes()
         # generate multiple trajectories that reach the minimum batch_size
         # store_rewards(batch.memory, mlp_file)
@@ -228,7 +227,7 @@ def plot_rewards_history(steps, rews):
     ax_rew.set_title('Average Reward History')
     plt.legend()
     plt.grid()
-    fig_rew.savefig(args.directory_path + run_id.replace('.', ','))
+    fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
 
 

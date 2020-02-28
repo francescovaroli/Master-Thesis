@@ -39,13 +39,9 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0).unsqueeze(0)
                 pi = policy(state_var)
-                mean = pi.mean
-                stddev = pi.stddev
-
-                if fixed_sigma is not None:
-                    sigma = fixed_sigma
-                else:
-                    sigma = stddev
+                mean = pi
+                #stddev = pi.stddev
+                sigma = fixed_sigma
                 cov = torch.diag(sigma)
 
                 action_distribution = Normal(mean, sigma)
@@ -62,7 +58,7 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
                     max_c_reward = max(max_c_reward, reward)
 
                 episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
-                                          stddev.cpu().numpy(), None, cov))
+                                          sigma.cpu().numpy(), None, cov))
 
                 if render:
                     env.render()
@@ -140,12 +136,11 @@ class MultiLayerPerceptron(nn.Module):
         # Initialize networks
         layers = [nn.Linear(x_dim, h_dim),
                   nn.ReLU(inplace=True),
-                  nn.Linear(h_dim, h_dim),
+                  nn.Linear(h_dim, h_dim//2),
                   nn.ReLU(inplace=True)]
 
         self.x_to_hidden = nn.Sequential(*layers)
-        self.hidden_to_mu = nn.Linear(h_dim, y_dim)
-        self.hidden_to_sigma = nn.Linear(h_dim, y_dim)
+        self.hidden_to_mu = nn.Linear(h_dim//2, y_dim)
 
     def forward(self, x_target):
         """
@@ -166,18 +161,12 @@ class MultiLayerPerceptron(nn.Module):
         # Input is concatenation of the representation with every row of x
         hidden = self.x_to_hidden(x_flat)
         mu = self.hidden_to_mu(hidden)
-        pre_sigma = self.hidden_to_sigma(hidden)
 
         # Reshape output into expected shape
         mu = mu.view(batch_size, num_points, self.y_dim)
-        pre_sigma = pre_sigma.view(batch_size, num_points, self.y_dim)
-        # Define sigma following convention in "Empirical Evaluation of Neural
-        # Process Objectives" and "Attentive Neural Processes"
-        sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
 
         # Predict target points
-        p_y_pred = Normal(mu, sigma)
-        return p_y_pred
+        return mu
 
 class MLPTrainer():
     """
@@ -233,7 +222,7 @@ class MLPTrainer():
                 if avg_loss < early_stopping:
                     break
 
-    def _loss(self, p_y_pred, y_target):
+    def _loss(self, y_pred, y_target):
         """
         Computes loss.
 
@@ -246,10 +235,9 @@ class MLPTrainer():
             Shape (batch_size, num_target, y_dim)
 
         """
-        # Log likelihood has shape (batch_size, num_target, y_dim). Take mean
-        # over batch and sum over number of targets and dimensions of y
-        log_likelihood = p_y_pred.log_prob(y_target).mean(dim=0).sum()
-        return -log_likelihood
+        # square over batch and sum over number of targets and dimensions of y
+        diff = (y_target - y_pred).transpose(0, 1)  # 1xNxD -> Nx1xD
+        return diff.matmul(diff.transpose(1, 2)).sum()  # -> Nx1x1 -> 1
 
 if __name__ == '__main__':
     import gym

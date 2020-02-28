@@ -11,12 +11,12 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/swimmer_mi_2/mi_swimmer_2/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_hopper_3/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
-alpha = 2.5/num_folders
+alpha = 4/num_folders
 max_len = 1000000
-chunk_size = 10000
+chunk_size = 50000
 num_seeds = 3
 
 fig_rew, ax_rew = plt.subplots(1, 1)

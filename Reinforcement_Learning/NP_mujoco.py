@@ -305,7 +305,7 @@ def plot_rewards_history(steps, rews):
     ax_rew.set_title('Average Reward History')
     plt.legend()
     plt.grid()
-    fig_rew.savefig(args.directory_path + run_id.replace('.', ','))
+    fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
 
 

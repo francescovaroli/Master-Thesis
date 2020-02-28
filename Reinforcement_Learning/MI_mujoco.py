@@ -157,14 +157,7 @@ def estimate_v_a_mi(complete_dataset, disc_rew):
             j += 1
         s_context, r_context = merge_context(context_list)
         with torch.no_grad():
-            # values = model(s_context, r_context, s_target)
-            try:
-                values = torch.cat([model(s_context, r_context, s_target[:, :real_lens[i]//2, :]),
-                                    model(s_context, r_context, s_target[:, real_lens[i]//2:, :])], dim=-2)
-            except RuntimeError:
-                values = torch.zeros(1, s_target.shape[1], 1)
-                for n in range(s_target.shape[1]):
-                    values[:, n, :] = model(s_context, r_context, s_target[:, [n],:])
+            values = model(s_context, r_context, s_target)
 
         advantages = r_target - values
         estimated_advantages.append(advantages.squeeze(0))

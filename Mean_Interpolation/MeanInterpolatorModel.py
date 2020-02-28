@@ -65,8 +65,13 @@ class MeanInterpolator(torch.nn.Module):
         else:
             z_context = self.feature_extractor(x_context.squeeze(0))
             z_target = self.feature_extractor(x_target.squeeze(0))
-
-        return self.interpolator(z_context, y_context.squeeze(0), z_target)
+        try:
+            return self.interpolator(z_context, y_context.squeeze(0), z_target)
+        except RuntimeError:
+            y_target = torch.zeros(1, x_target.shape[1], 1)
+            for n in range(x_target.shape[1]):
+                y_target[:, n, :] = self.interpolator(z_context, y_context.squeeze(0), z_target[[n], :])
+            return y_target
 
 
 class MITrainer():

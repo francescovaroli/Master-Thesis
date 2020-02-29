@@ -28,16 +28,16 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 
-parser.add_argument('--z-mi-dim', type=int, default=50, metavar='N',
+parser.add_argument('--z-mi-dim', type=int, default=10, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-mi-dim', type=int, default=356, metavar='N',
+parser.add_argument('--h-mi-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')
@@ -46,9 +46,9 @@ parser.add_argument("--lr_nn", type=float, default=1e-4,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-mi', type=float, default=0.6, metavar='G',
+parser.add_argument('--max-kl-mi', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -192,9 +192,8 @@ def main_loop():
     num_episodes = args.num_ensembles
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
-        improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
-        improved_context_list_mi = improved_context_list_np
 
+    improved_context_list_mi = sample_initial_context_normal(args.num_ensembles)
     for i_iter in range(args.max_iter_num):
 
         # generate multiple trajectories that reach the minimum batch_size
@@ -216,7 +215,7 @@ def main_loop():
         train_mi(replay_memory_mi)
         tn1 = time.time()
         tot_steps_mi.append(tot_steps_mi[-1] + log_mi['num_steps'])
-        avg_rewards_mi.append(log_mi['avg_reward'].item())
+        avg_rewards_mi.append(log_mi['avg_reward'])
 
         if i_iter % args.log_interval == 0:
             print(i_iter)

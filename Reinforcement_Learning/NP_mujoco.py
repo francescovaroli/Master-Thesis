@@ -257,7 +257,7 @@ def main_loop():
     num_episodes = args.num_ensembles
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
-        improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
+    improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
     if initial_training:
         train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):

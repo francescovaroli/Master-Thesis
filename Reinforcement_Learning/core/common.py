@@ -119,7 +119,7 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
             # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
     new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
     if args.learn_sigma:
-        args.fixed_sigma += new_sigma
+        args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)
 
-    return all_improved_context, args.fixed_sigma + new_sigma
+    return all_improved_context
 

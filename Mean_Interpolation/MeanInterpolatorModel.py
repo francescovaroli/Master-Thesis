@@ -69,14 +69,15 @@ class MeanInterpolator(torch.nn.Module):
             return self.interpolator(z_context, y_context.squeeze(0), z_target)
         except RuntimeError:
             y_target = torch.zeros(1, x_target.shape[1], 1)
-            for n in range(x_target.shape[1]):
-                y_target[:, n, :] = self.interpolator(z_context, y_context.squeeze(0), z_target[[n], :])
-            return y_target
+            st = 10
+            for n in range(0, x_target.shape[1], st):
+                y_target[:, n:n+st, :] = self.interpolator(z_context, y_context.squeeze(0), z_target[n:n+st, :])
+            return y_target.squeeze(0)
 
 
 class MITrainer():
 
-    def __init__(self, device, model, optimizer, args, print_freq=100):
+    def __init__(self, device, model, optimizer, args, num_target=100, print_freq=100):
 
         self.device = device
         self.model = model
@@ -84,6 +85,7 @@ class MITrainer():
         self.print_freq = print_freq
         self.steps = 0
         self.epoch_loss_history = []
+        self.num_target = num_target
         self.args = args
 
     def train_rl_loo(self, data_loader, epochs, early_stopping=None):
@@ -110,10 +112,11 @@ class MITrainer():
                 data = episode_fixed_list[i]
                 x, y, num_points = data
                 x_context, y_context = all_context_points
-                index = random.randint(0, num_points - 1)
-                x_target = x[:, index, :].unsqueeze(0)
-                y_target = y[:, index, :].unsqueeze(0)
-                # _, _, x_target, y_target = context_target_split(x, y, 0, self.num_target)
+                num_target = min(self.num_target, num_points.item())
+                # index = random.randint(0, num_points - 1)
+                # x_target = x[:, index, :].unsqueeze(0)
+                # y_target = y[:, index, :].unsqueeze(0)
+                _, _, x_target, y_target = context_target_split(x[:, :num_points, :], y[:, :num_points, :], 0, num_target)
                 prediction = self.model(x_context, y_context, x_target)
                 loss = self._loss(y_target.squeeze(0), prediction.squeeze(0))
                 loss.backward()
@@ -188,7 +191,7 @@ class MITrainer():
 
     def _loss(self, y_target, y_pred):
         diff = y_target - y_pred
-        return diff.matmul(diff.t())
+        return diff.t().matmul(diff)
 
 #test
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -106,11 +106,16 @@ parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
-parser.add_argument("--num-testing-points", type=int, default=1,
+parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during NP training')
 args = parser.parse_args()
 initial_training = True
 
+args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
+args.v_epochs_per_iter = args.epochs_per_iter
+args.v_replay_memory_size = args.replay_memory_size
+args.v_z_dim = args.z_dim
+args.v_r_dim = args.r_dim
 
 np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
                                                                 args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
@@ -151,7 +156,7 @@ if args.use_attentive_np:
 else:
     policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
-np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=max_episode_len//2,
+np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
                                     print_freq=50)
 
 if args.v_use_attentive_np:
@@ -160,7 +165,7 @@ if args.v_use_attentive_np:
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer, num_target=max_episode_len//2,
+value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer, num_target=args.num_testing_points,
                                           print_freq=50)
 value_np.training = False
 """create replay memory"""

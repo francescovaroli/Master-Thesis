@@ -123,3 +123,49 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
 
     return all_improved_context
 
+
+def improvement_step_alpha(complete_dataset, estimated_adv, eps, args):
+    """Perform improvement step using same eta for all episodes"""
+    alpha = 10.
+    all_improved_context = []
+    new_sigma_list = []
+    with torch.no_grad():
+        all_states, all_means, all_stdv, all_actions, all_covariances = merge_padded_lists([episode['states'] for episode in complete_dataset],
+                                                                [episode['means'] for episode in complete_dataset],
+                                                                [episode['stddevs'] for episode in complete_dataset],
+                                                                [episode['actions'] for episode in complete_dataset],
+                                                                [episode['covariances'] for episode in complete_dataset],
+                                                                 max_lens=[episode['real_len'] for episode in complete_dataset])
+        all_advantages = torch.cat(estimated_adv, dim=0).view(-1)
+        alpha_adv = alpha * all_advantages.mean()
+        eta = estimate_eta_3(all_actions.unsqueeze(1), all_means.unsqueeze(1), all_advantages, all_stdv.unsqueeze(1),
+                             all_covariances, eps, args)
+        for episode, episode_adv in zip(complete_dataset, estimated_adv):
+            real_len = episode['real_len']
+            states = episode['states'][:real_len]
+            actions = episode['actions'][:real_len]
+            means = episode['means'][:real_len]
+            new_padded_means = torch.zeros_like(episode['means'])
+            i = 0
+            for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
+
+                if args.fixed_sigma is None:
+                    sigma = stddev
+                else:
+                    sigma = args.fixed_sigma
+                if advantage > alpha_adv:
+                    new_mean = mean
+                else:
+                    new_mean = mean + eta * advantage * ((action - mean) / sigma**2)
+                new_padded_means[i, :] = new_mean
+                new_sigma_list.append(eta * advantage * (((action - mean)**2 - sigma**2)/sigma**3))
+
+                i += 1
+            episode['new_means'] = new_padded_means
+            all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
+            # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
+    new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
+    if args.learn_sigma:
+        args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)
+
+    return all_improved_context

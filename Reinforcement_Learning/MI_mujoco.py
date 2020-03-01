@@ -28,7 +28,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -48,7 +48,7 @@ parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-mi', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=30, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -86,7 +86,7 @@ parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
-parser.add_argument("--num-testing-points", type=int, default=100,
+parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during MI training')
 args = parser.parse_args()
 initial_training = True
@@ -95,8 +95,8 @@ initial_training = True
 mi_spec = '_MI_{}rm_{}epo_{}z_{}h_{}kl_{}'.format(args.replay_memory_size, args.epochs_per_iter, args.z_mi_dim,
                                           args.h_mi_dim,args.max_kl_mi, args.scaling)
 
-run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                                    args.gamma) + mi_spec
+run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_{}target'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                                    args.gamma, args.num_testing_points) + mi_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 

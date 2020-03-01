@@ -68,7 +68,7 @@ class MeanInterpolator(torch.nn.Module):
         try:
             return self.interpolator(z_context, y_context.squeeze(0), z_target)
         except RuntimeError:
-            y_target = torch.zeros(1, x_target.shape[1], 1)
+            y_target = torch.zeros(1, x_target.shape[1], y_context.shape[-1])
             st = 10
             for n in range(0, x_target.shape[1], st):
                 y_target[:, n:n+st, :] = self.interpolator(z_context, y_context.squeeze(0), z_target[n:n+st, :])
@@ -118,7 +118,7 @@ class MITrainer():
                 # y_target = y[:, index, :].unsqueeze(0)
                 _, _, x_target, y_target = context_target_split(x[:, :num_points, :], y[:, :num_points, :], 0, num_target)
                 prediction = self.model(x_context, y_context, x_target)
-                loss = self._loss(y_target.squeeze(0), prediction.squeeze(0))
+                loss = self._loss(y_target, prediction)
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
@@ -148,7 +148,7 @@ class MITrainer():
                 prediction = self.model(x_context, y_context, x_target)
                 if torch.isnan(prediction):
                     prediction = self.model(x_context, y_context, x_target)
-                loss = self._loss(y_target.squeeze(0), prediction.squeeze(0))
+                loss = self._loss(y_target, prediction)
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
@@ -175,7 +175,7 @@ class MITrainer():
                                                                                 self.args.num_context,
                                                                                 self.args.num_target)
                 prediction = self.model(x_context, y_context, x_target)
-                loss = self._loss(y_target.squeeze(0), prediction.squeeze(0))
+                loss = self._loss(y_target, prediction)
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
@@ -190,8 +190,8 @@ class MITrainer():
                     break
 
     def _loss(self, y_target, y_pred):
-        diff = y_target - y_pred
-        return diff.t().matmul(diff)
+        diff = (y_target - y_pred).transpose(0,1)
+        return diff.matmul(diff.transpose(1, 2)).sum()
 
 #test
 if __name__ == "__main__":

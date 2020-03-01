@@ -104,8 +104,8 @@ np_spec = '_{},{}rm_{},{}epo_{}h_{}kl_'.format(args.replay_memory_size, args.v_r
                                                args.v_epochs_per_iter, args.h_dim, args.max_kl_mlp)
 
 
-run_id = '/{}_MLP_{}epi_fixSTD:{}_{}gamma_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                   args.gamma) + np_spec
+run_id = '/{}_MLP_{}epi_fixSTD:{}_{}gamma_{}target_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                   args.gamma, args.num_testing_points) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 

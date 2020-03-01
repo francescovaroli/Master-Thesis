@@ -117,8 +117,8 @@ np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.repla
                                                                 args.h_dim, args.max_kl_np, args.use_attentive_np, args.a_dim)
 
 
-run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                           args.gamma) + np_spec
+run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_{}target_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                           args.gamma, args.num_testing_points) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 

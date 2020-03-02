@@ -34,12 +34,11 @@ class NeuralProcessTrainerRL():
         Frequency with which to print loss information during training.
     """
     def __init__(self, device, neural_process, optimizer, num_context_range,
-                 num_extra_target_range, print_freq=100):
+                 print_freq=100):
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
         self.num_context_range = num_context_range
-        self.num_extra_target_range = num_extra_target_range
         self.print_freq = print_freq
         self.steps = 0
         self.epoch_loss_history = []
@@ -71,21 +70,14 @@ class NeuralProcessTrainerRL():
                 # Create context using only real data (no padded sequences)
                 x_context, y_context, x_target, y_target = \
                     context_target_split(x[:, :num_points,:], y[:, :num_points, :], num_context, num_extra_target)
-                fw0 = time.time()
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
-                fw1 = time.time()
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)
-                b0 = time.time()
                 loss.backward()
-                b1 = time.time()
-                s0 = time.time()
                 self.optimizer.step()
-                s2 = time.time()
 
                 epoch_loss += loss.item()
                 self.steps += 1
-                #print('iter tot time: {}, forward:{}, backwards:{}, step: {}'.format(time.time() - i0, fw1-fw0, b1-b0, s2-s0))
             avg_loss = epoch_loss / len(data_loader)
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))

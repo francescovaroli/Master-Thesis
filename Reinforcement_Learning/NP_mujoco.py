@@ -9,7 +9,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
 from utils_rl.store_results import *
-from core.agent_ensembles_all_context import Agent_all_ctxt
+#from core.agent_ensembles_all_context import Agent_all_ctxt
+from core.agent_conditionning import Agent_all_ctxt
 from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
 from training_module_RL import NeuralProcessTrainerRL
@@ -20,7 +21,7 @@ from core.common import discounted_rewards, estimate_eta_3, improvement_step_all
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -28,19 +29,20 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
+parser.add_argument('--loo', default=False, help='train leaving episode out')
 
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=15, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -51,7 +53,7 @@ parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=40, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
@@ -111,7 +113,7 @@ parser.add_argument("--num-testing-points", type=int, default=1000,
 args = parser.parse_args()
 initial_training = True
 
-# args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
+# vargs.epochs_per_iter = 10 + 2000 // args.replay_memory_size
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
@@ -122,8 +124,8 @@ np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.repla
                                                                 args.h_dim, args.max_kl_np, args.use_attentive_np, args.a_dim)
 
 
-run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_{}target_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                           args.gamma, args.num_testing_points) + np_spec
+run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                           args.gamma, args.num_testing_points, args.loo) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
@@ -156,8 +158,6 @@ if args.use_attentive_np:
 else:
     policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
-np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
-                                    print_freq=50)
 
 if args.v_use_attentive_np:
     value_np = AttentiveNeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_r_dim,
@@ -165,8 +165,19 @@ if args.v_use_attentive_np:
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer, num_target=args.num_testing_points,
-                                          print_freq=50)
+
+if args.loo:
+    np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
+                                        print_freq=50)
+    value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
+                                               num_target=args.num_testing_points,
+                                               print_freq=50)
+else:
+    np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (max_episode_len//2, max_episode_len//2),
+                                        print_freq=50)
+    value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, optimizer, (max_episode_len//2, max_episode_len//2),
+                                        print_freq=50)
+
 value_np.training = False
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size)
@@ -202,14 +213,20 @@ def estimate_v_a(complete_dataset, disc_rew):
     for i in range(len(ep_states)):
         context_list = []
         j = 0
-        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
-            if j != i:
-                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
-            else:
-                s_target = states[:real_len, :].unsqueeze(0)
-                r_target = rewards.view(1, -1, 1)
-            j += 1
-        s_context, r_context = merge_context(context_list)
+        if args.loo:
+            for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+                if j != i:
+                    context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
+                else:
+                    s_target = states[:real_len, :].unsqueeze(0)
+                    r_target = rewards.view(1, -1, 1)
+                j += 1
+            s_context, r_context = merge_context(context_list)
+        else:
+            s_context = ep_states[i][:real_lens[i], :].unsqueeze(0)
+            r_context = ep_rewards[i].view(1, -1, 1)
+            s_target = ep_states[i][:real_lens[i], :].unsqueeze(0)
+            r_target = ep_rewards[i].view(1, -1, 1)
         with torch.no_grad():
             values = value_np(s_context, r_context, s_target)
         advantages = r_target - values.mean

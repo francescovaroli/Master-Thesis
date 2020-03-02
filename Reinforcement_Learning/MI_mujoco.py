@@ -35,7 +35,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 
-parser.add_argument('--z-mi-dim', type=int, default=10, metavar='N',
+parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-mi-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
@@ -57,9 +57,9 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=50, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
                     help='stop training training when avg_loss reaches it')

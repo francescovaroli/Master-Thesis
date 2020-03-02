@@ -120,7 +120,7 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
             episode['new_means'] = new_padded_means
             all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
             # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-    # print('avg diff: ', (0.5*((((torch.stack(all_new_m, dim=0).view(-1)-torch.stack(all_m, dim=0).view(-1))**2)/(sigma**2)).mean())))
+    # print('avg diff: ', (0.5*((((torch.stack(all_new_m, dim=0)-torch.stack(all_m, dim=0))**2)/(sigma**2)).mean(0).sum())))
     new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
     if args.learn_sigma:
         args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)

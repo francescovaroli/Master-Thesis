@@ -42,7 +42,7 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
                 mean = pi
                 #stddev = pi.stddev
                 sigma = fixed_sigma
-                cov = torch.diag(sigma)
+                cov = torch.diag(sigma**2)
 
                 action_distribution = Normal(mean, sigma)
 

@@ -26,7 +26,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -36,7 +36,7 @@ parser.add_argument('--learn-sigma', default=True, help='update the stddev of th
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-mlp', type=float, default=0.6, metavar='G',
+parser.add_argument('--max-kl-mlp', type=float, default=0.01, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
                     help='episode to collect per iteration')
@@ -64,8 +64,6 @@ parser.add_argument('--v-epochs-per-iter', type=int, default=60, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--v-replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes')
-parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
-                    help='dimension of latent variable in np')
 
 parser.add_argument('--v-np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
@@ -94,18 +92,19 @@ parser.add_argument('--episode-specific-value', default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
-parser.add_argument("--num-testing-points", type=int, default=1,
-                    help='how many point to use as only testing during NP training')
 args = parser.parse_args()
 initial_training = True
 
+args.epochs_per_iter = 20 + 2000 // args.replay_memory_size
+args.v_epochs_per_iter = args.epochs_per_iter
+args.v_replay_memory_size = args.replay_memory_size
 
 np_spec = '_{},{}rm_{},{}epo_{}h_{}kl_'.format(args.replay_memory_size, args.v_replay_memory_size, args.epochs_per_iter,
                                                args.v_epochs_per_iter, args.h_dim, args.max_kl_mlp)
 
 
-run_id = '/{}_MLP_{}epi_fixSTD:{}_{}gamma_{}target_'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                   args.gamma, args.num_testing_points) + np_spec
+run_id = '/{}_MLP_{}epi_fixSTD:{}_{}gamma'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                   args.gamma) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
@@ -221,7 +220,7 @@ def main_loop():
 def plot_rewards_history(steps, rews):
     fig_rew, ax_rew = plt.subplots(1, 1)
 
-    ax_rew.plot(steps[1:], rews[1:], c='b', label='AttentiveNP')
+    ax_rew.plot(steps[1:], rews[1:], c='magenta', label='MLP')
     ax_rew.set_xlabel('number of steps')
     ax_rew.set_ylabel('average reward')
     ax_rew.set_title('Average Reward History')

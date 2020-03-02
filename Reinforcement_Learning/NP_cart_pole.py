@@ -256,7 +256,7 @@ def improvement_step_all(complete_dataset, estimated_adv):
                     sigma = stddev
                 else:
                     sigma = args.fixed_sigma
-                new_mean = mean + eta * advantage * ((action - mean) / sigma)
+                new_mean = mean + eta * advantage * ((action - mean) / sigma**2)
                 distr = Normal(new_mean, sigma)
                 new_action = distr.sample()
                 new_padded_actions[i, :] = new_action

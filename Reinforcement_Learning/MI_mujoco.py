@@ -57,7 +57,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=50, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=100, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes ')

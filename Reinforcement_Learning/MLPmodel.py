@@ -77,7 +77,10 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
     log['total_reward'] = total_reward
-    log['avg_reward'] = total_reward / num_episodes
+    try:
+        log['avg_reward'] = total_reward.item() / num_episodes
+    except AttributeError:
+        log['avg_reward'] = total_reward / num_episodes
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward
     if custom_reward is not None:

@@ -10,7 +10,7 @@ import gpytorch
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples(pid, env, policy, custom_reward, mean_action, render,
+def collect_samples(pid, env, policy, num_ep, custom_reward, mean_action, render,
                     running_state, context_points_list, attention, fixed_sigma):
     # (2)
     torch.randn(pid)
@@ -159,11 +159,11 @@ class Agent_all_ctxt:
         self.attention = attention
         self.fixed_sigma = fixed_sigma
 
-    def collect_episodes(self, context_list, render=False):
+    def collect_episodes(self, context_list, num_ep, render=False):
         t_start = time.time()
         # to_device(torch.device('cpu'), self.policy)
 
-        memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.mean_action,
+        memory, log = collect_samples(0, self.env, self.policy, num_ep, self.custom_reward, self.mean_action,
                                       self.render, self.running_state, context_list, self.attention, self.fixed_sigma)
 
         batch = memory.memory

@@ -11,6 +11,19 @@ def merge_csv():
     all_rewards = np.column_stack([all_rewards, rewards])
     np.savetxt(rewards_file, all_rewards)
 
+def get_random_context(context_list, num_context):
+
+        all_x = torch.cat([ep[0][:, :ep[-1], :] for ep in context_list], dim=-2)
+        all_y = torch.cat([ep[1][:, :ep[-1], :] for ep in context_list], dim=-2)
+        num_tot_context = all_x.shape[-2]
+        num_context = min(num_tot_context, num_context)
+        locations = np.random.choice(np.arange(num_tot_context),
+                                     size=num_context,
+                                     replace=False)
+        x_context = all_x[:, locations, :]
+        y_context = all_y[:, locations, :]
+        return x_context, y_context
+
 
 def get_close_context(index, target, context_list, dist, num_tot_context=1000):
     if dist is not None:
@@ -36,34 +49,35 @@ def get_close_context(index, target, context_list, dist, num_tot_context=1000):
     else:
         num_all_context = 0
         for e in context_list:
-            num_all_context += e[2]
+            num_all_context += e[-1]
         num_tot_context = min(num_tot_context, num_all_context)
         context_per_ep = max(1, num_tot_context // len(context_list))
         start = max(0, index - context_per_ep // 2)
         end = min(start + context_per_ep, context_list[0][2])
         if end - start < context_per_ep:
             start = max(0, end - context_per_ep)
-        chosen_context = [context_list[0][0][:, start:end, :], context_list[0][1][:, start:end, :]]
+        chosen_context = [context_list[0][0][..., start:end, :].view(1, end-start, -1),
+                          context_list[0][1][..., start:end, :].view(1, end-start, -1)]  # need to use ... and view because tensor shape varies (1xNxD in training, NxD in inference
         for ep in context_list[1:]:
             end = min(start + context_per_ep, ep[2])
             if end - start < context_per_ep:
                 start = max(0, end - context_per_ep)
-            chosen_context[0] = torch.cat([chosen_context[0], ep[0][:, start:end, :]], dim=-2)
-            chosen_context[1] = torch.cat([chosen_context[1], ep[1][:, start:end, :]], dim=-2)
+            chosen_context[0] = torch.cat([chosen_context[0], ep[0][..., start:end, :].view(1, end-start, -1)], dim=-2)
+            chosen_context[1] = torch.cat([chosen_context[1], ep[1][..., start:end, :].view(1, end-start, -1)], dim=-2)
         return chosen_context
 
 
 
-def merge_context(context_points_list):
+def merge_context(context_points_list, perc=1.):
     '''Transforms a list of episodes' context points (padded to max_len)
      into a vector with all points unpadded'''
     all_x_context, all_y_context, real_len = context_points_list[0]
-    all_x_context = all_x_context[:,:real_len,:]
-    all_y_context = all_y_context[:,:real_len,:]
+    all_x_context = all_x_context[...,:real_len,:].view(1, real_len, -1) # need to use ... and view because tensor shape varies (1xNxD in training, NxD in inference
+    all_y_context = all_y_context[...,:real_len,:].view(1, real_len, -1)
     for episode_contexts in context_points_list[1:]:
         x_context, y_context, real_len = episode_contexts
-        all_x_context = torch.cat((all_x_context, x_context[:,:real_len,:]), dim=-2)
-        all_y_context = torch.cat((all_y_context, y_context[:,:real_len,:]), dim=-2)
+        all_x_context = torch.cat((all_x_context, x_context[...,:real_len,:].view(1, real_len, -1)), dim=-2)
+        all_y_context = torch.cat((all_y_context, y_context[...,:real_len,:].view(1, real_len, -1)), dim=-2)
     return all_x_context, all_y_context
 
 def merge_padded_list(points_list, max_lens):

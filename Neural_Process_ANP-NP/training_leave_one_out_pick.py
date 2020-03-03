@@ -1,7 +1,7 @@
 import torch
 from random import randint
 import random
-from utils_rl.memory_dataset import get_close_context
+from utils_rl.memory_dataset import get_close_context, get_random_context
 from torch.distributions.kl import kl_divergence
 import time
 import numpy as np
@@ -70,14 +70,11 @@ class NeuralProcessTrainerLooPick():
                 all_context_points = one_out_list[i]
                 data = episode_fixed_list[i]
                 x, y, num_points = data
-                index = random.randint(0, num_points-1)
-                x_target = x[:, index, :].unsqueeze(0)
-                y_target = y[:, index, :].unsqueeze(0)
-                x_context, y_context = get_close_context(index, x_target, context_list,
-                                                         self.pick_dist, num_tot_context=self.num_context)
+
+                x_context, y_context = get_random_context(all_context_points, self.num_context)
                 #x_context, y_context = get_close_context(index, context_list, num_tot_context=self.num_context)
-                #x_target = x.unsqueeze(0)
-                #y_target = y.unsqueeze(0)
+                x_target = x[:, :num_points, :]
+                y_target = y[:, :num_points, :]
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)

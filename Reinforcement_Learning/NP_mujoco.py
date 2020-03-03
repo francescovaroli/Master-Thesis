@@ -9,11 +9,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
 from utils_rl.store_results import *
-#from core.agent_ensembles_all_context import Agent_all_ctxt
-from core.agent_conditionning import Agent_all_ctxt
+from core.agent_ensembles_all_context import Agent_all_ctxt
+#from core.agent_conditionning import Agent_all_ctxt
+from core.agent_picker import AgentPicker
 from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
 from training_module_RL import NeuralProcessTrainerRL
+from training_leave_one_out_pick import NeuralProcessTrainerLooPick
 import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
@@ -35,8 +37,11 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
-parser.add_argument('--loo', default=False, help='train leaving episode out')
+parser.add_argument('--loo', default=True, help='train leaving episode out')
+parser.add_argument('--pick', default=True, help='choose subset of rm')
 
+parser.add_argument('--num-context', type=int, default=5000, metavar='N',
+                    help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
@@ -51,7 +56,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=50, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=10, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=100, metavar='G',
                     help='size of training set in episodes ')
@@ -113,19 +118,22 @@ parser.add_argument("--num-testing-points", type=int, default=1000,
 args = parser.parse_args()
 initial_training = True
 
-# vargs.epochs_per_iter = 10 + 2000 // args.replay_memory_size
+args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
 args.v_r_dim = args.r_dim
 
-np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a_unif_range'.format(args.replay_memory_size, args.v_replay_memory_size,
+np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
                                                                 args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
-                                                                args.h_dim, args.max_kl_np, args.use_attentive_np, args.a_dim)
+                                                                args.h_dim, args.max_kl_np, args.use_attentive_np,
+                                                                                args.a_dim)
 
 
-run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                           args.gamma, args.num_testing_points, args.loo) + np_spec
+run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_ensembles,
+                                                                                   args.fixed_sigma,args.gamma,
+                                                                                   args.num_testing_points, args.loo,
+                                                                                   args.pick, args.num_context) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
@@ -166,27 +174,35 @@ else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
 
-if args.loo:
+if args.loo and not args.pick:
     np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
                                         print_freq=50)
-
+    value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
+                                               num_target=args.num_testing_points,
+                                               print_freq=50)
+elif args.loo and args.pick:
+    np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, pick_dist=None,
+                                            num_context=args.num_context)
+    value_np_trainer = NeuralProcessTrainerLooPick(args.device_np, value_np, value_optimizer, pick_dist=None,
+                                            num_context=args.num_context)
 else:
     np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (1, max_episode_len-1),
                                         print_freq=50)
-    #value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, optimizer, (1, max_episode_len-1),
-    #                                    print_freq=50)
-value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
-                                           num_target=args.num_testing_points,
-                                           print_freq=50)
+    value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, optimizer, (1, max_episode_len-1),
+                                        print_freq=50)
+
 value_np.training = False
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size)
 value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
-agent_np = Agent_all_ctxt(env, policy_np, args.device_np, running_state=None, render=args.render,
-              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
-
+if not args.pick:
+    agent_np = Agent_all_ctxt(env, policy_np, args.device_np, running_state=None, render=args.render,
+                              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
+else:
+    agent_np = AgentPicker(env, policy_np, args.device_np, args.num_context, custom_reward=None, pick_dist=None,
+                           mean_action=False, render=False, running_state=None, fixed_sigma=args.fixed_sigma)
 
 def train_np(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
@@ -280,7 +296,11 @@ def main_loop():
 
         # generate multiple trajectories that reach the minimum batch_size
         policy_np.training = False
-        batch_np, log_np = agent_np.collect_episodes(improved_context_list_np)  # batch of batch_size transitions from multiple
+        if len(replay_memory) == 0:
+            context_list_np = improved_context_list_np
+        else:
+            context_list_np = replay_memory.data
+        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_ensembles)  # batch of batch_size transitions from multiple
         # store_rewards(batch_np.memory, np_file)
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         complete_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)

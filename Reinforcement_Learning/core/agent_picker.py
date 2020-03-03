@@ -7,9 +7,9 @@ from collections import namedtuple
 from torch.distributions import Normal
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
-                                       'reward', 'mean', 'stddev', 'disc_rew'))
+                                       'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples(pid, env, policy, custom_reward, num_context, render,
+def collect_samples(pid, env, policy, num_ep, custom_reward, num_context, render,
                     running_state, context_points_list, pick_dist, fixed_sigma):
     # (2)
     torch.randn(pid)
@@ -23,7 +23,17 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
     min_c_reward = 1e6
     max_c_reward = -1e6
     num_episodes = 0
-    num_ep = len(context_points_list)
+    action_sum = zeros(context_points_list[0][1].shape[-1])
+    all_x = torch.cat([ep[0][:ep[-1], :] for ep in context_points_list], dim=-2)
+    all_y = torch.cat([ep[1][:ep[-1], :] for ep in context_points_list], dim=-2)
+
+    num_tot_context = all_x.shape[-2]
+    if num_tot_context < num_context:
+        pick = False
+        all_x_context, all_y_context = [all_x.unsqueeze(0), all_y.unsqueeze(0)]
+    else:
+        pick = True
+
     with torch.no_grad():
         for ep in range(num_ep):
             # print('ep: ', ep)
@@ -36,14 +46,20 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
             t_ep = time.time()
             for t in range(10000):
                 state_var = tensor(state).unsqueeze(0).unsqueeze(0)
-                all_x_context, all_y_context = get_close_context(t, state_var, context_points_list, pick_dist, num_tot_context=num_context)
+                if pick:
+                    all_x_context, all_y_context = get_close_context(t, state_var, context_points_list, pick_dist, num_tot_context=num_context)
                 if policy.id == 'DKL':
                     policy.set_train_data(all_x_context.squeeze(0), all_y_context.squeeze(0).squeeze(-1), strict=False)
                     pi = policy(state_var)
+                    mean = pi.mean
+                    stddev = pi.stddev
+                elif policy.id == 'MI':
+                    mean = policy(all_x_context, all_y_context, state_var)
+                    stddev = fixed_sigma
                 else:
                     pi = policy(all_x_context, all_y_context, state_var)
-                mean = pi.mean
-                stddev = pi.stddev
+                    mean = pi.mean
+                    stddev = pi.stddev
 
                 if fixed_sigma is not None:
                     sigma = fixed_sigma
@@ -52,7 +68,8 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
 
                 action_distribution = Normal(mean, sigma)
 
-                action = action_distribution.sample().view(1)  # sample from normal distribution
+                action = action_distribution.sample().view(-1)  # sample from normal distribution
+                cov = torch.diag(sigma**2)
                 next_state, reward, done, _ = env.step(action.cpu())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
@@ -63,8 +80,9 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
                     min_c_reward = min(min_c_reward, reward)
                     max_c_reward = max(max_c_reward, reward)
 
-                episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(), stddev.cpu().numpy(), None))
-
+                episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
+                                          sigma.cpu().numpy(), None, cov))
+                action_sum += action
                 if render:
                     env.render()
                 if done:
@@ -82,9 +100,13 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
     log['total_reward'] = total_reward
-    log['avg_reward'] = total_reward / num_episodes
+    try:
+        log['avg_reward'] = total_reward.item() / num_episodes
+    except AttributeError:
+        log['avg_reward'] = total_reward / num_episodes
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward
+    log['action_mean'] = action_sum / num_steps
     if custom_reward is not None:
         log['total_c_reward'] = total_c_reward
         log['avg_c_reward'] = total_c_reward / num_steps
@@ -92,21 +114,6 @@ def collect_samples(pid, env, policy, custom_reward, num_context, render,
         log['min_c_reward'] = min_c_reward
 
     return memory, log
-
-def compute_stats(batch):
-    s = 0
-    ma = -100
-    mi = 100
-    l = 0
-    for ep in batch:
-        l += len(ep)
-        for tr in ep:
-            action = tr.action
-            s += action
-            ma = max(ma, action)
-            mi = min(mi, action)
-    avg = s / l
-    return avg, ma, mi
 
 
 def merge_log(log_list):
@@ -141,19 +148,15 @@ class AgentPicker:
         self.fixed_sigma = fixed_sigma
         self.num_context = num_context
 
-    def collect_episodes(self, context_list, render=False):
+    def collect_episodes(self, context_list, num_ep, render=False):
         t_start = time.time()
         #to_device(torch.device('cpu'), self.policy)
 
-        memory, log = collect_samples(0, self.env, self.policy, self.custom_reward, self.num_context,
+        memory, log = collect_samples(0, self.env, self.policy, num_ep, self.custom_reward, self.num_context,
                                       render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
 
         batch = memory.memory
         #to_device(self.device, self.policy)
         t_end = time.time()
-        mean_a, max_a, min_a = compute_stats(batch)
         log['sample_time'] = t_end - t_start
-        log['action_mean'] = mean_a
-        log['action_min'] = min_a
-        log['action_max'] = max_a
         return memory, log

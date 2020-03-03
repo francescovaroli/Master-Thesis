@@ -86,6 +86,7 @@ class MITrainer():
         self.steps = 0
         self.epoch_loss_history = []
         self.num_target = num_target
+        self.num_context = args.num_context
         self.args = args
 
     def train_rl_loo(self, data_loader, epochs, early_stopping=None):
@@ -100,8 +101,8 @@ class MITrainer():
                     if j != i:
                         context_list.append(ep)
                 # context_list = [ep for j, ep in enumerate(data_loader) if j != i]
-            all_context_points = merge_context(context_list)
-            one_out_list.append(all_context_points)
+            #all_context_points = merge_context(context_list)
+            one_out_list.append(context_list)
         for epoch in range(epochs):
             epoch_loss = 0.
             for i, data in enumerate(data_loader):
@@ -111,11 +112,8 @@ class MITrainer():
                 all_context_points = one_out_list[i]
                 data = episode_fixed_list[i]
                 x, y, num_points = data
-                x_context, y_context = all_context_points
+                x_context, y_context = get_random_context(all_context_points, self.num_context)
                 num_target = min(self.num_target, num_points.item())
-                # index = random.randint(0, num_points - 1)
-                # x_target = x[:, index, :].unsqueeze(0)
-                # y_target = y[:, index, :].unsqueeze(0)
                 _, _, x_target, y_target = context_target_split(x[:, :num_points, :], y[:, :num_points, :], 0, num_target)
                 prediction = self.model(x_context, y_context, x_target)
                 loss = self._loss(y_target, prediction)

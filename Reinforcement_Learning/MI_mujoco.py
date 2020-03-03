@@ -11,6 +11,7 @@ from utils_rl.memory_dataset import *
 from utils_rl.store_results import *
 
 from core.agent_ensembles_all_context import Agent_all_ctxt
+from core.agent_picker import AgentPicker
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import csv
 from multihead_attention_np import *
@@ -34,6 +35,9 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
+parser.add_argument('--pick', default=True, help='choose subset of rm')
+parser.add_argument('--num-context', type=int, default=5000, metavar='N',
+                    help='number of context points to sample from rm')
 
 parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
@@ -59,7 +63,7 @@ parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=60, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=100, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
                     help='stop training training when avg_loss reaches it')
@@ -90,6 +94,8 @@ parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during MI training')
 args = parser.parse_args()
 initial_training = True
+
+args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
 
 
 mi_spec = '_MI_{}rm_{}epo_{}z_{}h_{}kl_{}'.format(args.replay_memory_size, args.epochs_per_iter, args.z_mi_dim,
@@ -127,11 +133,17 @@ optimizer_mi = torch.optim.Adam([
     {'params': model.interpolator.parameters(), 'lr': args.lr_nn}])
 
 # trainer
-model_trainer = MITrainer(device, model, optimizer_mi, args, num_target=args.num_testing_points, print_freq=10)
+model_trainer = MITrainer(device, model, optimizer_mi, args, num_target=args.num_testing_points, print_freq=50)
 replay_memory_mi = ReplayMemoryDataset(args.replay_memory_size)
 
 """create agent"""
 agent_mi = Agent_all_ctxt(env, model, args.device_np, running_state=None, render=args.render, fixed_sigma=args.fixed_sigma)
+if not args.pick:
+    agent_mi = Agent_all_ctxt(env, model, args.device_np, running_state=None, render=args.render,
+                              fixed_sigma=args.fixed_sigma)
+else:
+    agent_mi = AgentPicker(env, model, args.device_np, args.num_context, custom_reward=None, pick_dist=None,
+                           mean_action=False, render=False, running_state=None, fixed_sigma=args.fixed_sigma)
 
 
 def train_mi(datasets, epochs=args.epochs_per_iter):
@@ -195,9 +207,12 @@ def main_loop():
 
     improved_context_list_mi = sample_initial_context_normal(args.num_ensembles)
     for i_iter in range(args.max_iter_num):
-
+        if len(replay_memory_mi) == 0:
+            context_list_np = improved_context_list_mi
+        else:
+            context_list_np = replay_memory_mi.data
         # generate multiple trajectories that reach the minimum batch_size
-        batch_mi, log_mi = agent_mi.collect_episodes(improved_context_list_mi)
+        batch_mi, log_mi = agent_mi.collect_episodes(context_list_np, args.num_ensembles)
         # store_rewards(batch_mi.memory, mi_file)
         print('mi avg actions: ', log_mi['action_mean'])
 

@@ -2,8 +2,7 @@ import torch
 from random import randint
 from matplotlib import pyplot as plt
 from torch.distributions.kl import kl_divergence
-from utils import (context_target_split, batch_context_target_mask,
-                   img_mask_to_np_input)
+from utils import context_target_split, context_target_split_CinT
 import time
 import numpy as np
 
@@ -64,12 +63,12 @@ class NeuralProcessTrainerRL():
                 x, y, num_points = data
                 num_points = min(num_points).item()
                 # Sample number of context and target points
-                num_context = min(randint(*self.num_context_range), num_points-1)
+                num_context = min(randint(*self.num_context_range), num_points//2)
                 num_extra_target = num_points-num_context
 
                 # Create context using only real data (no padded sequences)
                 x_context, y_context, x_target, y_target = \
-                    context_target_split(x[:, :num_points,:], y[:, :num_points, :], num_context, num_extra_target)
+                    context_target_split_CinT(x[:, :num_points,:], y[:, :num_points, :], num_context, num_extra_target)
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)

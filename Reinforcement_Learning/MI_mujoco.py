@@ -36,8 +36,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 parser.add_argument('--pick', default=True, help='choose subset of rm')
-parser.add_argument('--num-context', type=int, default=5000, metavar='N',
+parser.add_argument('--num-context', type=int, default=1000, metavar='N',
                     help='number of context points to sample from rm')
+parser.add_argument('--rm-as-context', default=False, help='choose subset of rm')
 
 parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
@@ -207,7 +208,7 @@ def main_loop():
 
     improved_context_list_mi = sample_initial_context_normal(args.num_ensembles)
     for i_iter in range(args.max_iter_num):
-        if len(replay_memory_mi) == 0:
+        if len(replay_memory_mi) == 0 or not args.rm_as_context:
             context_list_np = improved_context_list_mi
         else:
             context_list_np = replay_memory_mi.data

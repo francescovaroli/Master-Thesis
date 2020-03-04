@@ -37,8 +37,10 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
-parser.add_argument('--loo', default=True, help='train leaving episode out')
-parser.add_argument('--pick', default=True, help='choose subset of rm')
+parser.add_argument('--loo', default=False, help='train leaving episode out')
+parser.add_argument('--pick', default=False, help='choose subset of rm')
+parser.add_argument('--rm-as-context', default=False, help='choose subset of rm')
+
 
 parser.add_argument('--num-context', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
@@ -186,10 +188,13 @@ elif args.loo and args.pick:
     value_np_trainer = NeuralProcessTrainerLooPick(args.device_np, value_np, value_optimizer, pick_dist=None,
                                             num_context=args.num_context)
 else:
-    np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (1, max_episode_len-1),
+    np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (1, max_episode_len//2),
                                         print_freq=50)
-    value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, optimizer, (1, max_episode_len-1),
-                                        print_freq=50)
+    value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
+                                               num_target=args.num_testing_points,
+                                               print_freq=50)
+    #value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, value_optimizer, (1, max_episode_len//2),
+    #                                    print_freq=50)
 
 value_np.training = False
 """create replay memory"""
@@ -296,7 +301,7 @@ def main_loop():
 
         # generate multiple trajectories that reach the minimum batch_size
         policy_np.training = False
-        if len(replay_memory) == 0:
+        if len(replay_memory) == 0 or not args.rm_as_context:
             context_list_np = improved_context_list_np
         else:
             context_list_np = replay_memory.data

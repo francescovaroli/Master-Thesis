@@ -37,7 +37,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
-parser.add_argument('--loo', default=False, help='train leaving episode out')
+parser.add_argument('--loo', default=True, help='train leaving episode out')
 parser.add_argument('--pick', default=False, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=False, help='choose subset of rm')
 

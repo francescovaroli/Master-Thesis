@@ -173,3 +173,28 @@ def improvement_step_alpha(complete_dataset, estimated_adv, eps, args):
         args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)
 
     return all_improved_context
+
+def estimate_v_a(value_net, complete_dataset, disc_rew):
+    ep_rewards = disc_rew
+    ep_states = [ep['states'] for ep in complete_dataset]
+    real_lens = [ep['real_len'] for ep in complete_dataset]
+    estimated_advantages = []
+    for i in range(len(ep_states)):
+        context_list = []
+        j = 0
+        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+            if j != i:
+                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
+            else:
+                s_target = states[:real_len, :].unsqueeze(0)
+                r_target = rewards.view(1, -1, 1)
+            j += 1
+        s_context, r_context = merge_context(context_list)
+        with torch.no_grad():
+            values = value_net(s_context, r_context, s_target)
+        if value_net.id == 'MI':
+            advantages = r_target - values
+        else:
+            advantages = r_target - values.mean
+        estimated_advantages.append(advantages.squeeze(0))
+    return estimated_advantages

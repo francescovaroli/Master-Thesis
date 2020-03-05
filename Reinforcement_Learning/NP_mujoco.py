@@ -126,8 +126,8 @@ args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
 args.v_r_dim = args.r_dim
 
-np_spec = '_NP_{},{}rm_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
-                                                                args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
+np_spec = '_NP_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
+                                                                args.rm_as_context, args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
                                                                 args.h_dim, args.max_kl_np, args.use_attentive_np,
                                                                                 args.a_dim)
 

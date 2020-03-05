@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/walker_np_04/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_obo/hop/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 5/num_folders
@@ -62,9 +62,9 @@ for s, subfolder_path in enumerate(all_folders[1:]):
         avg = sum(chunk)/len(chunk)
         avg_rews.append(avg)
         steps.append(end)
-    if '100rm' in subfolder_path:
+    if '20epo' in subfolder_path:
         color = 'r'
-    elif '200rm' in subfolder_path:
+    elif '40epo' in subfolder_path:
         color = 'g'
     else: color='b'
     ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c=color, label=label)

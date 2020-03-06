@@ -39,7 +39,7 @@ parser.add_argument('--render', action='store_true', default=False,
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, help='train leaving episode out')
 parser.add_argument('--pick', default=False, help='choose subset of rm')
-parser.add_argument('--rm-as-context', default=False, help='choose subset of rm')
+parser.add_argument('--rm-as-context', default=True, help='choose subset of rm')
 
 
 parser.add_argument('--num-context', type=int, default=5000, metavar='N',
@@ -195,7 +195,6 @@ else:
                                                print_freq=50)
     #value_np_trainer = NeuralProcessTrainerRL(args.device_np, value_np, value_optimizer, (1, max_episode_len//2),
     #                                    print_freq=50)
-
 value_np.training = False
 """create replay memory"""
 replay_memory = ReplayMemoryDataset(args.replay_memory_size)
@@ -231,21 +230,31 @@ def estimate_v_a(complete_dataset, disc_rew):
     ep_states = [ep['states'] for ep in complete_dataset]
     real_lens = [ep['real_len'] for ep in complete_dataset]
     estimated_advantages = []
-    for i in range(len(ep_states)):
-        context_list = []
-        j = 0
+    if not len(value_replay_memory.data) == 0:
+        s_context, r_context = merge_context(value_replay_memory.data)
         for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
-            if j != i:
-                context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
-            else:
-                s_target = states[:real_len, :].unsqueeze(0)
-                r_target = rewards.view(1, -1, 1)
-            j += 1
-        s_context, r_context = merge_context(context_list)
-        with torch.no_grad():
-            values = value_np(s_context, r_context, s_target)
-        advantages = r_target - values.mean
-        estimated_advantages.append(advantages.squeeze(0))
+            s_target = states[:real_len, :].unsqueeze(0)
+            r_target = rewards.view(1, -1, 1)
+            with torch.no_grad():
+                values = value_np(s_context, r_context, s_target)
+            advantages = r_target - values.mean
+            estimated_advantages.append(advantages.squeeze(0))
+    else:
+        for i in range(len(ep_states)):
+            context_list = []
+            j = 0
+            for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
+                if j != i:
+                    context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
+                else:
+                    s_target = states[:real_len, :].unsqueeze(0)
+                    r_target = rewards.view(1, -1, 1)
+                j += 1
+            s_context, r_context = merge_context(context_list)
+            with torch.no_grad():
+                values = value_np(s_context, r_context, s_target)
+            advantages = r_target - values.mean
+            estimated_advantages.append(advantages.squeeze(0))
     return estimated_advantages
 
 
@@ -305,8 +314,8 @@ def main_loop():
             context_list_np = improved_context_list_np
         else:
             context_list_np = replay_memory.data
-        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_ensembles)  # batch of batch_size transitions from multiple
-        # store_rewards(batch_np.memory, np_file)
+        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_ensembles)
+
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         complete_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
         print('np avg actions: ', log_np['action_mean'])

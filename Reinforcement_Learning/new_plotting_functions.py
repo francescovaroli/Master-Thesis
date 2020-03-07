@@ -67,7 +67,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
 
     ax_samples = fig.add_subplot(223, projection='3d')
     if args.fixed_sigma is not None:
-        ax_samples.set_title('Samples from policy, fixed sigma {:.2f}'.format(args.fixed_sigma), pad=30, fontsize=16)
+        ax_samples.set_title('Samples from policy, fixed sigma {:.2f}'.format(args.fixed_sigma.item()), pad=30, fontsize=16)
     else:
         ax_samples.set_title('Samples from policy, sigma from NP', pad=30, fontsize=16)
     set_limits(ax_samples, env, args)
@@ -170,7 +170,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
             ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', s=4, alpha=0.3)
             ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=new_means[:, 0].cpu(), marker='+', alpha=0.3)
 
-        a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew[:], cmap='viridis', alpha=0.5)
+        a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew[:, 0], cmap='viridis', alpha=0.5)
 
     cb = fig.colorbar(a)
     cb.set_label('Discounted rewards')
@@ -189,9 +189,9 @@ def plot_rewards_history(avg_rewards, tot_steps, args):
     fig_rew.savefig(args.directory_path + '/00_average reward')
     plt.close(fig_rew)
 
-def plot_NP_value(value_np, all_states, all_values, all_episodes, all_rews, rm, env, args, i_iter):
+def plot_NP_value(value_np, all_states, target_states, values, all_rews, advantages, env, args, i_iter):
     name = 'Value estimate ' + str(i_iter)
-    fig = plt.figure(figsize=(16, 14))  # figsize=plt.figaspect(1.5)
+    fig = plt.figure(figsize=(18, 6))  # figsize=plt.figaspect(1.5)
     fig.suptitle(name, fontsize=20)
     fig.tight_layout()
     value_np.training = False
@@ -205,7 +205,7 @@ def plot_NP_value(value_np, all_states, all_values, all_episodes, all_rews, rm, 
     stddev_high = V_mean + V_stddev
     vmin = stddev_low.min().cpu()
     vmax = stddev_high.max().cpu()
-    ax_mean = fig.add_subplot(221, projection='3d')
+    ax_mean = fig.add_subplot(131, projection='3d')
     i = 0
     for y_slice in x2:
         ax_mean.add_collection3d(
@@ -219,41 +219,19 @@ def plot_NP_value(value_np, all_states, all_values, all_episodes, all_rews, rm, 
 
     ax_mean.set_title('Mean and std. dev. of the value NP', pad=25, fontsize=16)
 
-    ax_context = fig.add_subplot(222, projection='3d')
+    ax_context = fig.add_subplot(132, projection='3d')
     set_limits(ax_context, env, args, np_id='value')
     set_labels(ax_context, np_id='value')
     ax_context.set_title('Context and  prediction', pad=25, fontsize=16)
 
-    ax_diff = fig.add_subplot(223, projection='3d')
+    ax_diff = fig.add_subplot(133, projection='3d')
     set_limits(ax_diff, env, args, np_id='value')
     set_labels(ax_diff, np_id='value')
     ax_diff.set_title('Q - V advantage estimate', pad=25, fontsize=16)
-    first = True
-    for episode, values in zip(all_episodes, all_values):
-        real_len = episode['real_len']
-        states = episode['states'][:real_len].unsqueeze(0)
-        disc_rew = episode['discounted_rewards'][:real_len].unsqueeze(0)
-        r_est = disc_rew - values
-        if first:
-            ax_context.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), disc_rew[0, :, 0].cpu(), c='r',
-                               label='Discounted rewards (~Q)', alpha=0.1)
-            ax_context.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), values[0, :, 0].cpu(), c='b',
-                               label='Estimated values (~V)', alpha=0.1)
-        else:
-            ax_context.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), disc_rew[0, :, 0].cpu(), c='r',alpha=0.1)
-            ax_context.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), values[0, :, 0].cpu(), c='b',alpha=0.1)
-
-        ax_diff.scatter(states[0, :, 0].cpu(), states[0, :, 1].cpu(), r_est[0, :, 0].cpu(), c='g', alpha=0.08)
-        first = False
+    ax_context.scatter(all_states[0, :, 0].cpu(), all_states[0, :, 1].cpu(), all_rews[0, :, 0].cpu(), c='r',alpha=0.1)
+    ax_context.scatter(target_states[0, :, 0].cpu(), target_states[0, :, 1].cpu(), values[0, :, 0].cpu(), c='b',alpha=0.1)
+    ax_diff.scatter(target_states[0, :, 0].cpu(), target_states[0, :, 1].cpu(), advantages[0, :, 0].cpu(), c='g', alpha=0.08)
     leg = ax_context.legend(loc="upper right")
-    ax_rm = fig.add_subplot(224, projection='3d')
-    set_limits(ax_rm, env, args, np_id='value')
-    set_labels(ax_rm, np_id='value')
-    ax_rm.set_title('Training set (RM)', pad=25, fontsize=16)
-    for traj in rm:
-        r_len = traj[-1]
-        ax_rm.scatter(traj[0][:r_len, 0].cpu(), traj[0][:r_len, 1].cpu(), traj[1][:r_len, 0].cpu(),
-                           c=traj[1][:r_len, 0].cpu(), alpha=0.1, cmap='viridis')
     fig.savefig(args.directory_path+'/value/'+name)
     plt.close(fig)
 

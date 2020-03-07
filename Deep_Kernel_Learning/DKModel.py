@@ -62,7 +62,7 @@ class GPRegressionModel(gpytorch.models.ExactGP):
 
 class DKMTrainer():
 
-    def __init__(self, device, model, optimizer, args, print_freq=100):
+    def __init__(self, device, model, optimizer, num_context=100, num_target=100, print_freq=100):
 
         self.device = device
         self.model = model
@@ -71,7 +71,8 @@ class DKMTrainer():
         self.print_freq = print_freq
         self.steps = 0
         self.epoch_loss_history = []
-        self.args = args
+        self.num_context = num_context
+        self.num_target = num_target
 
     def train_rl(self, data_loader, epochs, early_stopping=None):
 
@@ -169,13 +170,16 @@ class DKMTrainer():
                 x, y = data  # add , num_points
 
                 x_context, y_context, x_target, y_target = context_target_split(x[0:1], y[0:1],
-                                                                                self.args.num_context,
-                                                                                self.args.num_target)
+                                                                                self.num_context,
+                                                                                self.num_target)
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 #self.model.eval()
                 #self.model.likelihood.eval()
-                #with  gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
+                #with gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(False):
                 output = self.model(x_context)
+                if any(torch.isnan(output.stddev.view(-1))):
+                    print('nan at epoch ', epoch)
+                    continue
                 #self.model.train()
                 #self.model.likelihood.train()
                 # Calc loss and backprop derivatives
@@ -184,14 +188,14 @@ class DKMTrainer():
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
-            print('epoch %d - Loss: %.3f   lengthscale: %.3f  outpuscale: %.3f   noise: %.3f' % (epoch, loss.item(),
-                self.model.covar_module.base_kernel.base_kernel.lengthscale.item(),
-                self.model.covar_module.base_kernel.outputscale.item(),
-                self.model.likelihood.noise.item()))
+            #print('epoch %d - Loss: %.3f   lengthscale: %.3f  outpuscale: %.3f   noise: %.3f' % (epoch, loss.item(),
+            #    self.model.covar_module.base_kernel.base_kernel.lengthscale.item(),
+            #    self.model.covar_module.base_kernel.outputscale.item(),
+            #    self.model.likelihood.noise.item()))
             if epoch % self.print_freq == 0 or epoch == epochs - 1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
-                plot_posterior(data_loader, self.model, 'training ' + str(epoch), self.args,
-                               title='epoch #{}, avg_los {}'.format(epoch, avg_loss), num_func=1)
+                #plot_posterior(data_loader, self.model, 'training ' + str(epoch), self.args,
+                #               title='epoch #{}, avg_los {}'.format(epoch, avg_loss), num_func=1)
 
             self.epoch_loss_history.append(avg_loss)
 
@@ -234,11 +238,11 @@ class DKMTrainer_loo():
                 self.optimizer.zero_grad()
                 data = episode_fixed_list[i]
                 x, y, num_points = data
-                index = random.randint(0, num_points.item() - 1)
-                x_target = x[:, index, :].unsqueeze(0)
-                y_target = y[:, index, :].view(-1)
-                #x_target = x.unsqueeze(0)
-                #y_target = y.view(-1)
+                #index = random.randint(0, num_points.item() - 1)
+                #x_target = x[:, index, :].unsqueeze(0)
+                #y_target = y[:, index, :].view(-1)
+                x_target = x.unsqueeze(0)
+                y_target = y.view(-1)
                 x_context, y_context = merge_context(one_out_list[i])
                 #x_context, y_context, _, _ = context_target_split(all_x_context, all_y_context,
                 #                                                  num_context=all_x_context.shape[-2]//2,

@@ -21,7 +21,7 @@ from core.common import estimate_eta_3, improvement_step_all, discounted_rewards
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -36,9 +36,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
 parser.add_argument('--pick', default=True, help='choose subset of rm')
-parser.add_argument('--num-context', type=int, default=1000, metavar='N',
+parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--rm-as-context', default=False, help='choose subset of rm')
+parser.add_argument('--rm-as-context', default=True, help='choose subset of rm')
 
 parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
@@ -134,7 +134,7 @@ optimizer_mi = torch.optim.Adam([
     {'params': model.interpolator.parameters(), 'lr': args.lr_nn}])
 
 # trainer
-model_trainer = MITrainer(device, model, optimizer_mi, args, num_target=args.num_testing_points, print_freq=50)
+model_trainer = MITrainer(device, model, optimizer_mi, num_context=args.num_context, num_target=args.num_testing_points, print_freq=50)
 replay_memory_mi = ReplayMemoryDataset(args.replay_memory_size)
 
 """create agent"""

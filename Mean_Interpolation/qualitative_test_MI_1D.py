@@ -100,7 +100,7 @@ optimizer = torch.optim.Adam([
 
 os.mkdir(args.directory_path)
 
-model_trainer = MITrainer(device, model, optimizer, args, print_freq=10)
+model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, print_freq=10)
 print('start training')
 model_trainer.train(data_loader, args.epochs, early_stopping=None)
 

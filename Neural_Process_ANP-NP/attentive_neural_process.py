@@ -275,8 +275,30 @@ def dot_product_attention(q, k, v, normalise):
     return rep
 
 
-# def multihead_attention(q, k, v, num_heads=8):
+def multihead_attention(q, k, v, num_heads=8):
+    """Computes multi-head attention.
 
+    Args:
+      q: queries. tensor of  shape [B,m,d_k].
+      k: keys. tensor of shape [B,n,d_k].
+      v: values. tensor of shape [B,n,d_v].
+      num_heads: number of heads. Should divide d_v.
+
+    Returns:
+      tensor of shape [B,m,d_v].
+    """
+    d_k = q.shape[-1]
+    d_v = v.shape[-1]
+    head_size = int(d_v / num_heads)
+    rep = 0.0
+    p_q = nn.Conv1d(head_size, head_size, 1, bias=False, padding_mode='valid')
+    p_k = nn.Conv1d(head_size, head_size, 1, bias=False, padding_mode='valid')
+    p_v = nn.Conv1d(head_size, head_size, 1, bias=False, padding_mode='valid')
+    p_r = nn.Conv1d(d_v, d_v, 1, bias=False, padding_mode='valid')
+    for h in range(num_heads):
+        o = dot_product_attention(p_q(q), p_k(k), p_v(v), normalise=True)
+        rep += p_r(o)
+    return rep
 
 
 class Attention(nn.Module):
@@ -340,8 +362,8 @@ class Attention(nn.Module):
             rep = laplace_attention(q, k, r, self._scale, self._normalise)
         elif self._type == 'dot_product':
             rep = dot_product_attention(q, k, r, self._normalise)
-        #elif self._type == 'multihead':
-        #    rep = multihead_attention(q, k, r, self._num_heads)
+        elif self._type == 'multihead':
+            rep = multihead_attention(q, k, r, self._num_heads)
         else:
             raise NameError(("'att_type' not among ['uniform','laplace','dot_product'"
                              ",'multihead']"))
@@ -377,6 +399,7 @@ class AttentiveNeuralProcess(nn.Module):
         self.z_dim = z_dim
         self.h_dim = h_dim
         self.a_dim = a_dim
+        self.id = 'ANP'
 
         # Initialize networks
         self.xy_to_z = LatentEncoder(x_dim, y_dim, r_dim, z_dim, Attention(rep, a_dim, x_dim, att_type, scale))

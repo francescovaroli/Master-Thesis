@@ -43,9 +43,19 @@ class Encoder(nn.Module):
         y : torch.Tensor
             Shape (batch_size, y_dim)
         """
-        # shouldn't along dim -1?
-        input_pairs = torch.cat((x, y), dim=1)
-        return self.input_to_hidden(input_pairs)
+        batch_size, num_points, _ = x.size()
+        # Flatten tensors, as encoder expects one dimensional inputs
+        x_flat = x.view(batch_size * num_points, self.x_dim)
+        y_flat = y.contiguous().view(batch_size * num_points, self.y_dim)
+        # Encode each point into a representation r_i
+        input_pairs = torch.cat((x_flat, y_flat), dim=1)
+        r_i_flat = self.input_to_hidden(input_pairs)
+        # Reshape tensors into batches
+        r_i = r_i_flat.view(batch_size, num_points, self.r_dim)
+        # Aggregate representations r_i into a single representation r
+        r = torch.mean(r_i, dim=1)
+
+        return r
 
 
 class MuSigmaEncoder(nn.Module):
@@ -61,21 +71,23 @@ class MuSigmaEncoder(nn.Module):
     z_dim : int
         Dimension of latent variable z.
     """
-    def __init__(self, r_dim, z_dim):
+    def __init__(self, x_dim, y_dim, h_dim, r_dim, z_dim):
         super(MuSigmaEncoder, self).__init__()
 
         self.r_dim = r_dim
         self.z_dim = z_dim
 
+        self.xy_to_r = Encoder(x_dim, y_dim, h_dim, r_dim)
         self.r_to_hidden = nn.Linear(r_dim, r_dim)
         self.hidden_to_mu = nn.Linear(r_dim, z_dim)
         self.hidden_to_sigma = nn.Linear(r_dim, z_dim)
 
-    def forward(self, r):
+    def forward(self, x, y):
         """
         r : torch.Tensor
             Shape (batch_size, r_dim)
         """
+        r = self.xy_to_r(x, y)
         hidden = torch.relu(self.r_to_hidden(r))
         mu = self.hidden_to_mu(hidden)
         # Define sigma following convention in "Empirical Evaluation of Neural
@@ -189,46 +201,9 @@ class NeuralProcess(nn.Module):
         self.id = 'NP'
         # Initialize networks
         self.xy_to_r = Encoder(x_dim, y_dim, h_dim, r_dim)
-        self.r_to_mu_sigma = MuSigmaEncoder(r_dim, z_dim)
-        self.xz_to_y = Decoder(x_dim, z_dim, h_dim, y_dim, fixed_sigma)
+        self.xy_to_mu_sigma = MuSigmaEncoder(x_dim, y_dim, h_dim, r_dim, z_dim)
+        self.xrep_to_y = Decoder(x_dim, z_dim+r_dim, h_dim, y_dim, fixed_sigma)
 
-    def aggregate(self, r_i):
-        """
-        Aggregates representations for every (x_i, y_i) pair into a single
-        representation.
-
-        Parameters
-        ----------
-        r_i : torch.Tensor
-            Shape (batch_size, num_points, r_dim)
-        """
-        return torch.mean(r_i, dim=1)
-
-    def xy_to_mu_sigma(self, x, y):
-        """
-        Maps (x, y) pairs into the mu and sigma parameters defining the normal
-        distribution of the latent variables z.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            Shape (batch_size, num_points, x_dim)
-
-        y : torch.Tensor
-            Shape (batch_size, num_points, y_dim)
-        """
-        batch_size, num_points, _ = x.size()
-        # Flatten tensors, as encoder expects one dimensional inputs
-        x_flat = x.view(batch_size * num_points, self.x_dim)
-        y_flat = y.contiguous().view(batch_size * num_points, self.y_dim)
-        # Encode each point into a representation r_i
-        r_i_flat = self.xy_to_r(x_flat, y_flat)
-        # Reshape tensors into batches
-        r_i = r_i_flat.view(batch_size, num_points, self.r_dim)
-        # Aggregate representations r_i into a single representation r
-        r = self.aggregate(r_i)
-        # Return parameters of distribution
-        return self.r_to_mu_sigma(r)
 
     def forward(self, x_context, y_context, x_target, y_target=None):
         """
@@ -264,6 +239,7 @@ class NeuralProcess(nn.Module):
         if self.training:
             # Encode target and context (context needs to be encoded to
             # calculate kl term)
+            r_target = self.xy_to_r(x_context, y_context)
             mu_target, sigma_target = self.xy_to_mu_sigma(x_target, y_target)
             mu_context, sigma_context = self.xy_to_mu_sigma(x_context, y_context)
             # Sample from encoded distribution using reparameterization trick
@@ -273,13 +249,16 @@ class NeuralProcess(nn.Module):
             # Repeat z, so it can be concatenated with every x. This changes shape
             # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
             z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
+            r = r_target.unsqueeze(1).repeat(1, num_target, 1)
+            rep = torch.cat([z_sample, r], dim=-1)
             # Get parameters of output distribution
-            y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, z_sample)
+            y_pred_mu, y_pred_sigma = self.xrep_to_y(x_target, rep)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
 
             return p_y_pred, q_target, q_context
         else:
             # At testing time, encode only context
+            r_context = self.xy_to_r(x_context, y_context)
             mu_context, sigma_context = self.xy_to_mu_sigma(x_context, y_context)
             # Sample from distribution based on context
             q_context = Normal(mu_context, sigma_context)
@@ -287,8 +266,10 @@ class NeuralProcess(nn.Module):
             # Repeat z, so it can be concatenated with every x. This changes shape
             # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
             z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
+            r = r_context.unsqueeze(1).repeat(1, num_target, 1)
+            rep = torch.cat([z_sample, r], dim=-1)
             # Predict target points based on context
-            y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, z_sample)
+            y_pred_mu, y_pred_sigma = self.xrep_to_y(x_target, rep)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
             return p_y_pred
 

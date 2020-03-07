@@ -30,7 +30,7 @@ def collect_samples(pid, env, policy, num_ep, custom_reward, mean_action, render
     with torch.no_grad():
         if policy.id == 'DKL':
             policy.set_train_data(inputs=all_x_context.squeeze(0), targets=all_y_context.view(-1), strict=False)
-        elif policy.id == 'ANP':
+        elif policy.id in 'ANP':
             if attention:
                 encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
             _, z_dist = policy.sample_z(all_x_context, all_y_context)
@@ -40,7 +40,7 @@ def collect_samples(pid, env, policy, num_ep, custom_reward, mean_action, render
 
             episode = []
             reward_episode = 0
-            if policy.id == 'ANP':
+            if policy.id in 'ANP':
                 z_sample = z_dist.sample()
 
             state = env.reset()

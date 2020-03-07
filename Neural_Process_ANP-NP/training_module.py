@@ -98,7 +98,7 @@ class NeuralProcessTrainer():
         Frequency with which to print loss information during training.
     """
     def __init__(self, device, neural_process, optimizer, num_context_range,
-                 num_extra_target_range, print_freq=100):
+                 num_extra_target_range=100, print_freq=100):
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
@@ -128,17 +128,18 @@ class NeuralProcessTrainer():
 
                 # Sample number of context and target points
                 num_context = randint(*self.num_context_range)
-                num_extra_target = randint(*self.num_extra_target_range)
+                #num_extra_target = randint(*self.num_extra_target_range)
 
                 # Create context and target points and apply neural process
 
                 x, y = data
-                x_context, y_context, x_target, y_target = \
-                    context_target_split_CinT(x, y, num_context, num_extra_target)
-                p_y_pred, q_target, q_context = \
-                    self.neural_process(x_context, y_context, x_target, y_target)
 
-                loss = self._loss(p_y_pred, y_target, q_target, q_context)
+                x_context, y_context, _, _ = \
+                    context_target_split_CinT(x, y, num_context, 0)
+                p_y_pred, q_target, q_context = \
+                    self.neural_process(x_context, y_context, x, y)
+
+                loss = self._loss(p_y_pred, y, q_target, q_context)
                 loss.backward()
                 self.optimizer.step()
 
@@ -146,10 +147,10 @@ class NeuralProcessTrainer():
 
                 self.steps += 1
 
-                if self.steps % self.print_freq == 0:
-                    if x.size()[2] == 1:
-                        plot_functions(x_target.cpu().detach(), y_target.cpu().detach(), x_context.cpu().detach(),
-                                       y_context.cpu().detach(), p_y_pred.mean.cpu().detach(), p_y_pred.stddev.cpu().detach())
+                #if self.steps % self.print_freq == 0:
+                #    if x.size()[2] == 1:
+                #        plot_functions(x_target.cpu().detach(), y_target.cpu().detach(), x_context.cpu().detach(),
+                #                       y_context.cpu().detach(), p_y_pred.mean.cpu().detach(), p_y_pred.stddev.cpu().detach())
             avg_loss = epoch_loss / len(data_loader)
             print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)

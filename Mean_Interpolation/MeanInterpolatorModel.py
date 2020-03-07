@@ -77,7 +77,7 @@ class MeanInterpolator(torch.nn.Module):
 
 class MITrainer():
 
-    def __init__(self, device, model, optimizer, args, num_target=100, print_freq=100):
+    def __init__(self, device, model, optimizer, num_context= 1000, num_target=100, print_freq=100):
 
         self.device = device
         self.model = model
@@ -86,8 +86,7 @@ class MITrainer():
         self.steps = 0
         self.epoch_loss_history = []
         self.num_target = num_target
-        self.num_context = args.num_context
-        self.args = args
+        self.num_context = num_context
 
     def train_rl_loo(self, data_loader, epochs, early_stopping=None):
         one_out_list = []
@@ -170,8 +169,8 @@ class MITrainer():
                 x, y = data  # add , num_points
                 # divide context (N-1) and target (1)
                 x_context, y_context, x_target, y_target = context_target_split(x, y,
-                                                                                self.args.num_context,
-                                                                                self.args.num_target)
+                                                                                self.num_context,
+                                                                                self.num_target)
                 prediction = self.model(x_context, y_context, x_target)
                 loss = self._loss(y_target, prediction)
                 loss.backward()
@@ -181,7 +180,7 @@ class MITrainer():
 
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}, W_sum: {}".format(epoch, avg_loss, self.model.interpolator.W.sum().item()))
-                plot_z(self.model, self.args, epoch)
+                #plot_z(self.model, self.args, epoch)
             self.epoch_loss_history.append(avg_loss)
             if early_stopping is not None:
                 if avg_loss < early_stopping:

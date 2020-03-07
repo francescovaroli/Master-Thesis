@@ -73,9 +73,6 @@ class NeuralProcessTrainerLoo():
                 x, y, num_points = data
                 num_target = min(num_points.item(), self.num_target)
                 x_context, y_context = all_context_points
-                #index = random.randint(0, num_points-1)
-                #x_target = x[:, index, :].unsqueeze(0)
-                #y_target = y[:, index, :].unsqueeze(0)
                 _, _, x_target, y_target = context_target_split(x[:, :num_points, :], y[:, :num_points, :],
                                                                 0, num_target)
                 p_y_pred, q_target, q_context = \

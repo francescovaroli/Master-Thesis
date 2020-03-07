@@ -120,7 +120,7 @@ parser.add_argument("--num-testing-points", type=int, default=1000,
 args = parser.parse_args()
 initial_training = True
 
-args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
+args.epochs_per_iter = 2000 // args.replay_memory_size
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim

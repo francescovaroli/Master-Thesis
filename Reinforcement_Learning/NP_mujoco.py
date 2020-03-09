@@ -37,7 +37,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
-parser.add_argument('--loo', default=False, help='train leaving episode out')
+parser.add_argument('--loo', default=True, help='train leaving episode out')
 parser.add_argument('--pick', default=False, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, help='choose subset of rm')
 
@@ -175,7 +175,8 @@ if args.v_use_attentive_np:
 else:
     value_np = NeuralProcess(state_dim, 1, args.v_r_dim, args.v_z_dim, args.v_h_dim).to(args.device_np)
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
-
+print('--loo:', args.loo, '  --pick:', args.pick, '  --rm:', args.rm_as_context)
+print(args.loo and not args.pick, args.loo and args.pick)
 if args.loo and not args.pick:
     print('using Loo trainer')
     np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,

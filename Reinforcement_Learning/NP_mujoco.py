@@ -37,7 +37,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
-parser.add_argument('--loo', default=True, help='train leaving episode out')
+parser.add_argument('--loo', default=False, help='train leaving episode out')
 parser.add_argument('--pick', default=False, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, help='choose subset of rm')
 
@@ -177,17 +177,20 @@ else:
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
 
 if args.loo and not args.pick:
+    print('using Loo trainer')
     np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
                                         print_freq=50)
     value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
                                                num_target=args.num_testing_points,
                                                print_freq=50)
 elif args.loo and args.pick:
+    print('using LooPick trainer')
     np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, pick_dist=None,
                                             num_context=args.num_context)
     value_np_trainer = NeuralProcessTrainerLooPick(args.device_np, value_np, value_optimizer, pick_dist=None,
                                             num_context=args.num_context)
 else:
+    print('using RL trainer')
     np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (1, max_episode_len//2),
                                         print_freq=50)
     value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,

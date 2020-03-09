@@ -79,7 +79,7 @@ class NeuralProcessTrainerRL():
                 self.steps += 1
             avg_loss = epoch_loss / len(data_loader)
             if epoch % self.print_freq == 0 or epoch == epochs-1:
-                print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
+                print("Epoch rl: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)
             #print('epoch time: ', time.time() - t0)
 

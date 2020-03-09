@@ -85,7 +85,7 @@ class NeuralProcessTrainerLooPick():
                 self.steps += 1
             avg_loss = epoch_loss / len(data_loader)
             if epoch % self.print_freq == 0 or epoch == epochs-1:
-                print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
+                print("Epoch pick: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)
 
             if early_stopping is not None:

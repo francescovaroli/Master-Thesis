@@ -177,7 +177,7 @@ else:
 value_optimizer = torch.optim.Adam(value_np.parameters(), lr=3e-4)
 print('--loo:', args.loo, '  --pick:', args.pick, '  --rm:', args.rm_as_context)
 print(args.loo and not args.pick, args.loo and args.pick)
-if args.loo and not args.pick:
+if args.loo and (not args.pick):
     print('using Loo trainer')
     np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
                                         print_freq=50)

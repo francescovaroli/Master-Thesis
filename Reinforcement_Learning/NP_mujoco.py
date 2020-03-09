@@ -184,13 +184,13 @@ if args.loo and not args.pick:
     value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
                                                num_target=args.num_testing_points,
                                                print_freq=50)
-elif args.loo and args.pick:
+if args.loo and args.pick:
     print('using LooPick trainer')
     np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, pick_dist=None,
                                             num_context=args.num_context)
     value_np_trainer = NeuralProcessTrainerLooPick(args.device_np, value_np, value_optimizer, pick_dist=None,
                                             num_context=args.num_context)
-else:
+if not args.loo:
     print('using RL trainer')
     np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (1, max_episode_len//2),
                                         print_freq=50)

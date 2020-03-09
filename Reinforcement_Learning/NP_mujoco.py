@@ -180,7 +180,7 @@ print(args.loo and not args.pick, args.loo and args.pick)
 if args.loo and (not args.pick):
     print('using Loo trainer')
     np_trainer = NeuralProcessTrainerLoo(args.device_np, policy_np, optimizer, num_target=args.num_testing_points,
-                                        print_freq=50)
+                                         print_freq=50)
     value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
                                                num_target=args.num_testing_points,
                                                print_freq=50)
@@ -206,9 +206,11 @@ value_replay_memory = ValueReplay(args.v_replay_memory_size)
 
 """create agent"""
 if not args.pick:
+    print('agent all')
     agent_np = Agent_all_ctxt(env, policy_np, args.device_np, running_state=None, render=args.render,
                               attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 else:
+    print('agent pick')
     agent_np = AgentPicker(env, policy_np, args.device_np, args.num_context, custom_reward=None, pick_dist=None,
                            mean_action=False, render=False, running_state=None, fixed_sigma=args.fixed_sigma)
 

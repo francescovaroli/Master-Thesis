@@ -32,7 +32,7 @@ parser.add_argument('--z-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=100, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=2, metavar='G',
+parser.add_argument('--epochs', type=int, default=10, metavar='G',
                     help='training epochs')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
@@ -44,8 +44,8 @@ parser.add_argument('--num-target', type=int, default=9900, metavar='N',
                     help='num target points')
 parser.add_argument('--grid-size', type=int, default=100, metavar='N',
                     help='dimension of plotting grid')
-parser.add_argument('--extent', default=(-.5,.5,-1,1), metavar='N',
-                    help='dimension of latent variable in np')
+parser.add_argument('--extent', default=(-1.,1.,-1.,1.), metavar='N',
+                    help='')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/plots/DKL/2D/',
                     help='path to plots folder')
@@ -65,7 +65,7 @@ mean = 'linear'  # possible means ['linear', 'constant']
 learning_rate = 3e-4
 l = '3e-4'
 x_range = (-3., 3.)
-grid_bounds=[(-.5,.5),(-1,1)]
+grid_bounds=[args.extent[0:2], args.extent[2:4]]
 
 
 id = 'DKM_{}fcts_{}c_{}t_{}e_{}b_{}lr_{}z_{}h_noise'.format(args.num_tot_samples, args.num_context, args.num_target,
@@ -92,7 +92,7 @@ print('dataset created')
 # create model
 likelihood = gpytorch.likelihoods.GaussianLikelihood().to(device)
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
-                          args.h_dim, args.z_dim, name_id=id).to(device)
+                          args.h_dim, args.z_dim, name_id=id, grid_size=100).to(device)
 
 
 optimizer = torch.optim.Adam([
@@ -101,10 +101,12 @@ optimizer = torch.optim.Adam([
     {'params': model.mean_module.parameters()},
     {'params': model.likelihood.parameters()}], lr=0.01)
 
-#os.mkdir(args.directory_path)
-
+try:
+    os.mkdir(args.directory_path)
+except FileExistsError:
+    pass
 # train
-model_trainer = DKMTrainer(device, model, optimizer, args, print_freq=2)
+model_trainer = DKMTrainer(device, model, optimizer, args.num_context, args.num_target, print_freq=2)
 print('start training')
 model_trainer.train(data_loader, args.epochs, early_stopping=None)
 
@@ -124,7 +126,6 @@ for ax in axarr.flat:
     ax.set(xlabel='x1', ylabel='x2')
     ax.label_outer()
 
-plt.show()
 plt.close(f)
 
 

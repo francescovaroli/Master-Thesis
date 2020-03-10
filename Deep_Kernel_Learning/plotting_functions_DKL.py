@@ -61,7 +61,7 @@ def plot_posterior_2d(data_loader, model, id, args):
         break
 
     # Use batch to create random set of context points
-    x, y , real_len = batch
+    x, y = batch  # , real_len
 
     x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
                                                       args.num_context,
@@ -80,7 +80,8 @@ def plot_posterior_2d(data_loader, model, id, args):
     ax_context.scatter(x_context[0,:,0].detach().cpu().numpy(),
                        x_context[0, :, 1].detach().cpu().numpy(),
                        y_context[0,:,0].detach().cpu().numpy(),
-                       cmap='viridis',  s=1)
+                       c=y_context[0,:,0].detach().cpu().numpy(),
+                       cmap='viridis', vmin=-1., vmax=1.,  s=16)
 
     ax_context.set_title('Context points')
     model.training = False
@@ -107,7 +108,7 @@ def plot_posterior_2d(data_loader, model, id, args):
     for ax in [ax_mean, ax_context, ax_real]:
         ax.set_zlim(min_mu, max_mu)
     ax_mean.set_title('Posterior estimate_2')
-    plt.savefig(args.directory_path + ' 7posteriior' + id)
+    plt.savefig(args.directory_path + '/posteriior' + id)
     #plt.show()
     plt.close(fig)
 

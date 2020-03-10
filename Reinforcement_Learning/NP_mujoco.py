@@ -36,16 +36,16 @@ parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
-parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
-parser.add_argument('--loo', default=False, help='train leaving episode out')
-parser.add_argument('--pick', default=False, help='choose subset of rm')
-parser.add_argument('--rm-as-context', default=True, help='choose subset of rm')
+parser.add_argument('--learn-sigma', type=bool, default=True, help='update the stddev of the policy')
+parser.add_argument('--loo', type=bool, default=False, help='train leaving episode out')
+parser.add_argument('--pick', type=bool, default=False, help='choose subset of rm')
+parser.add_argument('--rm-as-context', type=bool, default=True, help='choose subset of rm')
 
 
 parser.add_argument('--num-context', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
 
-parser.add_argument('--use-running-state', default=False,
+parser.add_argument('--use-running-state', type=bool, default=False,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
@@ -107,11 +107,11 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=True, metavar='N',
+parser.add_argument('--use-attentive-np', type=bool, default=True, metavar='N',
                      help='use attention in policy and value NPs')
-parser.add_argument('--v-use-attentive-np', default=True, metavar='N',
+parser.add_argument('--v-use-attentive-np', type=bool, default=True, metavar='N',
                      help='use attention in policy and value NPs')
-parser.add_argument('--episode-specific-value', default=False, metavar='N',
+parser.add_argument('--episode-specific-value', type=bool, default=False, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
@@ -184,12 +184,12 @@ if args.loo and (not args.pick):
     value_np_trainer = NeuralProcessTrainerLoo(args.device_np, value_np, value_optimizer,
                                                num_target=args.num_testing_points,
                                                print_freq=50)
-# if args.loo and args.pick:
-#    print('using LooPick trainer')
-#    np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, pick_dist=None,
-#                                            num_context=args.num_context)
-#    value_np_trainer = NeuralProcessTrainerLooPick(args.device_np, value_np, value_optimizer, pick_dist=None,
-#                                            num_context=args.num_context)
+if args.loo and args.pick:
+    print('using LooPick trainer')
+    np_trainer = NeuralProcessTrainerLooPick(args.device_np, policy_np, optimizer, pick_dist=None,
+                                            num_context=args.num_context)
+    value_np_trainer = NeuralProcessTrainerLooPick(args.device_np, value_np, value_optimizer, pick_dist=None,
+                                            num_context=args.num_context)
 if not args.loo:
     print('using RL trainer')
     np_trainer = NeuralProcessTrainerRL(args.device_np, policy_np, optimizer, (1, max_episode_len//2),

@@ -9,6 +9,10 @@ ByteTensor = torch.ByteTensor
 ones = torch.ones
 zeros = torch.zeros
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        raise ValueError('Not a valid boolean string')
+    return s == 'True'
 
 def to_device(device, *args):
     return [x.to(device) for x in args]

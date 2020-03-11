@@ -68,12 +68,12 @@ def plot_posterior_2d(data_loader, model, id, args):
                                                       args.num_target)
     x, X1, X2, x1, x2 = create_plot_grid(args.extent, args, size=args.grid_size)
 
-    fig = plt.figure(figsize=(20, 6))  # figsize=plt.figaspect(1.5)
+    fig = plt.figure(figsize=(20, 8))  # figsize=plt.figaspect(1.5)
     fig.suptitle(id, fontsize=20)
     #fig.tight_layout()
 
     ax_real = fig.add_subplot(131, projection='3d')
-    ax_real.plot_surface(X1, X2, y.reshape(X1.shape).cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    ax_real.plot_surface(X1, X2, y.reshape(X1.shape).cpu().numpy(), cmap='viridis')
     ax_real.set_title('Real function')
 
     ax_context = fig.add_subplot(132, projection='3d')
@@ -81,15 +81,19 @@ def plot_posterior_2d(data_loader, model, id, args):
                        x_context[0, :, 1].detach().cpu().numpy(),
                        y_context[0,:,0].detach().cpu().numpy(),
                        c=y_context[0,:,0].detach().cpu().numpy(),
-                       cmap='viridis', vmin=-1., vmax=1.,  s=16)
+                       cmap='viridis', vmin=-1., vmax=1.,  s=8)
 
     ax_context.set_title('Context points')
+    model.set_train_data(x_context.squeeze(0), y_context.squeeze(0).squeeze(-1), strict=False)
     model.training = False
-    with torch.no_grad(), gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var():
-        model.set_train_data(x_context.squeeze(0), y_context.squeeze(0).squeeze(-1), strict=False)
+    with torch.no_grad():
         p_y_pred = model(x[0:1])
-        mu = p_y_pred.mean.reshape(X1.shape).cpu().numpy()
-        sigma = p_y_pred.stddev.reshape(X1.shape).cpu().numpy()
+    mu = p_y_pred.mean.reshape(X1.shape).cpu()
+    mu[torch.isnan(mu)] = 0.
+    mu = mu.numpy()
+    sigma = p_y_pred.stddev.reshape(X1.shape).cpu()
+    sigma[torch.isnan(sigma)] = 0.
+    sigma = sigma.numpy()
     std_h = mu + sigma
     std_l = mu - sigma
     model.training = True
@@ -104,12 +108,11 @@ def plot_posterior_2d(data_loader, model, id, args):
             zs=y_slice, zdir='y')
         i += 1
     # Extract mean of distribution
-    ax_mean.plot_surface(X1, X2, mu, cmap='viridis', vmin=-1., vmax=1.)
+    ax_mean.plot_surface(X1, X2, mu, cmap='viridis')
     for ax in [ax_mean, ax_context, ax_real]:
         ax.set_zlim(min_mu, max_mu)
-    ax_mean.set_title('Posterior estimate_2')
-    plt.savefig(args.directory_path + '/posteriior' + id)
+    ax_mean.set_title('Posterior estimate')
+    plt.savefig(args.directory_path + '/posteriior' + id, dpi=250)
     #plt.show()
     plt.close(fig)
-
     return

@@ -58,26 +58,26 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=10, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=100, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=64, metavar='N',
+parser.add_argument('--z-dim', type=int, default=256, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=128, metavar='N',
+parser.add_argument('--r-dim', type=int, default=512, metavar='N',
                     help='dimension of representation space in np')
-parser.add_argument('--h-dim', type=int, default=128, metavar='N',
+parser.add_argument('--h-dim', type=int, default=512, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--a-dim', type=int, default=128, metavar='N',
+parser.add_argument('--a-dim', type=int, default=512, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
-parser.add_argument('--v-epochs-per-iter', type=int, default=30, metavar='G',
+parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--v-replay-memory-size', type=int, default=20, metavar='G',
+parser.add_argument('--v-replay-memory-size', type=int, default=100, metavar='G',
                     help='size of training set in episodes')
 parser.add_argument('--v-z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -117,8 +117,17 @@ parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
 parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during NP training')
+
+parser.add_argument("--net-size", type=int, default=2,
+                    help='multiplies all net pararms')
+
 args = parser.parse_args()
 initial_training = True
+
+args.z_dim *= args.net_size
+args.r_dim *= args.net_size
+args.h_dim *= args.net_size
+args.a_dim *= args.net_size
 
 args.epochs_per_iter = 2000 // args.replay_memory_size
 args.v_epochs_per_iter = args.epochs_per_iter

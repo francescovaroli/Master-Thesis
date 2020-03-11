@@ -31,10 +31,10 @@ parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
-parser.add_argument('--learn-sigma', default=True, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 
 
-parser.add_argument('--use-running-state', default=False,
+parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-mlp', type=float, default=0.01, metavar='G',
                     help='max kl value (default: 1e-2)')
@@ -88,7 +88,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--episode-specific-value', default=False, metavar='N',
+parser.add_argument('--episode-specific-value', default=False, type=boolean_string, metavar='N',
                     help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')

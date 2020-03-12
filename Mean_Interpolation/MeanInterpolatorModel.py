@@ -9,13 +9,15 @@ class Interpolator(torch.nn.Module):
     def __init__(self, input_dim):
         super(Interpolator, self).__init__()
         self.W = torch.nn.Parameter(data=torch.Tensor(input_dim, input_dim), requires_grad=True)
-        self.W.data.uniform_(-0.1, 0.1)
+        #self.W.data.uniform_(-0.1, 0.1)
+        self.W.data = torch.eye(input_dim)
         self.z_dim = input_dim
         self.thetas = []
 
     def forward(self, z_context, y_context, z_target):
         z_diff = (z_target[:, None, :] - z_context[None, :, :]).squeeze(0)  # z_t: N x h_dim, z_c: M x h_dim -> N x M x h_dim
         thetas = torch.exp(-(torch.matmul(z_diff, self.W) * z_diff).sum(-1))  # N x M
+        #thetas = torch.exp(-(torch.matmul(z_diff, torch.eye(z_diff.shape[-1])) * z_diff).sum(-1))  # N x M
         # y_context.matmul(thetas)/thetas.sum()
         return thetas.matmul(y_context) / thetas.sum(dim=-1, keepdim=True)  # (N x M)*(M x 1)
 
@@ -52,7 +54,6 @@ class MeanInterpolator(torch.nn.Module):
         elif self.scaling is None:
             z = projected_x
 
-        #z[torch.isnan(z)] = 10000
         return z
 
     def forward(self, x_context, y_context, x_target):
@@ -63,13 +64,14 @@ class MeanInterpolator(torch.nn.Module):
             z_context = z_full[..., :num_context, :]
             z_target = z_full[..., num_context:, :]
         else:
-            z_context = self.feature_extractor(x_context.squeeze(0))
-            z_target = self.feature_extractor(x_target.squeeze(0))
+            z_context, z_target = (x_context.squeeze(0), x_target.squeeze(0))
+            #z_context = self.feature_extractor(x_context.squeeze(0))
+            #z_target = self.feature_extractor(x_target.squeeze(0))
         try:
             return self.interpolator(z_context, y_context.squeeze(0), z_target)
         except RuntimeError:
             y_target = torch.zeros(1, x_target.shape[1], y_context.shape[-1])
-            st = 10
+            st = 1
             for n in range(0, x_target.shape[1], st):
                 y_target[:, n:n+st, :] = self.interpolator(z_context, y_context.squeeze(0), z_target[n:n+st, :])
             return y_target.squeeze(0)
@@ -77,7 +79,7 @@ class MeanInterpolator(torch.nn.Module):
 
 class MITrainer():
 
-    def __init__(self, device, model, optimizer, num_context= 1000, num_target=100, print_freq=100):
+    def __init__(self, device, model, optimizer, num_context=1000, num_target=100, print_freq=100):
 
         self.device = device
         self.model = model
@@ -168,7 +170,7 @@ class MITrainer():
                 # Get output from model
                 x, y = data  # add , num_points
                 # divide context (N-1) and target (1)
-                x_context, y_context, x_target, y_target = context_target_split(x, y,
+                x_context, y_context, x_target, y_target = context_target_split_CinT(x, y,
                                                                                 self.num_context,
                                                                                 self.num_target)
                 prediction = self.model(x_context, y_context, x_target)

@@ -29,21 +29,21 @@ parser.add_argument('--x-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--y-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--z-dim', type=int, default=3, metavar='N',
+parser.add_argument('--z-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=2, metavar='G',
+parser.add_argument('--epochs', type=int, default=500, metavar='G',
                     help='training epochs')
-parser.add_argument('--scaling', default='uniform', metavar='N',
+parser.add_argument('--scaling', default=None, metavar='N',
                     help='z scaling')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-tot-samples', type=int, default=30, metavar='N',
+parser.add_argument('--num-tot-samples', type=int, default=50, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-context', type=int, default=150, metavar='N',
+parser.add_argument('--num-context', type=int, default=1000, metavar='N',
                     help='num context points')
-parser.add_argument('--num-target', type=int, default=9850, metavar='N',
+parser.add_argument('--num-target', type=int, default=2500, metavar='N',
                     help='num target points')
 parser.add_argument('--grid-size', type=int, default=100, metavar='N',
                     help='dimension of plotting grid')
@@ -97,7 +97,7 @@ try:
 except FileExistsError:
     pass
 
-model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, print_freq=10)
+model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, num_target=args.num_target, print_freq=10)
 print('start training')
 model_trainer.train(data_loader, args.epochs, early_stopping=None)
 
@@ -166,9 +166,9 @@ def plot_posterior_2d(data_loader, model, id, args):
 
     ax_mean = fig.add_subplot(133, projection='3d')
     # Extract mean of distribution
-    ax_mean.plot_surface(X1, X2, mu.cpu(), cmap='viridis')
+    ax_mean.plot_surface(X1, X2, mu.cpu().view(X1.shape).numpy(), cmap='viridis')
     ax_mean.set_title('Posterior estimate')
-    plt.savefig(args.directory_path + '/posteriior' + id, dpi=250)
+    plt.savefig(args.directory_path + '/posteriior' + id, dpi=350)
     #plt.show()
     plt.close(fig)
     return

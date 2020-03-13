@@ -29,13 +29,13 @@ parser.add_argument('--x-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--y-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--z-dim', type=int, default=2, metavar='N',
+parser.add_argument('--z-dim', type=int, default=4, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--epochs', type=int, default=500, metavar='G',
                     help='training epochs')
-parser.add_argument('--scaling', default=None, metavar='N',
+parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='z scaling')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
@@ -91,7 +91,7 @@ model = MeanInterpolator(args.x_dim, args.h_dim, args.z_dim, scaling=args.scalin
 
 optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters(), 'lr':learning_rate},
-    {'params': model.interpolator.parameters(), 'lr':learning_rate}])
+    {'params': model.interpolator.parameters(), 'lr':1e-2}])
 try:
     os.mkdir(args.directory_path)
 except FileExistsError:
@@ -99,7 +99,7 @@ except FileExistsError:
 
 model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, num_target=args.num_target, print_freq=10)
 print('start training')
-model_trainer.train(data_loader, args.epochs, early_stopping=None)
+model_trainer.train(data_loader, args.epochs, early_stopping=10.)
 
 # Visualize data samples
 plt.figure(1)

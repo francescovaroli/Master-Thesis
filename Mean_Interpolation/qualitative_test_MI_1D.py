@@ -28,22 +28,24 @@ parser.add_argument('--x-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--y-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--z-dim', type=int, default=3, metavar='N',
+parser.add_argument('--z-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=100, metavar='G',
+parser.add_argument('--epochs', type=int, default=10000, metavar='G',
                     help='training epochs')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='z scaling')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-tot-samples', type=int, default=1000, metavar='N',
+parser.add_argument('--num-tot-samples', type=int, default=50, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--num-context', type=int, default=20, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--num-target', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
+parser.add_argument('--early-stopping', default=1., metavar='N',
+                    help='stop training training when avg_loss reaches it')
 parser.add_argument('--x-range', default=[-3, 3], metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/plots/MI/1D/',
@@ -65,7 +67,7 @@ learning_rate = 1e-4
 l = '3e-4'
 x_range = args.x_range
 
-id = 'MI_{}fcts_{}e_{}b_{}lr_{}z_{}h_{}_{}ctxt_2layers_'.format(args.num_tot_samples, args.epochs, args.batch_size,
+id = 'MI_{}fcts_{}e_{}b_{}lr_{}z_{}h_{}_{}ctxt_W-200_'.format(args.num_tot_samples, args.epochs, args.batch_size,
                                               l, args.z_dim, args.h_dim, args.scaling, args.num_context)
 
 args.directory_path += id
@@ -78,7 +80,7 @@ data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 #for func in dataset.data[1:]:
 #    all_train_dataset = [torch.cat([all_dataset[0], func[0]], dim=0), torch.cat([all_dataset[1], func[1]], dim=0)]
 #train_x, train_y = all_train_dataset
-test_dataset = MultiGPData(mean, kernel, num_samples=args.batch_size, amplitude_range=x_range)
+test_dataset = MultiGPData(mean, kernel, num_samples=5, amplitude_range=x_range)
 test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
 
 for data_init in data_loader:
@@ -90,19 +92,20 @@ x_init, y_init, _, _ = context_target_split(x_init[0:1], y_init[0:1],
 #x_init, y_init = dataset.data[0]
 print('dataset created')
 # create model
-model = MeanInterpolator(1, args.h_dim, args.z_dim).to(device).double()
+model = MeanInterpolator(args.x_dim, args.h_dim, args.z_dim, scaling=args.scaling).to(device).double()
 
 
 
 optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters(), 'lr':learning_rate},
-    {'params': model.interpolator.parameters(), 'lr':learning_rate}])
-
-os.mkdir(args.directory_path)
-
+    {'params': model.interpolator.parameters(), 'lr': 1e-1}])
+try:
+    os.mkdir(args.directory_path)
+except FileExistsError:
+    pass
 model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, print_freq=10)
 print('start training')
-model_trainer.train(data_loader, args.epochs, early_stopping=None)
+model_trainer.train(data_loader, args.epochs, early_stopping=args.early_stopping)
 
 # Visualize data samples
 plt.figure(1)
@@ -121,7 +124,7 @@ if args.epochs > 1:
     plt.title('average loss over epochs')
     plt.xlabel('Epochs')
     plt.ylabel('average loss')
-    plt.plot(np.linspace(0, args.epochs-1 ,args.epochs), model_trainer.epoch_loss_history, c='b', alpha=0.5)
+    plt.plot(np.arange(0, len(model_trainer.epoch_loss_history)), model_trainer.epoch_loss_history, c='b', alpha=0.5)
     plt.grid()
     plt.savefig(args.directory_path + '/_loss_history_'+id)
     plt.close()
@@ -131,13 +134,12 @@ x_target = x_target.unsqueeze(1)
 
 ys = []
 
-
-plt.figure(4)
-plt.xlabel('x')
-plt.ylabel('means of y distribution')
 colors = ['r', 'b', 'g', 'y']
-for j in range(1):
 
+for j in range(4):
+    plt.figure(j)
+    plt.xlabel('x')
+    plt.ylabel('means of y distribution')
     x, y = test_data_loader.dataset.data[j]
     x = x.unsqueeze(0)
     y = y.unsqueeze(0)
@@ -145,16 +147,14 @@ for j in range(1):
                                                       args.num_context,
                                                       args.num_target)
     plt.title('Mean prediction')
-    for _x1 in x_target:
-        pred = model(x_context, y_context, _x1.unsqueeze(0))
-        ys.append(pred.view(-1))
+    pred = model(x_context, y_context, x_target.unsqueeze(0))
 
-    plt.plot(x[0:1].cpu().numpy()[0].squeeze(-1), ys,
+    plt.plot(x[0:1].cpu().numpy()[0].squeeze(-1), pred[:,0].detach(),
              alpha=0.9, c=colors[j])
 
     plt.plot(x[0].cpu().numpy(), y[0].cpu().numpy(), alpha=0.5, c='k')
     plt.scatter(x_context[0].cpu().numpy(), y_context[0].cpu().numpy(), c=colors[j], label='context')
-plt.legend()
-plt.savefig(args.directory_path + '/'+id)
+    plt.legend()
+    plt.savefig(args.directory_path + '/'+str(j)+id)
 plt.close()
 torch.cuda.empty_cache()

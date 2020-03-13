@@ -19,7 +19,7 @@ from training_leave_one_out_pick import NeuralProcessTrainerLooPick
 import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
-from core.common import discounted_rewards, estimate_eta_3, improvement_step_all
+from core.common import discounted_rewards, estimate_v_a, improvement_step_all
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -37,7 +37,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
-parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
+parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 
@@ -47,7 +47,7 @@ parser.add_argument('--num-context', type=int, default=5000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.5, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.35, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
@@ -60,15 +60,15 @@ parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=100, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=256, metavar='N',
+parser.add_argument('--z-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=512, metavar='N',
+parser.add_argument('--r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
-parser.add_argument('--h-dim', type=int, default=512, metavar='N',
+parser.add_argument('--h-dim', type=int, default=128, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--a-dim', type=int, default=512, metavar='N',
+parser.add_argument('--a-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
@@ -118,7 +118,7 @@ parser.add_argument("--plot-every", type=int, default=1,
 parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during NP training')
 
-parser.add_argument("--net-size", type=int, default=2,
+parser.add_argument("--net-size", type=int, default=1,
                     help='multiplies all net pararms')
 
 args = parser.parse_args()
@@ -238,42 +238,6 @@ def train_value_np(value_replay_memory):
     value_np.training = False
 
 
-
-
-def estimate_v_a(complete_dataset, disc_rew):
-    ep_rewards = disc_rew
-    ep_states = [ep['states'] for ep in complete_dataset]
-    real_lens = [ep['real_len'] for ep in complete_dataset]
-    estimated_advantages = []
-    if not len(value_replay_memory.data) == 0:
-        s_context, r_context = merge_context(value_replay_memory.data)
-        for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
-            s_target = states[:real_len, :].unsqueeze(0)
-            r_target = rewards.view(1, -1, 1)
-            with torch.no_grad():
-                values = value_np(s_context, r_context, s_target)
-            advantages = r_target - values.mean
-            estimated_advantages.append(advantages.squeeze(0))
-    else:
-        for i in range(len(ep_states)):
-            context_list = []
-            j = 0
-            for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
-                if j != i:
-                    context_list.append([states.unsqueeze(0), rewards.view(1,-1,1), real_len])
-                else:
-                    s_target = states[:real_len, :].unsqueeze(0)
-                    r_target = rewards.view(1, -1, 1)
-                j += 1
-            s_context, r_context = merge_context(context_list)
-            with torch.no_grad():
-                values = value_np(s_context, r_context, s_target)
-            advantages = r_target - values.mean
-            estimated_advantages.append(advantages.squeeze(0))
-    return estimated_advantages
-
-
-
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     #policy_np.apply(init_func)
@@ -332,17 +296,17 @@ def main_loop():
         batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_ensembles)
 
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
-        complete_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
+        iter_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
         print('np avg actions: ', log_np['action_mean'])
-        advantages_np = estimate_v_a(complete_dataset_np, disc_rew_np)
+        advantages_np = estimate_v_a(iter_dataset_np, disc_rew_np, value_replay_memory, value_np)
 
-        improved_context_list_np = improvement_step_all(complete_dataset_np, advantages_np, args.max_kl_np, args)
+        improved_context_list_np = improvement_step_all(iter_dataset_np, advantages_np, args.max_kl_np, args)
         # training
-        value_replay_memory.add(complete_dataset_np)
+        value_replay_memory.add(iter_dataset_np)
         train_value_np(value_replay_memory)
 
         tn0 = time.time()
-        replay_memory.add(complete_dataset_np)
+        replay_memory.add(iter_dataset_np)
         train_np(replay_memory)
         tn1 = time.time()
         tot_steps_np.append(tot_steps_np[-1] + log_np['num_steps'])
@@ -357,7 +321,7 @@ def main_loop():
         if tot_steps_np[-1] > args.tot_steps:
             break
     """clean up gpu memory"""
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
 
 

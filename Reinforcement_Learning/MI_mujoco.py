@@ -17,11 +17,11 @@ import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
 
-from core.common import estimate_eta_3, improvement_step_all, discounted_rewards
+from core.common import estimate_v_a, improvement_step_all, discounted_rewards
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -93,17 +93,25 @@ parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
 parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during MI training')
+
+parser.add_argument("--net-size", type=int, default=1,
+                    help='multiplies all net pararms')
+
 args = parser.parse_args()
 initial_training = True
 
 args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
 
+args.z_mi_dim *= args.net_size
+args.h_mi_dim *= args.net_size
 
-mi_spec = '_MI_{}rm_{}epo_{}z_{}h_{}kl_{}'.format(args.replay_memory_size, args.epochs_per_iter, args.z_mi_dim,
+
+mi_spec = '_MI_{}rm_isctxt:{}_{}epo_{}z_{}h_{}kl_{}'.format(args.replay_memory_size, args.rm_as_context, args.epochs_per_iter, args.z_mi_dim,
                                           args.h_mi_dim,args.max_kl_mi, args.scaling)
 
-run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_{}target'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                                    args.gamma, args.num_testing_points) + mi_spec
+run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_{}target_pick:{}_{}context'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                                    args.gamma, args.num_testing_points,
+                                                                                   args.pick, args.num_context) + mi_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
@@ -135,7 +143,9 @@ optimizer_mi = torch.optim.Adam([
 
 # trainer
 model_trainer = MITrainer(device, model, optimizer_mi, num_context=args.num_context, num_target=args.num_testing_points, print_freq=50)
+
 replay_memory_mi = ReplayMemoryDataset(args.replay_memory_size)
+value_replay_memory = ValueReplay(args.replay_memory_size)
 
 """create agent"""
 agent_mi = Agent_all_ctxt(env, model, args.device_np, running_state=None, render=args.render, fixed_sigma=args.fixed_sigma)
@@ -153,10 +163,10 @@ def train_mi(datasets, epochs=args.epochs_per_iter):
     model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=None)
 
 
-def estimate_v_a_mi(complete_dataset, disc_rew):
+def estimate_v_a_mi(iter_dataset, disc_rew):
     ep_rewards = disc_rew
-    ep_states = [ep['states'] for ep in complete_dataset]
-    real_lens = [ep['real_len'] for ep in complete_dataset]
+    ep_states = [ep['states'] for ep in iter_dataset]
+    real_lens = [ep['real_len'] for ep in iter_dataset]
     estimated_advantages = []
     for i in range(len(ep_states)):
         context_list = []
@@ -218,16 +228,17 @@ def main_loop():
         print('mi avg actions: ', log_mi['action_mean'])
 
         disc_rew_mi = discounted_rewards(batch_mi.memory, args.gamma)
-        complete_dataset_mi = BaseDataset(batch_mi.memory, disc_rew_mi, args.device_np, args.dtype,  max_len=max_episode_len)
-        advantages_mi = estimate_v_a_mi(complete_dataset_mi, disc_rew_mi)
+        iter_dataset_mi = BaseDataset(batch_mi.memory, disc_rew_mi, args.device_np, args.dtype,  max_len=max_episode_len)
+        advantages_mi = estimate_v_a(iter_dataset_mi, disc_rew_mi, value_replay_memory, model)
 
         t0 = time.time()
-        improved_context_list_mi = improvement_step_all(complete_dataset_mi, advantages_mi, args.max_kl_mi, args)
+        improved_context_list_mi = improvement_step_all(iter_dataset_mi, advantages_mi, args.max_kl_mi, args)
         t1 = time.time()
 
         # create training set
+        value_replay_memory.add(iter_dataset_mi)
         tn0 = time.time()
-        replay_memory_mi.add(complete_dataset_mi)
+        replay_memory_mi.add(iter_dataset_mi)
         train_mi(replay_memory_mi)
         tn1 = time.time()
         tot_steps_mi.append(tot_steps_mi[-1] + log_mi['num_steps'])

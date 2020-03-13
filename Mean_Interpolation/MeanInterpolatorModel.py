@@ -170,9 +170,11 @@ class MITrainer():
                 # Get output from model
                 x, y = data  # add , num_points
                 # divide context (N-1) and target (1)
+                num_points = x.shape[-2]
+                num_target = min(self.num_target, num_points-self.num_context)
                 x_context, y_context, x_target, y_target = context_target_split_CinT(x, y,
                                                                                 self.num_context,
-                                                                                self.num_target)
+                                                                                num_target)
                 prediction = self.model(x_context, y_context, x_target)
                 loss = self._loss(y_target, prediction)
                 loss.backward()

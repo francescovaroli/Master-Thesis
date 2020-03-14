@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_hop_che/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_hum_00/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 5/num_folders
@@ -63,16 +63,16 @@ for s, subfolder_path in enumerate(all_folders[1:]):
         avg = sum(chunk)/len(chunk)
         avg_rews.append(avg)
         steps.append(end)
-    '''if '24epi' in subfolder_path:
+    if '64z' in subfolder_path:
         color = 'r'
-        label = '24 episodes per iter'
-    elif '12epi' in subfolder_path:
+        label = '64z, 128a'
+    elif '256z' in subfolder_path:
         color = 'g'
-        label = '12 episodes per iter'
+        label = '256z 516a'
     else:
         color='b'
-        label = 'ER size: 50 ep'''
-    if 'ctxt:T' in subfolder_path:
+        label = 'ER size: 120 ep'
+    '''if 'ctxt:T' in subfolder_path:
         color = 'r'
         label = 'ER as context'
     elif 'ctxt:F' in subfolder_path:
@@ -80,7 +80,7 @@ for s, subfolder_path in enumerate(all_folders[1:]):
         label = 'last iter epiodes as context'
     else:
         color='b'
-        label = 'ER size: 100 ep'
+        label = 'ER size: 100 ep'''
     ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c=color, label=label)
 
     handles, labels = plt.gca().get_legend_handles_labels()

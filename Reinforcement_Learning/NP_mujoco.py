@@ -60,7 +60,7 @@ parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=10, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
@@ -129,7 +129,7 @@ args.r_dim *= args.net_size
 args.h_dim *= args.net_size
 args.a_dim *= args.net_size
 
-args.epochs_per_iter = 2000 // args.replay_memory_size
+args.epochs_per_iter = 2000 // args.replay_memory_size + 10
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim

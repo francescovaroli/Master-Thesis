@@ -35,7 +35,7 @@ def collect_samples(pid, env, policy, num_ep, custom_reward, mean_action, render
                 encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
             _, z_dist = policy.sample_z(all_x_context, all_y_context)
 
-        for ep in range(len(context_points_list)):
+        for ep in range(num_ep):
             #print('episode', ep)
 
             episode = []

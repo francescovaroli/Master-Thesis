@@ -26,7 +26,6 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
     for i in reversed(range(rewards.size(0))):
         deltas[i] = rewards[i] + gamma * prev_value * masks[i] - values[i]  # at the end of every episode m=0 so we're
         advantages[i] = deltas[i] + gamma * tau * prev_advantage * masks[i]  # computing from there backwards each time
-        #                           why are we adding prev adv?
         prev_value = values[i, 0]
         prev_advantage = advantages[i, 0]
 
@@ -128,11 +127,23 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
     return all_improved_context
 
 
-def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model):
+def compute_gae(rewards, values, gamma, lam):
+    gae = torch.zeros(1,1)
+    for i in reversed(range(len(rewards))):
+        # Compute TD-error
+        #delta_t = rewards[i] + gamma * values[i + 1].data - values[i].data
+        delta_t = rewards + gamma * values[1:] - values[:-1]
+
+        # Generalized Advantage Estimation
+        gae = gae * gamma * lam + delta_t
+    return gae
+
+def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, gae=False):
     ep_rewards = disc_rew
     ep_states = [ep['states'] for ep in iter_dataset]
     real_lens = [ep['real_len'] for ep in iter_dataset]
     estimated_advantages = []
+    estimated_values = []
     if not len(value_replay_memory.data) == 0:
         s_context, r_context = merge_context(value_replay_memory.data)
         for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
@@ -143,6 +154,7 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model):
             if 'NP' in model.id:
                 values = values.mean
             advantages = r_target - values
+            estimated_values.append(values.squeeze(0))
             estimated_advantages.append(advantages.squeeze(0))
     else:
         for i in range(len(ep_states)):
@@ -161,6 +173,12 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model):
             if 'NP' in model.id:
                 values = values.mean
             advantages = r_target - values
+            estimated_values.append(values.squeeze(0))
             estimated_advantages.append(advantages.squeeze(0))
+    if gae:
+        gae_advantages = []
+        for rew, val in zip(ep_rewards, estimated_values):
+            gae_advantages.append(compute_gae(rew, val, 0.999, 0.95))
+        return gae_advantages
     return estimated_advantages
 

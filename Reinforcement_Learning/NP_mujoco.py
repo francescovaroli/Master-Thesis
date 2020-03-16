@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
 from utils_rl.store_results import *
-from core.agent_ensembles_all_context import Agent_all_ctxt
+from core.agent_samples_all_context import Agent_all_ctxt
 #from core.agent_conditionning import Agent_all_ctxt
 from core.agent_picker import AgentPicker
 from neural_process import NeuralProcess
@@ -23,7 +23,7 @@ from core.common import discounted_rewards, estimate_v_a, improvement_step_all
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -44,12 +44,14 @@ parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='
 
 parser.add_argument('--num-context', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
+parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
+                    help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=0.35, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -60,7 +62,7 @@ parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=30, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=100, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
@@ -141,7 +143,7 @@ np_spec = '_NP_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(
                                                                                 args.a_dim)
 
 
-run_id = '/{}_NP_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_ensembles,
+run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
                                                                                    args.fixed_sigma,args.gamma,
                                                                                    args.num_testing_points, args.loo,
                                                                                    args.pick, args.num_context) + np_spec
@@ -243,7 +245,7 @@ def sample_initial_context_normal(num_episodes):
     #policy_np.apply(init_func)
     sigma = args.fixed_sigma*0.1
 
-    for e in range(num_episodes):
+    for e in range(10):
         states = torch.zeros([1, max_episode_len, state_dim])
 
         for i in range(max_episode_len):
@@ -293,7 +295,7 @@ def main_loop():
             context_list_np = improved_context_list_np
         else:
             context_list_np = replay_memory.data
-        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_ensembles)
+        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_req_steps)
 
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         iter_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
@@ -320,8 +322,7 @@ def main_loop():
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
         if tot_steps_np[-1] > args.tot_steps:
             break
-    """clean up gpu memory"""
-    torch.cuda.empty_cache()
+
 
 
 
@@ -347,3 +348,5 @@ except FileExistsError:
     pass
 
 main_loop()
+"""clean up gpu memory"""
+torch.cuda.empty_cache()

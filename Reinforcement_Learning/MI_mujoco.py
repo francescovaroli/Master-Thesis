@@ -33,6 +33,9 @@ parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
+parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
+parser.add_argument('--tau', type=float, default=0.9, metavar='G',
+                    help='discount factor (default: 0.95)')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')

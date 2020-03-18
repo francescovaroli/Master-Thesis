@@ -298,7 +298,7 @@ def main_loop():
             context_list_np = improved_context_list_np
         else:
             context_list_np = replay_memory.data
-        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_req_steps)
+        batch_np, log_np = agent_np.collect_episodes(context_list_np, args.num_req_steps, args.num_ensembles)
 
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         iter_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)

@@ -10,7 +10,7 @@ import gpytorch
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples(pid, env, policy, num_req_steps, custom_reward, mean_action, render,
+def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_reward, mean_action, render,
                     running_state, context_points_list, attention, fixed_sigma):
     # (2)
     torch.randn(pid)
@@ -35,7 +35,7 @@ def collect_samples(pid, env, policy, num_req_steps, custom_reward, mean_action,
                 encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
             _, z_dist = policy.sample_z(all_x_context, all_y_context)
 
-        while num_steps < num_req_steps:
+        while num_steps < num_req_steps or num_episodes < num_req_episodes:
             #print('episode', num_episodes)
 
             episode = []
@@ -159,11 +159,11 @@ class Agent_all_ctxt:
         self.attention = attention
         self.fixed_sigma = fixed_sigma
 
-    def collect_episodes(self, context_list, num_ep, render=False):
+    def collect_episodes(self, context_list, num_steps, num_ep, render=False):
         t_start = time.time()
         # to_device(torch.device('cpu'), self.policy)
 
-        memory, log = collect_samples(0, self.env, self.policy, num_ep, self.custom_reward, self.mean_action,
+        memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.custom_reward, self.mean_action,
                                       self.render, self.running_state, context_list, self.attention, self.fixed_sigma)
 
         batch = memory.memory

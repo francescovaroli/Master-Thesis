@@ -23,7 +23,7 @@ from core.common import discounted_rewards, estimate_v_a, improvement_step_all
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -40,6 +40,7 @@ parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='up
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 
 
 parser.add_argument('--num-context', type=int, default=5000, metavar='N',
@@ -57,6 +58,8 @@ parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
 parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
+parser.add_argument('--tau', type=float, default=0.9, metavar='G',
+                    help='discount factor (default: 0.95)')
 
 parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                     help='sigma of the policy')
@@ -143,10 +146,10 @@ np_spec = '_NP_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(
                                                                                 args.a_dim)
 
 
-run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
-                                                                                   args.fixed_sigma,args.gamma,
-                                                                                   args.num_testing_points, args.loo,
-                                                                                   args.pick, args.num_context) + np_spec
+run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
+         '_{}target_loo:{}_pick:{}_{}context_gae:{}'.format(args.env_name, args.num_req_steps, args.num_ensembles,
+                                                            args.fixed_sigma,args.gamma, args.num_testing_points, args.loo,
+                                                            args.pick, args.num_context, args.gae) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 
@@ -300,7 +303,7 @@ def main_loop():
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         iter_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
         print('np avg actions: ', log_np['action_mean'])
-        advantages_np = estimate_v_a(iter_dataset_np, disc_rew_np, value_replay_memory, value_np)
+        advantages_np = estimate_v_a(iter_dataset_np, disc_rew_np, value_replay_memory, value_np, args)
 
         improved_context_list_np = improvement_step_all(iter_dataset_np, advantages_np, args.max_kl_np, args)
         # training

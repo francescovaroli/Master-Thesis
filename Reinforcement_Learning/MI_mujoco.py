@@ -229,7 +229,7 @@ def main_loop():
 
         disc_rew_mi = discounted_rewards(batch_mi.memory, args.gamma)
         iter_dataset_mi = BaseDataset(batch_mi.memory, disc_rew_mi, args.device_np, args.dtype,  max_len=max_episode_len)
-        advantages_mi = estimate_v_a(iter_dataset_mi, disc_rew_mi, value_replay_memory, model)
+        advantages_mi = estimate_v_a(iter_dataset_mi, disc_rew_mi, value_replay_memory, model, args)
 
         t0 = time.time()
         improved_context_list_mi = improvement_step_all(iter_dataset_mi, advantages_mi, args.max_kl_mi, args)

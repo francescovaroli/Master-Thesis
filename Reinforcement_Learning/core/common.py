@@ -127,18 +127,20 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
     return all_improved_context
 
 
-def compute_gae(rewards, values, gamma, lam):
-    gae = torch.zeros(1,1)
-    for i in reversed(range(len(rewards))):
-        # Compute TD-error
-        #delta_t = rewards[i] + gamma * values[i + 1].data - values[i].data
-        delta_t = rewards + gamma * values[1:] - values[:-1]
+def compute_gae(rewards, values, gamma, tau):
+    tensor_type = type(rewards)
+    deltas = tensor_type(rewards.size(0), 1)
+    advantages = tensor_type(rewards.size(0), 1)
+    prev_value = 0
+    prev_advantage = 0
+    for i in reversed(range(rewards.size(0))):
+        deltas[i] = rewards[i] + gamma * prev_value - values[i]  # at the end of every episode m=0 so we're
+        advantages[i] = deltas[i] + gamma * tau * prev_advantage  # computing from there backwards each time
+        prev_value = values[i, 0]
+        prev_advantage = advantages[i, 0]
+    return advantages
 
-        # Generalized Advantage Estimation
-        gae = gae * gamma * lam + delta_t
-    return gae
-
-def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, gae=False):
+def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
     ep_rewards = disc_rew
     ep_states = [ep['states'] for ep in iter_dataset]
     real_lens = [ep['real_len'] for ep in iter_dataset]
@@ -175,10 +177,13 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, gae=False):
             advantages = r_target - values
             estimated_values.append(values.squeeze(0))
             estimated_advantages.append(advantages.squeeze(0))
-    if gae:
+    if args.gae:
+        #print('gae estimate')
         gae_advantages = []
         for rew, val in zip(ep_rewards, estimated_values):
-            gae_advantages.append(compute_gae(rew, val, 0.999, 0.95))
+            gae_advantages.append(compute_gae(rew, val, args.gamma, args.tau))
+        #all_adv = torch.cat(gae_advantages)
+        #gae_advantages = (gae_advantages - all_adv.mean()) / all_adv.std()
         return gae_advantages
     return estimated_advantages
 

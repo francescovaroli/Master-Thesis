@@ -78,6 +78,7 @@ class NeuralProcessTrainerLoo():
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)
+
                 loss.backward()
                 self.optimizer.step()
 

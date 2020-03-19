@@ -26,8 +26,8 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
     num_episodes = 0
     action_sum = zeros(context_points_list[0][1].shape[-1])
 
-    all_x_context, all_y_context = merge_context(context_points_list)
     with torch.no_grad():
+        all_x_context, all_y_context = merge_context(context_points_list)
         if policy.id == 'DKL':
             policy.set_train_data(inputs=all_x_context.squeeze(0), targets=all_y_context.view(-1), strict=False)
         elif policy.id in 'ANP':

@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_hop_step0/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_hop_step_01/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 5/num_folders
@@ -72,12 +72,12 @@ for s, subfolder_path in enumerate(all_folders[1:]):
     else:
         color='b'
         label = 'ER size: 120 ep'''
-    if '100rm' in subfolder_path:
+    if 'ctxt:T' in subfolder_path:
         color = 'r'
-        label = 'RM size: 100'
-    elif '200rm' in subfolder_path:
+        label = 'RM as context'
+    elif 'ctxt:F' in subfolder_path:
         color = 'g'
-        label = 'RM size: 200'
+        label = 'last iter as context'
     else:
         color='b'
         label = 'ER size: 240 ep'

@@ -86,6 +86,7 @@ class NeuralProcessTrainerRL():
             if early_stopping is not None:
                 if avg_loss < early_stopping:
                     break
+            torch.cuda.empty_cache()
 
     def _loss(self, p_y_pred, y_target, q_target, q_context):
         """

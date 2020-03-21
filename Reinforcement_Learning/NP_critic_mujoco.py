@@ -308,7 +308,7 @@ def update_critic(states, returns, l2_reg=1e-3):
             if param.grad is not None:
                 param.grad.data.fill_(0)
         values_pred = value_net(states)
-        value_loss = (values_pred - returns).pow(2).mean()  # SquaredMeanError
+        value_loss = (values_pred - returns).pow(2).mean()  # MeanSquaredError
 
         # weight decay
         for param in value_net.parameters():

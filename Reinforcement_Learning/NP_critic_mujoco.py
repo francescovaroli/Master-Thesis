@@ -144,16 +144,16 @@ args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
 args.v_r_dim = args.r_dim
 
-np_spec = '_NP_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.replay_memory_size, args.v_replay_memory_size,
+np_spec = '_NP_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.value_net, args.replay_memory_size, args.v_replay_memory_size,
                                                                 args.rm_as_context, args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
                                                                 args.h_dim, args.max_kl_np, args.use_attentive_np,
                                                                                 args.a_dim)
 
 
 run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
-         '_{}target_loo:{}_pick:{}_{}context_critic:{}'.format(args.env_name, args.num_req_steps, args.num_ensembles,
+         '_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
                                                             args.fixed_sigma,args.gamma, args.num_testing_points, args.loo,
-                                                            args.pick, args.num_context, args.value_net) + np_spec
+                                                            args.pick, args.num_context) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 

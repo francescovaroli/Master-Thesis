@@ -128,9 +128,9 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
 
 
 def compute_gae(rewards, values, gamma, tau):
-    tensor_type = type(rewards)
-    deltas = tensor_type(rewards.size(0), 1)
-    advantages = tensor_type(rewards.size(0), 1)
+    tensor_type = type(values)
+    deltas = tensor_type(values.size(0), 1)
+    advantages = tensor_type(values.size(0), 1)
     prev_value = 0
     prev_advantage = 0
     for i in reversed(range(rewards.size(0))):
@@ -138,6 +138,7 @@ def compute_gae(rewards, values, gamma, tau):
         advantages[i] = deltas[i] + gamma * tau * prev_advantage  # computing from there backwards each time
         prev_value = values[i, 0]
         prev_advantage = advantages[i, 0]
+
     return advantages
 
 def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
@@ -181,9 +182,9 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
         #print('gae estimate')
         gae_advantages = []
         for rew, val in zip(ep_rewards, estimated_values):
-            gae_advantages.append(compute_gae(rew, val, args.gamma, args.tau))
-        #all_adv = torch.cat(gae_advantages)
-        #gae_advantages = (gae_advantages - all_adv.mean()) / all_adv.std()
+            gae_adv = compute_gae(rew, val, args.gamma, args.tau)
+            gae_advantages.append(gae_adv)
+            returns = val + gae_adv
         return gae_advantages
     return estimated_advantages
 

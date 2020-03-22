@@ -25,7 +25,7 @@ from core.common import discounted_rewards, estimate_v_a, improvement_step_all, 
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:

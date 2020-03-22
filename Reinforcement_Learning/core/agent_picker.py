@@ -9,7 +9,7 @@ from torch.distributions import Normal
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples(pid, env, policy, num_ep, custom_reward, num_context, render,
+def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_reward, num_context, render,
                     running_state, context_points_list, pick_dist, fixed_sigma):
     # (2)
     torch.randn(pid)
@@ -35,7 +35,7 @@ def collect_samples(pid, env, policy, num_ep, custom_reward, num_context, render
         pick = True
 
     with torch.no_grad():
-        for ep in range(num_ep):
+        while num_steps < num_req_steps or num_episodes < num_req_episodes:
             # print('ep: ', ep)
             episode = []
             reward_episode = 0
@@ -148,11 +148,11 @@ class AgentPicker:
         self.fixed_sigma = fixed_sigma
         self.num_context = num_context
 
-    def collect_episodes(self, context_list, num_ep, render=False):
+    def collect_episodes(self, context_list, num_steps, num_ep, render=False):
         t_start = time.time()
         #to_device(torch.device('cpu'), self.policy)
 
-        memory, log = collect_samples(0, self.env, self.policy, num_ep, self.custom_reward, self.num_context,
+        memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.custom_reward, self.num_context,
                                       render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
 
         batch = memory.memory

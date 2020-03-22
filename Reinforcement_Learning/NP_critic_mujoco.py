@@ -25,7 +25,7 @@ from core.common import discounted_rewards, estimate_v_a, improvement_step_all, 
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -33,14 +33,14 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
-parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 
@@ -49,14 +49,14 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=0.35, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -171,7 +171,8 @@ print('state_dim', state_dim)
 print('action_dim', action_dim)
 is_disc_action = len(env.action_space.shape) == 0
 
-args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
+if args.fixed_sigma is not None:
+    args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
 
 """seeding"""
 np.random.seed(args.seed)
@@ -253,7 +254,7 @@ def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     #policy_np.apply(init_func)
     sigma = args.fixed_sigma*0.1
-
+    #sigma = 0.1
     for e in range(10):
         states = torch.zeros([1, max_episode_len, state_dim])
 
@@ -373,7 +374,8 @@ def main_loop():
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
         if tot_steps_np[-1] > args.tot_steps:
             break
-
+        """clean up gpu memory"""
+        torch.cuda.empty_cache()
 
 
 
@@ -399,5 +401,3 @@ except FileExistsError:
     pass
 
 main_loop()
-"""clean up gpu memory"""
-torch.cuda.empty_cache()

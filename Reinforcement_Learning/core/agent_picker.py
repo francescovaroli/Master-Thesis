@@ -30,7 +30,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
     num_tot_context = all_x.shape[-2]
     if num_tot_context < num_context:
         pick = False
-        all_x_context, all_y_context = [all_x.unsqueeze(0), all_y.unsqueeze(0)]
+        all_x_context, all_y_context = [all_x.view(1, num_tot_context, -1), all_y.view(1, num_tot_context, -1)]
     else:
         pick = True
 

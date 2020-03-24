@@ -72,12 +72,12 @@ for s, subfolder_path in enumerate(all_folders[1:]):
     else:
         color='b'
         label = 'ER size: 120 ep'''
-    if '2500' in subfolder_path:
+    if 'TRPO' in subfolder_path:
         color = 'r'
-        label = '2,5k steps'
-    elif '5000' in subfolder_path:
-        color = 'g'
-        label = '5k steps'
+        label = 'TRPO'
+    elif 'NP' in subfolder_path:
+        color = 'b'
+        label = 'our method'
     else:
         color='b'
         label = 'ER size: 240 ep'

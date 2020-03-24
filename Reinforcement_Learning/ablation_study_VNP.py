@@ -8,7 +8,7 @@ from utils_rl import *
 from new_plotting_functions import *
 from core.common import discounted_rewards
 from core.agent_picker import AgentPicker
-from core.agent_ensembles_all_context import Agent
+from core.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
 from training_leave_one_out_pick import NeuralProcessTrainerLooPick
 from training_leave_one_out import NeuralProcessTrainerLoo
@@ -20,7 +20,7 @@ from weights_init import InitFunc
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -50,8 +50,10 @@ parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
 parser.add_argument('--num-context', default=50, type=int,
                     help='pick context points depending on index')
-parser.add_argument('--pick-dist', default=None, type=float,
+parser.add_argument('--pick-dist', default=0.1, type=float,
                     help='if None use index, else defines limit distance for chosing a point')
+parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
+                    help='number of context points to sample from rm')
 
 parser.add_argument('--fixed-sigma', default=0.75, metavar='N', type=float,
                     help='sigma of the policy')
@@ -154,16 +156,17 @@ else:
                                          num_extra_target_range=(args.num_testing_points, args.num_testing_points),
                                          print_freq=50)
 
+if args.fixed_sigma is not None:
+    args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
 """create replay memory"""
-# force rm to contain only last iter episodes
-replay_memory = ReplayMemoryDataset(args.num_ensembles, use_mean=True)
+replay_memory = ReplayMemoryDataset(args.replay_memory_size, use_mean=True)
 
 """create agent"""
 if args.pick_context:
     agent = AgentPicker(env, policy_np, args.device_np, args.num_context, running_state=running_state, render=args.render,
                   pick_dist=args.pick_dist, fixed_sigma=args.fixed_sigma)
 else:
-    agent = Agent(env, policy_np, args.device_np, running_state=running_state, render=args.render,
+    agent = Agent_all_ctxt(env, policy_np, args.device_np, running_state=running_state, render=args.render,
                   attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
 
 
@@ -272,8 +275,8 @@ def create_directories(directory_path):
     os.mkdir(directory_path + '/policy/' + '/Training/')
     os.mkdir(directory_path + '/policy/' + '/All policies samples/')
 
-avg_rewards = []
-
+avg_rewards = [0]
+tot_steps = [0]
 
 def main_loop():
     colors = []
@@ -290,7 +293,7 @@ def main_loop():
         # (1)
         # generate multiple trajectories that reach the minimum batch_size
         policy_np.training = False
-        batch, log = agent.collect_episodes(improved_context_list)  # batch of batch_size transitions from multiple
+        batch, log = agent.collect_episodes(improved_context_list, args.num_req_steps, args.num_ensembles)  # batch of batch_size transitions from multiple
         #print(log['num_steps'], log['num_episodes'])                # episodes (separated by mask=0). Stored in Memory
 
         estimated_disc_rew = discounted_rewards(batch.memory, args.gamma)
@@ -315,6 +318,7 @@ def main_loop():
             plot_NP_policy(policy_np, improved_context_list, replay_memory, i_iter, log['avg_reward'], env, args, colors)
 
         avg_rewards.append(log['avg_reward'])
+        tot_steps.append(tot_steps[-1] + log['num_steps'])
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f} \tT_update {:.4f} \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(
                   i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
@@ -323,7 +327,7 @@ def main_loop():
             print('converged')
             plot_rewards_history(avg_rewards, args)
         if i_iter % args.plot_every == 0:
-            plot_rewards_history(avg_rewards, args)
+            plot_rewards_history(avg_rewards, tot_steps, args)
             #if args.pick_context:
             plot_chosen_context(improved_context_list, args.num_context, i_iter, args, env)
         if args.fixed_sigma is not None:
@@ -333,8 +337,10 @@ def main_loop():
     """clean up gpu memory"""
     torch.cuda.empty_cache()
 
-
-create_directories(args.directory_path)
+try:
+    create_directories(args.directory_path)
+except FileExistsError:
+    pass
 main_loop()
 
 

@@ -170,7 +170,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
             ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', s=4, alpha=0.3)
             ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=new_means[:, 0].cpu(), marker='+', alpha=0.3)
 
-        a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew[:, 0], cmap='viridis', alpha=0.5)
+        a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew[:], cmap='viridis', alpha=0.5)
 
     cb = fig.colorbar(a)
     cb.set_label('Discounted rewards')
@@ -253,30 +253,58 @@ def plot_initial_context(context_points, colors, env, args, i_iter):
     plt.close(fig)
 
 def plot_chosen_context(context_list, num_context, i_iter, args, env):
-    colors = []
-    num_tested_points = 6
-    for i in range(num_tested_points):
-        colors.append('#%06X' % randint(0, 0xFFFFFF))
-    name = 'Chosen context at iter ' + str(i_iter)
-    fig = plt.figure(figsize=(10, 10))
+    #colors = []
+    num_tested_points = 3
+    #for i in range(num_tested_points):
+    #    colors.append('#%06X' % randint(0, 0xFFFFFF))
+    if args.pick_context:
+        if args.pick_dist is None:
+            color = 'y'
+            name = 'Context chosen by index'
+            p=0
+
+        else:
+            p=1
+            color = 'g'
+            name = 'Context chosen by distance'
+    else:
+        p=2
+        color = 'b'
+        name = 'All context set'
+    fig = plt.figure(figsize=(16, 5))
     fig.suptitle(name, fontsize=16)
     test_episode = context_list[0]
     real_len = test_episode[-1]
     e = 0
     for index in np.arange(0, real_len, real_len//(num_tested_points-1)):
-        ax = fig.add_subplot(3, 2, e + 1, projection='3d')
-        ax.set_title('index: '+str(index) + ' dist: {}'.format(args.pick_dist))
+        ax = fig.add_subplot(1, 3, e + 1, projection='3d')
+        if p==0:
+            title = 'Index: {}   number of context points: {}'.format(index, args.num_context)
+        elif p==1:
+            title = 'Index: {},  euclidian distance: {} '.format(index, args.pick_dist)
+        else:
+            title = 'Index: {}   number of context points: {}'.format(index, args.num_ensembles*999)
+        ax.set_title(title)
         set_limits(ax, env, args, np_id='policy')
         if args.pick_context:
             x_context, y_context = get_close_context(index, test_episode[0][:, index, :].unsqueeze(0), context_list,
                                                      args.pick_dist, num_tot_context=num_context)
         else:
             x_context, y_context = merge_context(context_list)
-        ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=colors[e], alpha=0.5,
-                   marker='+', label='Chosen context', zorder=-1)
-        ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(),
-                   test_episode[1][0, index, 0].cpu(),c='k', alpha=1, label='Target point', zorder=1)
+        if True:
+            ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=color, alpha=0.05,
+                       marker='+', label='Chosen context', zorder=-1)
+            ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(),
+                       test_episode[1][0, index, 0].cpu(),c='k', alpha=1, label='Target point', zorder=1)
+        else:
+            ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=color, alpha=0.5,
+                       marker='+', zorder=-1)
+            ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(),
+                       test_episode[1][0, index, 0].cpu(),c='k', alpha=1, zorder=1)
         e += 1
-        leg = ax.legend(loc="upper right")
-    fig.savefig(args.directory_path + '/policy/' + '/All policies samples/' + name)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                         box.width, box.height * 0.9])
+        leg = ax.legend(loc='lower left', bbox_to_anchor=(0.3, 0.2))
+        fig.savefig(args.directory_path + '/policy/' + '/All policies samples/' + name + str(i_iter), dpi=300)
     plt.close(fig)

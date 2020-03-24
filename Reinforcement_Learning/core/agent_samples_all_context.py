@@ -80,7 +80,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 else:
                     action = action_distribution.sample().view(-1)   # sample from normal distribution
                     cov = torch.diag(sigma.view(-1)**2)
-                next_state, reward, done, _ = env.step(action.cpu())
+                next_state, reward, done, _ = env.step(action.cpu().numpy())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                     next_state = running_state(next_state)

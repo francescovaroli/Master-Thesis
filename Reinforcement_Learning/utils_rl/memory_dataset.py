@@ -59,6 +59,7 @@ def get_close_context(index, target, context_list, dist, num_tot_context=1000):
         chosen_context = [context_list[0][0][..., start:end, :].view(1, end-start, -1),
                           context_list[0][1][..., start:end, :].view(1, end-start, -1)]  # need to use ... and view because tensor shape varies (1xNxD in training, NxD in inference
         for ep in context_list[1:]:
+            start = max(0, index - context_per_ep // 2)
             end = min(start + context_per_ep, ep[2])
             if end - start < context_per_ep:
                 start = max(0, end - context_per_ep)

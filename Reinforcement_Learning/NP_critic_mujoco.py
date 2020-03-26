@@ -40,7 +40,7 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
-parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 
@@ -54,7 +54,7 @@ parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.35, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=1., metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -151,7 +151,7 @@ np_spec = '_NP_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}
 
 
 run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
-         '_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
+         '_{}target_loo:{}_picklc:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
                                                             args.fixed_sigma,args.gamma, args.num_testing_points, args.loo,
                                                             args.pick, args.num_context) + np_spec
 run_id = run_id.replace('.', ',')

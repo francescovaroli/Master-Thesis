@@ -124,6 +124,7 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
     if args.learn_sigma:
         args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)
 
+
     return all_improved_context
 
 

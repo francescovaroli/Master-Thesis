@@ -4,7 +4,7 @@ from utils_rl.torch import *
 import math
 import time
 from collections import namedtuple
-from torch.distributions import Normal
+from torch.distributions import Normal, MultivariateNormal
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
@@ -65,12 +65,12 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                     sigma = fixed_sigma
                 else:
                     sigma = stddev
-
-                action_distribution = Normal(mean, sigma)
-
+                cov = torch.diag(sigma ** 2)
+                #action_distribution = Normal(mean, sigma)
+                action_distribution = MultivariateNormal(mean, cov)
                 action = action_distribution.sample().view(-1)  # sample from normal distribution
-                cov = torch.diag(sigma**2)
-                next_state, reward, done, _ = env.step(action.cpu())
+
+                next_state, reward, done, _ = env.step(action.cpu().numpy())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                     next_state = running_state(next_state)
@@ -96,7 +96,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
             total_reward += reward_episode
             min_reward = min(min_reward, reward_episode)
             max_reward = max(max_reward, reward_episode)
-
+    print('tot episodes: ', num_episodes)
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
     log['total_reward'] = total_reward

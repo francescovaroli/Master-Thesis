@@ -72,15 +72,15 @@ for s, subfolder_path in enumerate(all_folders[1:]):
     else:
         color='b'
         label = 'ER size: 120 ep'''
-    if 'loo:T' in subfolder_path:
+    if 'TRPO' in subfolder_path:
         color = 'r'
-        label = 'loo'
-    elif 'loo:F' in subfolder_path:
+        label = 'TRPO'
+    elif 'loo:Fs' in subfolder_path:
         color = 'b'
         label = 'obo'
     else:
         color='b'
-        label = 'ER size: 240 ep'
+        label = 'our method'
     ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c=color, label=label)
 
     handles, labels = plt.gca().get_legend_handles_labels()

@@ -70,7 +70,7 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps, args):
         squared_normalized = (diff_vector.matmul(torch.inverse(covariances))).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
         denominator = (0.5 * (advantages ** 2).matmul(squared_normalized))  # (1xN)(Nx1) -> 1
         if torch.isnan(torch.sqrt((T * eps) / denominator)):
-            print('nan')
+            print('nan in eta')
     else:
         iter_sum = 0
         for action, mean, disc_reward, sigma in zip(actions, means, advantages, sigmas):

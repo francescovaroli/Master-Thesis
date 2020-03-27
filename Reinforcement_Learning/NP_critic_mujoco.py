@@ -38,7 +38,7 @@ parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 
-parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=False, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
@@ -116,7 +116,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=True, type=boolean_string, metavar='N',
+parser.add_argument('--use-attentive-np', default=False, type=boolean_string, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--v-use-attentive-np', default=True, type=boolean_string, metavar='N',
                      help='use attention in policy and value NPs')

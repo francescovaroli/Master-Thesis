@@ -32,7 +32,9 @@ def collect_samples(pid, queue, env, policy, custom_reward,
                 if mean_action:
                     action = policy(state_var)[0][0].numpy()  # use mean value
                 else:
-                    action = policy.select_action(state_var)[0].cpu().numpy()  # sample from normal distribution
+                    action_mean, _, action_std = policy.forward(state_var)
+                    action = torch.normal(action_mean, action_std)[0].cpu().numpy()
+                    #action = policy.select_action(state_var)[0].cpu().numpy()  # sample from normal distribution
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
@@ -46,7 +48,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
 
             mask = 0 if done else 1  # marker to separate episodes in the batch
 
-            memory.push(state, action, mask, next_state, reward)  # replay memory where all Transitions
+            memory.push(state, action, mask, next_state, reward, action_mean)  # replay memory where all Transitions
                                                                   # (from different episodes) are stored
             if render:
                 env.render()

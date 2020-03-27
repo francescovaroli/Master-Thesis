@@ -153,7 +153,7 @@ class AgentPicker:
         #to_device(torch.device('cpu'), self.policy)
 
         memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.custom_reward, self.num_context,
-                                      render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
+                                      self.render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
 
         batch = memory.memory
         #to_device(self.device, self.policy)

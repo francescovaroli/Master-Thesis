@@ -35,10 +35,10 @@ print('device: ', device)
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
 parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
-parser.add_argument('--render', action='store_true', default=False,
+parser.add_argument('--render', action='store_true', default=True,
                     help='render the environment')
 
-parser.add_argument('--learn-sigma', default=False, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
@@ -54,7 +54,7 @@ parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=1., metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -65,13 +65,13 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.2, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=50, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=4, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=64, metavar='N',
+parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--r-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
@@ -138,7 +138,7 @@ args.r_dim *= args.net_size
 args.h_dim *= args.net_size
 args.a_dim *= args.net_size
 
-args.epochs_per_iter = 2000 // args.replay_memory_size + 10
+args.epochs_per_iter = 200 // args.replay_memory_size #+ 10
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
@@ -233,7 +233,7 @@ if not args.pick:
 else:
     print('agent pick')
     agent_np = AgentPicker(env, policy_np, args.device_np, args.num_context, custom_reward=None, pick_dist=None,
-                           mean_action=False, render=False, running_state=None, fixed_sigma=args.fixed_sigma)
+                           mean_action=False, render=args.render, running_state=None, fixed_sigma=args.fixed_sigma)
 
 def train_np(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
@@ -333,7 +333,7 @@ def main_loop():
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
     improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
-    if initial_training:
+    if initial_training and False:
         train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
 

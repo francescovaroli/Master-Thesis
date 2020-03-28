@@ -37,6 +37,7 @@ parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=True,
                     help='render the environment')
+parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
@@ -47,14 +48,14 @@ parser.add_argument('--gae', default=True, type=boolean_string, help='use genera
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
 
-parser.add_argument('--num-context', type=int, default=5000, metavar='N',
+parser.add_argument('--num-context', type=int, default=20000, metavar='N',
                     help='number of context points to sample from rm')
 parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.01, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -65,11 +66,11 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.1, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.6, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=4, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=40, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -138,7 +139,7 @@ args.r_dim *= args.net_size
 args.h_dim *= args.net_size
 args.a_dim *= args.net_size
 
-args.epochs_per_iter = 200 // args.replay_memory_size #+ 10
+args.epochs_per_iter = 2000 // args.replay_memory_size #+ 10
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
@@ -229,7 +230,7 @@ value_replay_memory = ValueReplay(args.v_replay_memory_size)
 if not args.pick:
     print('agent all')
     agent_np = Agent_all_ctxt(env, policy_np, args.device_np, running_state=None, render=args.render,
-                              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma)
+                              attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma, mean_action=args.mean_action)
 else:
     print('agent pick')
     agent_np = AgentPicker(env, policy_np, args.device_np, args.num_context, custom_reward=None, pick_dist=None,

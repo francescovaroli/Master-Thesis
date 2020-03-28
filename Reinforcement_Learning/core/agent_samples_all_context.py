@@ -33,6 +33,8 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
         elif policy.id in 'ANP':
             if attention:
                 encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
+            else:
+                r_context = policy.xy_to_r(all_x_context, all_y_context)
             _, z_dist = policy.sample_z(all_x_context, all_y_context)
 
         while num_steps < num_req_steps or num_episodes < num_req_episodes:
@@ -42,6 +44,8 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
             reward_episode = 0
             if policy.id in 'ANP':
                 z_sample = z_dist.sample()
+                if not attention:
+                    rep = torch.cat([z_sample, r_context], dim=-1)
 
             state = env.reset()
             if running_state is not None:
@@ -65,7 +69,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                         representation = torch.cat([z_sample, a_repr.squeeze(0)], dim=-1)
                         mean, stddev = policy.xz_to_y(state_var, representation)
                     else:
-                        mean, stddev = policy.xz_to_y(state_var, z_sample)
+                        mean, stddev = policy.xrep_to_y(state_var, rep)
 
                 if fixed_sigma is not None:
                     sigma = fixed_sigma
@@ -75,11 +79,13 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 action_distribution = Normal(mean, sigma)
 
                 if mean_action:
-                    action = mean  # use mean value
-                    mean, stddev = policy.xz_to_y(state_var, z_dist.mean)
+                    action = mean.view(-1)  # use mean value
+                    mean_rep = torch.cat([z_dist.mean, r_context], dim=-1)
+                    mean, stddev = policy.xrep_to_y(state_var, mean_rep)
+                    #sigma = z_dist.stddev.mean().repeat(action.shape[0])
                 else:
                     action = action_distribution.sample().view(-1)   # sample from normal distribution
-                    cov = torch.diag(sigma.view(-1)**2)
+                cov = torch.diag(sigma.view(-1)**2)
                 next_state, reward, done, _ = env.step(action.cpu().numpy())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std

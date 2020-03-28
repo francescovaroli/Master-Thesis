@@ -35,7 +35,7 @@ print('device: ', device)
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
 parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
-parser.add_argument('--render', action='store_true', default=True,
+parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
 parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 

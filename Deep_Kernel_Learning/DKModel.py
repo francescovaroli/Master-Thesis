@@ -24,8 +24,8 @@ class GPRegressionModel(gpytorch.models.ExactGP):
             grid_size = gpytorch.utils.grid.choose_grid_size(train_x)
             print('grid_size:', grid_size)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.GridInterpolationKernel(gpytorch.kernels.ScaleKernel(
-            gpytorch.kernels.RBFKernel(ard_num_dims=z_dim, is_stationary=False)), num_dims=z_dim, grid_size=grid_size)  #
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.GridInterpolationKernel(
+            gpytorch.kernels.RBFKernel(ard_num_dims=z_dim, is_stationary=False), num_dims=z_dim, grid_size=grid_size))  #
         #self.covar_module = gpytorch.kernels.GridInterpolationKernel(gpytorch.kernels.SpectralMixtureKernel(
         #                                      num_mixtures=2, ard_num_dims=z_dim), num_dims=z_dim, grid_size=grid_size)
         self.likelihood = likelihood

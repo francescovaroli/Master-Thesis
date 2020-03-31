@@ -10,8 +10,13 @@ from dataset_generator import SineData, MultiGPData
 from utils import context_target_split
 import os
 import time
+import torch
+from torch.distributions import Normal
+from torch import nn
+from torch.nn import functional as F
 
-if torch.cuda.is_available():
+
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -22,7 +27,7 @@ print('device: ', device)
 plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/NP&ANP/1D/w-o self attention/'
 
 ## seedingsplt
-seed = 9
+seed = 75
 np.random.seed(seed)
 torch.manual_seed(seed)
 
@@ -69,11 +74,15 @@ elif data == 'gp':
 # Extract a batch from data_loader
 test_x_context_l = []
 test_y_context_l = []
+test_x_l = []
+test_y_l = []
 for e, batch in enumerate(data_loader):
 # Use batch to create random set of context points
     test_x, test_y = batch
-    num_context_t = randint(*num_context)
-    num_target_t = randint(*num_target)
+    test_x_l.append(test_x)
+    test_y_l.append(test_y)
+    num_context_t = 21
+    num_target_t = 21
     test_x_context, test_y_context, _, _ = context_target_split(test_x[0:1], test_y[0:1],
                                                                 num_context_t,
                                                                 num_target_t)
@@ -83,25 +92,25 @@ for e, batch in enumerate(data_loader):
 # Visualize data samples
 fig_data, ax_data = plt.subplots(1, 1)
 
-ax_data.set_title('Multiple samples from the GP with ' + kernel[0] + ' kernel')
+#ax_data.set_title('Multiple samples from the GP with ' + kernel[0] + ' kernel')
 for i in range(64):
     x, y = dataset[i*(num_tot_samples//64)]
     ax_data.plot(x.cpu().numpy(), y.cpu().numpy(), c='k', alpha=0.5)
     ax_data.set_xlabel('x')
     ax_data.set_ylabel('y')
     ax_data.set_xlim(x_range[0], x_range[1])
-fig_data.savefig(plots_path + '-'.join(kernel) + '_data')
+fig_data.savefig(plots_path + '-'.join(kernel) + '_data', dpi=250)
 plt.close(fig_data)
 
 fig_epoch, ax_epoch = plt.subplots(1, 1)
-ax_epoch.set_title('average loss over epochs')
+#ax_epoch.set_title('Average loss over epochs')
 ax_epoch.set_xlabel('Epochs')
-ax_epoch.set_ylabel('average loss')
+ax_epoch.set_ylabel('Average loss')
 ax_epoch.grid()
 
 use_self_att = False
 first = True
-for use_attention in [False, True, True]:
+for use_attention in [False, True, True]:#[False]:
     if use_attention:
         if not first:
             use_self_att = True
@@ -145,15 +154,16 @@ for use_attention in [False, True, True]:
     # plot prior
     if False:
         fig_prior, ax_prior = plt.subplots(1, 1)
-        ax_prior.set_ylabel('means of y distribution')
-        ax_prior.set_title('Samples from prior distribution')
+        ax_prior.set_ylabel('Means of y distribution')
+        ax_prior.set_xlabel('x')
+        #ax_prior.set_title('Samples from prior distribution')
         for i in range(60):
             z_sample = torch.randn((1, z_dim))
             z_sample = z_sample.unsqueeze(1).repeat(1, 100, 1)
-            mu, _ = neuralprocess.xrep_to_y(x_target, rep)
+            mu, _ = neuralprocess.xz_to_y(x_target, z_sample)
             ax_prior.plot(x_target.cpu().numpy()[0], mu.cpu().detach().numpy()[0],
                      c='b', alpha=0.5)
-        fig_prior.savefig(plots_path + '-'.join(kernel) + '_prior_'+id)
+        fig_prior.savefig(plots_path + '-'.join(kernel) + '_prior_'+id, dpi=250)
         plt.close(fig_prior)
 
 
@@ -181,7 +191,7 @@ for use_attention in [False, True, True]:
                      alpha=0.05, c=color)
         ax_post.plot(x_target.cpu().numpy()[0], mu.cpu().numpy()[0],
                      alpha=0.05, c=color, label='Predicted means')
-        ax_post.plot(test_x[0].cpu().numpy(), test_y[0].cpu().numpy(), alpha=0.3, c='k', label='Real function')
+        ax_post.plot(test_x_l[l][0].cpu().numpy(), test_y_l[l][0].cpu().numpy(), alpha=0.3, c='k', label='Real function')
         ax_post.scatter(test_x_context[0].cpu().numpy(), test_y_context[0].cpu().numpy(), c='k', label='Context points')
         ax_post.legend()
         ax_post_avg = fig_post.add_subplot(2, 1, 2)
@@ -190,10 +200,10 @@ for use_attention in [False, True, True]:
         std_h = mu.cpu() + std.cpu()
         std_l = mu.cpu() - std.cpu()
         ax_post_avg.fill_between(x_target[0,:,0].cpu(), std_l[0,:,0], std_h[0,:,0] ,alpha=0.05, color=color, label='Standard deviation')
-        ax_post_avg.plot(test_x[0].cpu().numpy(), test_y[0].cpu().numpy(), alpha=0.15, c='k', label='Real function')
-        ax_post_avg.scatter(test_x_context[0].cpu().numpy(), test_y_context[0].cpu().numpy(), c='k', label='Context points')
+        ax_post_avg.plot(test_x_l[l][0].cpu().numpy(), test_y_l[l][0].cpu().numpy(), alpha=0.15, c='k')
+        ax_post_avg.scatter(test_x_context[0].cpu().numpy(), test_y_context[0].cpu().numpy(), c='k')
         ax_post_avg.legend()
-        ax_post_avg.set_title('Single posterior distribution')
+        #ax_post_avg.set_title('Single posterior distribution')
         ax_post_avg.set_xlabel('x')
         ax_post_avg.set_ylabel('y distribution')
 
@@ -204,4 +214,4 @@ for use_attention in [False, True, True]:
     torch.cuda.empty_cache()
 
 leg = ax_epoch.legend(loc="upper right")
-fig_epoch.savefig(plots_path + '_loss_history_'+id)
+fig_epoch.savefig(plots_path + '_loss_history_'+id, dpi=250)

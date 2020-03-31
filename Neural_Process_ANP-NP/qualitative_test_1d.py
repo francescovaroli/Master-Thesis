@@ -21,7 +21,7 @@ print('device: ', device)
 plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/NP&ANP/1D/w-o self attention/'
 
 ## seedings
-seed = 1
+seed = 7
 np.random.seed(seed)
 torch.manual_seed(seed)
 
@@ -31,9 +31,9 @@ torch.manual_seed(seed)
 
 # dataset parameters
 data = 'gp'
-kernel = ['matern']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
+kernel = ['RBF']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
 mean = ['linear']  # possible means ['linear', 'constant']
-num_tot_samples = 200
+num_tot_samples = 1
 use_different_test_dataset = False
 fix_sigma = None
 
@@ -42,7 +42,7 @@ use_attention = True
 use_self_att = False
 att_type = 'dot_product'  # attention_types = ['uniform','laplace','dot_product']
 
-epochs = 30
+epochs = 1
 learning_rate = 3e-4
 l = '3e-4'
 batch_size = 4
@@ -86,8 +86,8 @@ elif data == 'gp':
 # Visualize data samples
 plt.figure(1)
 
-plt.title('Samples from '+data+' with kernels: ' + ' '.join(kernel))
-for i in range(64):
+plt.title('Single sample from GP with RBF kernel')
+for i in range(1):
     x, y = dataset[i*(num_tot_samples//64)]
     plt.plot(x.cpu().numpy(), y.cpu().numpy(), c='b', alpha=0.5)
     plt.xlabel('x')

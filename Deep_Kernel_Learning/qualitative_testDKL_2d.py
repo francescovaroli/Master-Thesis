@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from dataset_generator import GPData2D
 from DKModel import GPRegressionModel, DKMTrainer
 import os
+import time
 
 if torch.cuda.is_available() and False:
     device = torch.device("cuda")
@@ -22,7 +23,7 @@ print('device: ', device)
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
 parser.add_argument('--env-name', default="Pendulum-v0", metavar='G',
                     help='name of the environment to run')
-parser.add_argument('--seed', type=int, default=0, metavar='N',
+parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--x-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
@@ -32,11 +33,11 @@ parser.add_argument('--z-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=100, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=80, metavar='G',
+parser.add_argument('--epochs', type=int, default=100, metavar='G',
                     help='training epochs')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-tot-samples', type=int, default=35, metavar='N',
+parser.add_argument('--num-tot-samples', type=int, default=64, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--num-context', type=int, default=150, metavar='N',
                     help='num context points')
@@ -71,7 +72,7 @@ grid_bounds=[args.extent[0:2], args.extent[2:4]]
 id = 'DKM_{}fcts_{}c_{}t_{}e_{}b_{}lr_{}z_{}h_noise'.format(args.num_tot_samples, args.num_context, args.num_target,
                                                       args.epochs, args.batch_size,l, args.z_dim, args.h_dim)
 
-args.directory_path += id+'/'
+args.directory_path += id+time.ctime()+'/'
 
 # Create dataset
 dataset = dataset = GPData2D('constant', kernel, num_samples=args.num_tot_samples, grid_bounds=grid_bounds, grid_size=args.grid_size)
@@ -92,14 +93,14 @@ print('dataset created')
 # create model
 likelihood = gpytorch.likelihoods.GaussianLikelihood().to(device)
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
-                          args.h_dim, args.z_dim, name_id=id, grid_size=100).to(device)
+                          args.h_dim, args.z_dim, name_id=id, grid_size=1000, scaling=None).to(device)
 
 
 optimizer = torch.optim.Adam([
-    {'params': model.feature_extractor.parameters()},
-    {'params': model.covar_module.parameters()},
-    {'params': model.mean_module.parameters()},
-    {'params': model.likelihood.parameters()}], lr=0.01)
+    {'params': model.feature_extractor.parameters(), 'lr':0.0005},
+    {'params': model.covar_module.parameters(), 'lr':0.01},
+    {'params': model.mean_module.parameters(), 'lr':0.01},
+    {'params': model.likelihood.parameters(), 'lr':0.01}])
 
 try:
     os.mkdir(args.directory_path)

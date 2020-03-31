@@ -48,16 +48,16 @@ parser.add_argument('--gae', default=True, type=boolean_string, help='use genera
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
 
-parser.add_argument('--num-context', type=int, default=20000, metavar='N',
+parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=4000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=1., metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=2.5, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=6, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -70,7 +70,7 @@ parser.add_argument('--fixed-sigma', default=0.15, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=40, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=60, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -109,7 +109,7 @@ parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
-parser.add_argument('--seed', type=int, default=2, metavar='N',
+parser.add_argument('--seed', type=int, default=0, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')

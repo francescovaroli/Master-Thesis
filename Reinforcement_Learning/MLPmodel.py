@@ -13,7 +13,7 @@ from torch.distributions import Normal
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running_state, fixed_sigma):
+def collect_samples_mlp(pid, env, policy, num_req_steps, num_req_episodes, custom_reward, render, running_state, fixed_sigma):
 
     torch.randn(pid)
     log = dict()
@@ -27,7 +27,7 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
     max_c_reward = -1e6
     num_episodes = 0
     with torch.no_grad():
-        for ep in range(num_ep):
+        while num_steps < num_req_steps or num_episodes < num_req_episodes:
 
             episode = []
             reward_episode = 0
@@ -73,7 +73,7 @@ def collect_samples_mlp(pid, env, policy, num_ep, custom_reward, render, running
             total_reward += reward_episode
             min_reward = min(min_reward, reward_episode)
             max_reward = max(max_reward, reward_episode)
-
+    print('tot episodes: ', num_episodes)
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
     log['total_reward'] = total_reward
@@ -105,10 +105,10 @@ class AgentMLP:
         self.fixed_sigma = fixed_sigma
         self.num_episodes = num_episodes
 
-    def collect_episodes(self):
+    def collect_episodes(self, num_req_steps):
         t_start = time.time()
 
-        memory, log = collect_samples_mlp(0, self.env, self.policy, self.num_episodes, self.custom_reward,
+        memory, log = collect_samples_mlp(0, self.env, self.policy, num_req_steps, self.num_episodes, self.custom_reward,
                                       self.render, self.running_state, self.fixed_sigma)
 
         batch = memory.memory

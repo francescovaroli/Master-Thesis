@@ -16,73 +16,77 @@ import pickle
 from plotting_functions_DKL import  create_plot_grid
 
 def plot_posterior(model, directory_path, num_context=250, num_target=1):
-    for batch in data_loader:
-        break
+    x, X1, X2, x1, x2 = create_plot_grid(extent, None, size=grid_size)
+    for n, batch in enumerate(data_loader):
+    #    break
 
     # Use batch to create random set of context points
-    x, y = batch  # , real_len
+        x, y = batch  # , real_len
 
-    x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
-                                                      num_context,
-                                                      num_target)
-    x, X1, X2, x1, x2 = create_plot_grid(extent, None, size=grid_size)
+        x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
+                                                          num_context,
+                                                          num_target)
 
-    fig = plt.figure(figsize=(20, 8))  # figsize=plt.figaspect(1.5)
-    fig.suptitle(id, fontsize=20)
-    #fig.tight_layout()
+        fig = plt.figure(figsize=(20, 8))  # figsize=plt.figaspect(1.5)
+        #fig.suptitle(id, fontsize=20)
+        #fig.tight_layout()
 
-    ax_real = fig.add_subplot(131, projection='3d')
-    ax_real.plot_surface(X1, X2, y[0:1].reshape(X1.shape).cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
-    ax_real.set_title('Real function')
+        ax_real = fig.add_subplot(131, projection='3d')
+        ax_real.plot_surface(X1, X2, y[0:1].reshape(X1.shape).cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+        ax_real.set_title('Real function')
 
-    ax_context = fig.add_subplot(132, projection='3d')
-    ax_context.scatter(x_context[0,:,0].detach().cpu().numpy(),
-                       x_context[0, :, 1].detach().cpu().numpy(),
-                       y_context[0,:,0].detach().cpu().numpy(),
-                       c=y_context[0,:,0].detach().cpu().numpy(),
-                       cmap='viridis', vmin=-1., vmax=1.,  s=8)
+        ax_context = fig.add_subplot(132, projection='3d')
+        ax_context.scatter(x_context[0,:,0].detach().cpu().numpy(),
+                           x_context[0, :, 1].detach().cpu().numpy(),
+                           y_context[0,:,0].detach().cpu().numpy(),
+                           c=y_context[0,:,0].detach().cpu().numpy(),
+                           cmap='viridis',  s=8)
 
-    ax_context.set_title('Context points')
-    model.training = False
-    with torch.no_grad():
-        p_y_pred = model(x_context, y_context, x[0:1])
-    mu = p_y_pred.mean.reshape(X1.shape).cpu()
-    mu[torch.isnan(mu)] = 0.
-    mu = mu.numpy()
-    sigma = p_y_pred.stddev.reshape(X1.shape).cpu()
-    sigma[torch.isnan(sigma)] = 0.
-    sigma = sigma.numpy()
-    std_h = mu + sigma
-    std_l = mu - sigma
-    model.training = True
-    max_mu = std_h.max()
-    min_mu = std_l.min()
-    ax_mean = fig.add_subplot(133, projection='3d')
-    i = 0
-    for y_slice in x2:
-        ax_mean.add_collection3d(
-            plt.fill_between(x1, std_l[i, :], std_h[i, :], color='lightseagreen',
-                             alpha=0.1),
-            zs=y_slice, zdir='y')
-        i += 1
-    # Extract mean of distribution
-    ax_mean.plot_surface(X1, X2, mu, cmap='viridis', vmin=-1., vmax=1.)
-    for ax in [ax_mean, ax_context, ax_real]:
-        ax.set_zlim(min_mu, max_mu)
-    ax_mean.set_title('Posterior estimate')
-    plt.savefig(directory_path + 'posterior' + id, dpi=250)
-    #plt.show()
-    plt.close(fig)
+        ax_context.set_title('Context points')
+        model.training = False
+        with torch.no_grad():
+            p_y_pred = model(x_context, y_context, x[0:1])
+        mu = p_y_pred.mean.reshape(X1.shape).cpu()
+        mu[torch.isnan(mu)] = 0.
+        mu = mu.numpy()
+        sigma = p_y_pred.stddev.reshape(X1.shape).cpu()
+        sigma[torch.isnan(sigma)] = 0.
+        sigma = sigma.numpy()
+        std_h = mu + sigma
+        std_l = mu - sigma
+        model.training = True
+        max_mu = std_h.max()
+        min_mu = std_l.min()
+        ax_mean = fig.add_subplot(133, projection='3d')
+        i = 0
+        for y_slice in x2:
+            ax_mean.add_collection3d(
+                plt.fill_between(x1, std_l[i, :], std_h[i, :], color='lightseagreen',
+                                 alpha=0.04, label='stdev'),
+                zs=y_slice, zdir='y')
+            i += 1
+        # Extract mean of distribution
+        ax_mean.plot_surface(X1, X2, mu, cmap='viridis', vmin=-1., vmax=1., label='mean')
+        for ax in [ax_mean, ax_context, ax_real]:
+            ax.set_zlim(min_mu, max_mu)
+            ax.set_xlabel(' x1')
+            ax.set_ylabel('  x2')
+            ax.set_zlabel('y')
+
+        ax_mean.set_title('Posterior estimate')
+        plt.savefig(directory_path + 'posterior' + id + str(n), dpi=250)
+        #plt.show()
+        plt.close(fig)
     return
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() and False else "cpu")
 print('device: ', device)
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+#torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/NP&ANP/2D/'+time.ctime()
-
+plots_path = '/home/francesco/PycharmProjects/MasterThesis/plots/NP&ANP/2D/'+time.ctime()+'/'
+os.mkdir(plots_path)
 # settings
 data = 'gp'
 kernel_dict = ['RBF', 'cosine', 'linear', 'LCM', 'polynomial']
@@ -123,7 +127,7 @@ if data == 'sine':
                        num_samples=2000)
 elif data == 'gp':
 
-    dataset = GPData2D('constant', kernel, num_samples=20, grid_bounds=grid_bounds, grid_size=grid_size)
+    dataset = GPData2D('constant', kernel, num_samples=64, grid_bounds=grid_bounds, grid_size=grid_size)
 
 # Visualize data samples
 plt.figure(1)
@@ -141,7 +145,7 @@ for ax in axarr.flat:
     ax.set(xlabel='x1', ylabel='x2')
     ax.label_outer()
 
-plt.show()
+#plt.show()
 plt.close(f)
 
 # create and train np
@@ -162,10 +166,10 @@ neuralprocess.training = True
 np_trainer.train(data_loader, epochs, early_stopping=0)
 
 plt.figure(2)
-plt.title('Average loss over epochs')
+#plt.title('Average loss over epochs')
 plt.plot(np.arange(len(np_trainer.epoch_loss_history)), np_trainer.epoch_loss_history, c='b', alpha=0.5)
 plt.savefig(plots_path + kernel + '_loss_history', dpi=250)
-plt.show()
+#plt.show()
 plt.close()
 plot_posterior(neuralprocess, plots_path)
 #pickle.dump((neuralprocess),

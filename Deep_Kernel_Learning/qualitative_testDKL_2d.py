@@ -33,19 +33,19 @@ parser.add_argument('--z-dim', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=100, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=100, metavar='G',
+parser.add_argument('--epochs', type=int, default=6, metavar='G',
                     help='training epochs')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--num-tot-samples', type=int, default=64, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-context', type=int, default=150, metavar='N',
+parser.add_argument('--num-context', type=int, default=250, metavar='N',
                     help='num context points')
-parser.add_argument('--num-target', type=int, default=9850, metavar='N',
+parser.add_argument('--num-target', type=int, default=9000, metavar='N',
                     help='num target points')
 parser.add_argument('--grid-size', type=int, default=100, metavar='N',
                     help='dimension of plotting grid')
-parser.add_argument('--extent', default=(-1.,1.,-1.,1.), metavar='N',
+parser.add_argument('--extent', default=(1.,2.,1.,2.), metavar='N',
                     help='')
 
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/plots/DKL/2D/',
@@ -93,7 +93,7 @@ print('dataset created')
 # create model
 likelihood = gpytorch.likelihoods.GaussianLikelihood().to(device)
 model = GPRegressionModel(x_init, y_init.squeeze(0).squeeze(-1), likelihood,
-                          args.h_dim, args.z_dim, name_id=id, grid_size=1000, scaling=None).to(device)
+                          args.h_dim, args.z_dim, name_id=id, grid_size=10000, scaling='uniform').to(device)
 
 
 optimizer = torch.optim.Adam([
@@ -140,7 +140,7 @@ if args.epochs > 1:
     plt.savefig(args.directory_path + '/_loss_history_'+id)
     plt.close()
 
-plot_posterior_2d(test_data_loader, model, 'Posterior', args)
+    plot_posterior_2d(test_data_loader, model, 'Posterior', args)
 
 
 torch.cuda.empty_cache()

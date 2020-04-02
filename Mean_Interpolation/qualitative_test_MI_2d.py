@@ -11,7 +11,7 @@ from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import os
 from plotting_functions_DKL import  create_plot_grid
 
-if torch.cuda.is_available():
+if torch.cuda.is_available() and False:
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -33,15 +33,15 @@ parser.add_argument('--z-dim', type=int, default=4, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=500, metavar='G',
+parser.add_argument('--epochs', type=int, default=400, metavar='G',
                     help='training epochs')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='z scaling')
 parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-tot-samples', type=int, default=50, metavar='N',
+parser.add_argument('--num-tot-samples', type=int, default=64, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-context', type=int, default=1000, metavar='N',
+parser.add_argument('--num-context', type=int, default=250, metavar='N',
                     help='num context points')
 parser.add_argument('--num-target', type=int, default=2500, metavar='N',
                     help='num target points')
@@ -125,7 +125,7 @@ if args.epochs > 1:
     plt.title('average loss over epochs')
     plt.xlabel('Epochs')
     plt.ylabel('average loss')
-    plt.plot(np.linspace(0, args.epochs-1 ,args.epochs), model_trainer.epoch_loss_history, c='b', alpha=0.5)
+    plt.plot(np.arange(len(model_trainer.epoch_loss_history)), model_trainer.epoch_loss_history, c='b', alpha=0.5)
     plt.grid()
     plt.savefig(args.directory_path + '/_loss_history_'+id)
     plt.close()
@@ -140,12 +140,12 @@ def plot_posterior_2d(data_loader, model, id, args):
     x, y = batch  # , real_len
 
     x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
-                                                      args.num_context,
+                                                      args.num_context//2,
                                                       args.num_target)
     x, X1, X2, x1, x2 = create_plot_grid(args.extent, args, size=args.grid_size)
 
     fig = plt.figure(figsize=(20, 8))  # figsize=plt.figaspect(1.5)
-    fig.suptitle(id, fontsize=20)
+    #fig.suptitle(id, fontsize=20)
     #fig.tight_layout()
 
     ax_real = fig.add_subplot(131, projection='3d')
@@ -163,11 +163,15 @@ def plot_posterior_2d(data_loader, model, id, args):
     with torch.no_grad():
         mu = model(x_context, y_context, x[0:1])
 
-
     ax_mean = fig.add_subplot(133, projection='3d')
     # Extract mean of distribution
     ax_mean.plot_surface(X1, X2, mu.cpu().view(X1.shape).numpy(), cmap='viridis')
     ax_mean.set_title('Posterior estimate')
+
+    for ax in [ax_mean, ax_context, ax_real]:
+        ax.set_xlabel('x1')
+        ax.set_ylabel('x2')
+        ax.set_zlabel('y')
     plt.savefig(args.directory_path + '/posteriior' + id, dpi=350)
     #plt.show()
     plt.close(fig)

@@ -32,7 +32,7 @@ parser.add_argument('--z-dim', type=int, default=2, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--h-dim', type=int, default=256, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--epochs', type=int, default=10000, metavar='G',
+parser.add_argument('--epochs', type=int, default=1000, metavar='G',
                     help='training epochs')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='z scaling')
@@ -40,7 +40,7 @@ parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--num-tot-samples', type=int, default=50, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--num-context', type=int, default=20, metavar='N',
+parser.add_argument('--num-context', type=int, default=40, metavar='N',
                     help='dimension of latent variable in np')
 parser.add_argument('--num-target', type=int, default=1, metavar='N',
                     help='dimension of latent variable in np')
@@ -61,8 +61,8 @@ torch.manual_seed(args.seed)
 ########################
 
 # dataset parameters
-kernel = ['matern']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
-mean = ['linear']  # possible means ['linear', 'constant']
+kernel = ['RBF']  # possible kernels ['RBF', 'cosine', 'linear', 'LCM', 'polynomial', 'periodic']
+mean = ['constant']  # possible means ['linear', 'constant']
 learning_rate = 1e-4
 l = '3e-4'
 x_range = args.x_range
@@ -109,7 +109,7 @@ model_trainer.train(data_loader, args.epochs, early_stopping=args.early_stopping
 
 # Visualize data samples
 plt.figure(1)
-plt.title('Samples from gp with kernels: ' + ' '.join(kernel))
+#plt.title('Samples from gp with kernels: ' + ' '.join(kernel))
 for i in range(args.num_tot_samples):
     x, y = dataset[i]
     plt.plot(x.cpu().numpy(), y.cpu().numpy(), c='b', alpha=0.5)
@@ -121,9 +121,9 @@ plt.close()
 
 if args.epochs > 1:
     plt.figure(2)
-    plt.title('average loss over epochs')
+    #plt.title('average loss over epochs')
     plt.xlabel('Epochs')
-    plt.ylabel('average loss')
+    plt.ylabel('Average loss')
     plt.plot(np.arange(0, len(model_trainer.epoch_loss_history)), model_trainer.epoch_loss_history, c='b', alpha=0.5)
     plt.grid()
     plt.savefig(args.directory_path + '/_loss_history_'+id)
@@ -134,9 +134,9 @@ x_target = x_target.unsqueeze(1)
 
 ys = []
 
-colors = ['r', 'b', 'g', 'y']
+colors = ['b', 'b','b', 'b','b', 'b','b', 'b','b', 'b', 'g', 'y']
 
-for j in range(4):
+for j in range(8):
     plt.figure(j)
     plt.xlabel('x')
     plt.ylabel('means of y distribution')
@@ -146,14 +146,14 @@ for j in range(4):
     x_context, y_context, _, _ = context_target_split(x[0:1], y[0:1],
                                                       args.num_context,
                                                       args.num_target)
-    plt.title('Mean prediction')
+    #plt.title('Mean prediction')
     pred = model(x_context, y_context, x_target.unsqueeze(0))
 
     plt.plot(x[0:1].cpu().numpy()[0].squeeze(-1), pred[:,0].detach(),
-             alpha=0.9, c=colors[j])
+             alpha=0.9, c=colors[j], label='Prediction')
 
-    plt.plot(x[0].cpu().numpy(), y[0].cpu().numpy(), alpha=0.5, c='k')
-    plt.scatter(x_context[0].cpu().numpy(), y_context[0].cpu().numpy(), c=colors[j], label='context')
+    plt.plot(x[0].cpu().numpy(), y[0].cpu().numpy(), alpha=0.5, c='k', label='Real function')
+    plt.scatter(x_context[0].cpu().numpy(), y_context[0].cpu().numpy(), c=colors[j], label='Context points')
     plt.legend()
     plt.savefig(args.directory_path + '/'+str(j)+id)
 plt.close()

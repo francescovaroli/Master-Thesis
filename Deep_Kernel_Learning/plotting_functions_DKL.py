@@ -103,14 +103,19 @@ def plot_posterior_2d(data_loader, model, id, args):
         for y_slice in x2:
             ax_mean.add_collection3d(
                 plt.fill_between(x1, std_l[i, :], std_h[i, :], color='lightseagreen',
-                                 alpha=0.1),
+                                 alpha=0.04, label='stdev'),
                 zs=y_slice, zdir='y')
             i += 1
         # Extract mean of distribution
-        ax_mean.plot_surface(X1, X2, mu, cmap='viridis')
+        ax_mean.plot_surface(X1, X2, mu, cmap='viridis', label='mean')
         for ax in [ax_mean, ax_context, ax_real]:
             ax.set_zlim(min_mu, max_mu)
+            ax.set_xlabel('x1')
+            ax.set_ylabel('x2')
+            ax.set_zlabel('y')
         ax_mean.set_title('Posterior estimate')
+        ax_mean.set_xlim(args.extent[0], args.extent[1])
+        ax_mean.set_ylim(args.extent[2], args.extent[3])
         plt.savefig(args.directory_path + '/posteriior' + id+str(n), dpi=250)
         #plt.show()
         plt.close(fig)

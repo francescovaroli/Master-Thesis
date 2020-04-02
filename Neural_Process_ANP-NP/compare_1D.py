@@ -110,9 +110,10 @@ ax_epoch.grid()
 
 use_self_att = False
 first = True
-for use_attention in [False, True, True]:#[False]:
+for use_attention in [ False]:#[False]:False, True,
     if use_attention:
         if not first:
+            break
             use_self_att = True
 
     # create ID for saving plots
@@ -203,7 +204,7 @@ for use_attention in [False, True, True]:#[False]:
         ax_post_avg.plot(test_x_l[l][0].cpu().numpy(), test_y_l[l][0].cpu().numpy(), alpha=0.15, c='k')
         ax_post_avg.scatter(test_x_context[0].cpu().numpy(), test_y_context[0].cpu().numpy(), c='k')
         ax_post_avg.legend()
-        #ax_post_avg.set_title('Single posterior distribution')
+        ax_post_avg.set_title('Single posterior distribution')
         ax_post_avg.set_xlabel('x')
         ax_post_avg.set_ylabel('y distribution')
 

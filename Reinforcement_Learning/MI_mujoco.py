@@ -10,14 +10,15 @@ from utils_rl.torch import *
 from utils_rl.memory_dataset import *
 from utils_rl.store_results import *
 
-from core.agent_ensembles_all_context import Agent_all_ctxt
+from core.agent_samples_all_context import Agent_all_ctxt
 from core.agent_picker import AgentPicker
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
 
-from core.common import estimate_v_a, improvement_step_all, discounted_rewards
+from core.common import estimate_v_a, compute_gae, improvement_step_all, discounted_rewards
+from models.mlp_critic import Value
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -29,19 +30,26 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
+parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 parser.add_argument('--tau', type=float, default=0.9, metavar='G',
                     help='discount factor (default: 0.95)')
+parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
+
+parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
+
+
+parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
+                    help='number of context points to sample from rm')
 
 parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
@@ -103,17 +111,17 @@ parser.add_argument("--net-size", type=int, default=1,
 args = parser.parse_args()
 initial_training = True
 
-args.epochs_per_iter = 10 + 2000 // args.replay_memory_size
+args.epochs_per_iter = 2000 // args.replay_memory_size
 
 args.z_mi_dim *= args.net_size
 args.h_mi_dim *= args.net_size
 
 
-mi_spec = '_MI_{}rm_isctxt:{}_{}epo_{}z_{}h_{}kl_{}'.format(args.replay_memory_size, args.rm_as_context, args.epochs_per_iter, args.z_mi_dim,
+mi_spec = '_MI_critic:{}_{}rm_isctxt:{}_{}epo_{}z_{}h_{}kl_{}'.format(args.value_net,args.replay_memory_size, args.rm_as_context, args.epochs_per_iter, args.z_mi_dim,
                                           args.h_mi_dim,args.max_kl_mi, args.scaling)
 
-run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_{}target_pick:{}_{}context'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
-                                                                    args.gamma, args.num_testing_points,
+run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+                                                                    args.gamma, args.num_testing_points, args.loo,
                                                                                    args.pick, args.num_context) + mi_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
@@ -146,6 +154,10 @@ optimizer_mi = torch.optim.Adam([
 
 # trainer
 model_trainer = MITrainer(device, model, optimizer_mi, num_context=args.num_context, num_target=args.num_testing_points, print_freq=50)
+
+if args.value_net:
+    value_net = Value(state_dim)
+    value_net.to(args.device_np)
 
 replay_memory_mi = ReplayMemoryDataset(args.replay_memory_size)
 value_replay_memory = ValueReplay(args.replay_memory_size)
@@ -190,6 +202,47 @@ def estimate_v_a_mi(iter_dataset, disc_rew):
     return estimated_advantages
 
 
+def critic_estimate(states_list, rewards_list, args):
+    adv_list = []
+    ret_list = []
+    for states, rewards in zip(states_list, rewards_list):
+        with torch.no_grad():
+            values = value_net(states)
+        advantages = compute_gae(rewards, values, args.gamma, args.tau)
+        returns = values + advantages
+        adv_list.append(advantages)
+        ret_list.append(returns)
+    return adv_list, ret_list
+
+
+def update_critic(states, returns, l2_reg=1e-3):
+    def get_value_loss(flat_params):
+        """
+        compute the loss for the value network comparing estimated values with empirical ones
+        and optimizes the network parameters
+        :param flat_params:
+        :return:
+        """
+        set_flat_params_to(value_net, tensor(flat_params))
+        for param in value_net.parameters():
+            if param.grad is not None:
+                param.grad.data.fill_(0)
+        values_pred = value_net(states)
+        value_loss = (values_pred - returns).pow(2).mean()  # MeanSquaredError
+
+        # weight decay
+        for param in value_net.parameters():
+            value_loss += param.pow(2).sum() * l2_reg
+        value_loss.backward()
+        return value_loss.item(), get_flat_grad_from(value_net.parameters()).cpu().numpy()
+
+    flat_params, _, opt_info = scipy.optimize.fmin_l_bfgs_b(get_value_loss,
+                                                            get_flat_params_from(value_net).detach().cpu().numpy(),
+                                                            maxiter=25)
+    set_flat_params_to(value_net, tensor(flat_params))
+
+
+
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     sigma = args.fixed_sigma
@@ -226,20 +279,24 @@ def main_loop():
         else:
             context_list_np = replay_memory_mi.data
         # generate multiple trajectories that reach the minimum batch_size
-        batch_mi, log_mi = agent_mi.collect_episodes(context_list_np, args.num_ensembles)
+        batch_mi, log_mi = agent_mi.collect_episodes(context_list_np, args.num_req_steps, args.num_ensembles)
         # store_rewards(batch_mi.memory, mi_file)
         print('mi avg actions: ', log_mi['action_mean'])
 
         disc_rew_mi = discounted_rewards(batch_mi.memory, args.gamma)
         iter_dataset_mi = BaseDataset(batch_mi.memory, disc_rew_mi, args.device_np, args.dtype,  max_len=max_episode_len)
-        advantages_mi = estimate_v_a(iter_dataset_mi, disc_rew_mi, value_replay_memory, model, args)
+        if args.value_net:
+            state_list = [ep['states'][:ep['real_len']] for ep in iter_dataset_mi]
+            advantages_mi, returns = critic_estimate(state_list, disc_rew_mi, args)
+            update_critic(torch.cat(state_list, dim=0), torch.cat(returns, dim=0))
+        else:
+            advantages_mi = estimate_v_a(iter_dataset_mi, disc_rew_mi, value_replay_memory, model, args)
+            value_replay_memory.add(iter_dataset_mi)
 
+        # create training set
         t0 = time.time()
         improved_context_list_mi = improvement_step_all(iter_dataset_mi, advantages_mi, args.max_kl_mi, args)
         t1 = time.time()
-
-        # create training set
-        value_replay_memory.add(iter_dataset_mi)
         tn0 = time.time()
         replay_memory_mi.add(iter_dataset_mi)
         train_mi(replay_memory_mi)

@@ -49,7 +49,7 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         elif self.scaling is None:
             z = projected_x
 
-        z[torch.isnan(z)] = 10000
+        #z[torch.isnan(z)] = 10000
         return z
 
     def forward(self, x):

@@ -50,6 +50,8 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/',
                     help='path to plots folder')
+parser.add_argument('--tot-steps', type=int, default=100000, metavar='N')
+
 args = parser.parse_args()
 
 dtype = torch.float64
@@ -133,7 +135,7 @@ def main_loop():
 
         """clean up gpu memory"""
         torch.cuda.empty_cache()
-        if tot_steps[-1] > 1e6:
+        if tot_steps[-1] > args.tot_steps:
             break
 
 def plot_rewards_history(steps, rews):

@@ -13,7 +13,7 @@ from utils_rl.store_results import *
 from core.agent_samples_all_context import Agent_all_ctxt
 from core.agent_picker import AgentPicker
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
-import csv
+import scipy.optimize
 from multihead_attention_np import *
 from torch.distributions import Normal
 

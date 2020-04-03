@@ -42,7 +42,7 @@ parser.add_argument('--render', default=False, type=boolean_string,
 parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
-parser.add_argument('--loo', default=False, type=boolean_string, help='train leaving episode out')
+parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
@@ -52,12 +52,12 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=500, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=1.5, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=1., metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=6, metavar='N',
                     help='episode to collect per iteration')
@@ -128,7 +128,7 @@ parser.add_argument('--episode-specific-value', default=False, type=boolean_stri
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
 parser.add_argument("--num-testing-points", type=int, default=1000,
-                    help='how many point to use as only testing during NP training')
+                    help='how many point to use as onl4y testing during NP training')
 
 parser.add_argument("--net-size", type=int, default=1,
                     help='multiplies all net pararms')

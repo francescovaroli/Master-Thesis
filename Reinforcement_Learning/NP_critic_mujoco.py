@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G',
+parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -55,7 +55,7 @@ parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=1.5, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.5, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -66,7 +66,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.25, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.4, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')

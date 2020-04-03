@@ -56,7 +56,7 @@ args = parser.parse_args()
 
 dtype = torch.float64
 torch.set_default_dtype(dtype)
-device = torch.device('cuda', index=args.gpu_index) if False and torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
 if torch.cuda.is_available():
     torch.cuda.set_device(args.gpu_index)
 

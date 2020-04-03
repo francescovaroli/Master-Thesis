@@ -51,7 +51,7 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=500, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
@@ -369,7 +369,7 @@ def main_loop():
         avg_rewards_np.append(log_np['avg_reward'])
         if i_iter % args.plot_every == 0:
             plot_NP_policy(policy_np, improved_context_list_np, i_iter, log_np['avg_reward'], env, args, colors)
-            plot_improvements(complete_dataset, estimated_disc_rew, env, i_iter, args, colors)
+            plot_improvements(iter_dataset_np, disc_rew_np, env, i_iter, args, colors)
 
         if i_iter % args.log_interval == 0:
             print(i_iter)

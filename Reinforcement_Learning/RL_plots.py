@@ -57,7 +57,7 @@ parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=1., metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.35, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=6, metavar='N',
                     help='episode to collect per iteration')
@@ -68,11 +68,11 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.25, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.3, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=60, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=50, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')
@@ -370,7 +370,7 @@ def main_loop():
         avg_rewards_np.append(log_np['avg_reward'])
         if i_iter % args.plot_every == 0:
             plot_NP_policy(policy_np, improved_context_list_np, replay_memory, i_iter, log_np['avg_reward'], env, args, colors)
-            plot_improvements(iter_dataset_np, disc_rew_np, env, i_iter, args, colors)
+            plot_improvements(iter_dataset_np, advantages_np, env, i_iter, args, colors)
 
         if i_iter % args.log_interval == 0:
             print(i_iter)
@@ -397,7 +397,7 @@ def plot_rewards_history(steps, rews):
     fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
 
-def create_plot_4d_grid(env, args, size=20):
+def create_plot_4d_grid(env, args, size=21):
     import gpytorch
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
@@ -446,7 +446,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
         for y_slice in xs[2]:
             ax.add_collection3d(
                 plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
-                                 alpha=0.01),
+                                 alpha=0.1),
                 zs=y_slice, zdir='y')
             i += 1
     ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
@@ -454,6 +454,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     ax.set_ylabel('bar angle')
     ax.set_zlabel('action')
     ax.set_zlim(-1, 1)
+    ax.set_ylim(xs[2][1], xs[2][-1])
     for z_mean in z_means_list:
         ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
     ax2 = fig.add_subplot(1,2,2, projection='3d')
@@ -502,12 +503,15 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     fig.suptitle(name, fontsize=20)
     ax = fig.add_subplot(121, projection='3d')
     name_c = 'Context improvement iter ' + str(i_iter)
-    ax.set_title(name_c)
+    # ax.set_title(name_c)
     ax_rew = fig.add_subplot(122, projection='3d')
     set_bounds([ax, ax_rew], [0,3])
-    for a in [ax, ax_rew]:
-        a.set_xlabel('cart position')
-        a.set_ylabel('bar angle')
+    ax.set_xlabel('cart position')
+    ax.set_ylabel('bar angle')
+    ax.set_zlabel('acceleration')
+    ax_rew.set_zlabel('acceleration')
+    ax_rew.set_xlabel('cart velocity')
+    ax_rew.set_ylabel('bar velocity')
     for e, episode in enumerate(all_dataset):
         break
     real_len = episode['real_len']
@@ -518,18 +522,19 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     new_means = episode['new_means'][:real_len].cpu()
     est_rew = est_rewards[e]
     if e == 0:
-        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)
-        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.6)
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.4)
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), marker='+', label='improved', alpha=0.8)
         leg = ax.legend(loc="upper right")
     else:
-        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', alpha=0.3)
-        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', alpha=0.6)
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', alpha=0.4)
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), marker='+', alpha=0.8)
 
-    a = ax_rew.scatter(states[:, 0].numpy(), states[:, 1].numpy(), actions[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), cmap='viridis', alpha=0.5)
+    ax_rew.scatter(states[:, 1].numpy(), states[:, 3].numpy(), means[:, 0].numpy(), c='k', alpha=0.4)
+    a = ax_rew.scatter(states[:, 1].numpy(), states[:, 3].numpy(), new_means[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), cmap='viridis', marker='+', alpha=0.8)
 
     cb = fig.colorbar(a)
-    cb.set_label('Discounted rewards')
-    ax_rew.set_title('Discounted rewards')
+    cb.set_label('Advantages')
+    #ax_rew.set_title('Discounted rewards')
     fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
     plt.close(fig)
 

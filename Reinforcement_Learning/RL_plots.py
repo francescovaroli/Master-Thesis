@@ -500,7 +500,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
 
     name = 'Improvement iter ' + str(i_iter)
     fig = plt.figure(figsize=(16, 6))
-    fig.suptitle(name, fontsize=20)
+    #fig.suptitle(name, fontsize=20)
     ax = fig.add_subplot(121, projection='3d')
     name_c = 'Context improvement iter ' + str(i_iter)
     # ax.set_title(name_c)
@@ -549,5 +549,5 @@ try:
     create_directories(args.directory_path)
 except FileExistsError:
     pass
-
-main_loop()
+if __name__ == '__main__':
+    main_loop()

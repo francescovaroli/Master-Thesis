@@ -313,6 +313,60 @@ class MemoryDatasetTRPO(Dataset):
         action_dim = len(memory_list[0].action)
 
         unpadded_data = []
+        len_traj = 0
+        trajectory_states = []
+        trajectory_means = []
+        rew = []
+        for transition in memory_list:
+            trajectory_states.append(transition.state)
+            trajectory_means.append(transition.mean.view(1, action_dim))
+            rew.append(transition.reward)
+            len_traj += 1
+            if transition.mask == 0:
+                unpadded_data.append([torch.tensor(trajectory_states).to(dtype).to(device),
+                                      torch.cat(trajectory_means, dim=0).to(dtype).to(device),
+                                      len_traj])
+                self.rewards.append(rew)
+                len_traj = 0
+                trajectory_states = []
+                trajectory_means = []
+                rew = []
+
+        xs, ys, lengths = zip(*unpadded_data)  # make it dependent on an input parameter 'max_lenght', if None this
+        if max_len is None:
+            max_len = max(lengths)
+
+        for unpad_traj in unpadded_data:
+            pad_x = torch.zeros([max_len, state_dim]).to(dtype).to(device)
+            pad_y = torch.zeros([max_len, action_dim]).to(dtype).to(device)
+            pad_x[:unpad_traj[2], :] = unpad_traj[0]
+            pad_y[:unpad_traj[2], :] = unpad_traj[1]
+            self.data.append([pad_x, pad_y, unpad_traj[2]])
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def get_rewards(self, index):
+        return self.rewards[index]
+
+    def __len__(self):
+        return len(self.data)
+
+
+class MemoryDatasetTRPO_old(Dataset):
+    """
+    Dataset to store memory
+    The memory is a list of transitions (tuples) from many trajectory collected during one iteration.
+    We transform it to a dataset where the data is a list of trajectories (each traj is a list of 2 tensor, x and y)
+    """
+    def __init__(self, memory_list, device, dtype, max_len=None):
+        self.data = []
+        self.rewards = []
+
+        state_dim = len(memory_list[0].state)
+        action_dim = len(memory_list[0].action)
+
+        unpadded_data = []
         for transition in memory_list:
             len_traj = 0
             trajectory_states = []
@@ -347,7 +401,6 @@ class MemoryDatasetTRPO(Dataset):
 
     def __len__(self):
         return len(self.data)
-
 
 class ReplayMemoryDatasetTRPO(Dataset):
     """

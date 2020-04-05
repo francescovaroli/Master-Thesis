@@ -49,6 +49,49 @@ def create_plot_grid(env, args, size=20):
     x = x.unsqueeze(0).to(args.dtype).to(args.device_np)
     return x, X1, X2, x1, x2
 
+
+def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
+    size = 10
+    fig = plt.figure(figsize=(16,8))
+    #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
+    x, X1, X2, xs = create_plot_grid(env, args, size=size)
+    with torch.no_grad():
+        context_x, context_y = merge_context(rm.data)
+        z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+        z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        stddev_low = z_mean - z_stddev
+        stddev_high = z_mean + z_stddev
+    ax = fig.add_subplot(1,2,1, projection='3d')
+    xp1, xp2 = np.meshgrid(xs[0], xs[2])
+    middle_vel = len(X2) // 2
+
+    i = 0
+    for y_slice in xs[2]:
+        ax.add_collection3d(
+            plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
+                             alpha=0.1),
+            zs=y_slice, zdir='y')
+        i += 1
+    #ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
+    ax.set_xlabel('cart position')
+    ax.set_ylabel('bar angle')
+    ax.set_zlabel('action')
+    ax.set_zlim(-1, 1)
+    ax.set_ylim(xs[2][1], xs[2][-1])
+    ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    ax2 = fig.add_subplot(1,2,2, projection='3d')
+    #ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax2.set_xlabel('cart velocity')
+    ax2.set_ylabel('bar velocity')
+    ax2.set_zlabel('action')
+    ax2.set_zlim(-1, 1)
+    xp1, xp2 = np.meshgrid(xs[1], xs[3])
+    ax2.scatter(context_x[..., 0], context_x[..., 1], context_y[..., 0], c=context_y[..., 0], cmap='viridis', vmin=-1., vmax=1.)
+
+    fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
+    plt.close(fig)
+
 def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
     num_test_context = 999
     policy_np.training = False

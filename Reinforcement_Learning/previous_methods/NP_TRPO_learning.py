@@ -13,15 +13,24 @@ from core.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 from neural_process import NeuralProcess
+from multihead_attention_np import AttentiveNeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
-from new_plotting_functions import plot_rewards_history
+from new_plotting_functions import plot_rewards_history, create_plot_grid
+from matplotlib import pyplot as plt
+from RL_plots import plot_NP_policy, create_plot_4d_grid
 
 torch.set_default_tensor_type(torch.DoubleTensor)
+dtype = torch.float64
+torch.set_default_dtype(dtype)
+device_np = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device_rl = torch.device("cpu")
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
+parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--use-neural-process', default=False,
+                    help='whether to use NP or TRPO as policy')
+parser.add_argument('--use-attentive-np', default=False,
                     help='whether to use NP or TRPO as policy')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -37,7 +46,7 @@ parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
-parser.add_argument('--num-threads', type=int, default=5, metavar='N',
+parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
@@ -51,18 +60,34 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
+parser.add_argument('--z-dim', type=int, default=128, metavar='N',
+                    help='dimension of latent variable in np')
+parser.add_argument('--r-dim', type=int, default=128, metavar='N',
+                    help='dimension of representation space in np')
+parser.add_argument('--h-dim', type=int, default=128, metavar='N',
+                    help='dimension of hidden layers in np')
+parser.add_argument('--a-dim', type=int, default=128, metavar='N',
+                    help='dimension of representation space in np')
+parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
+                    help='batch size for np training')
+parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
+                    help='stop training training when avg_loss reaches it')
+parser.add_argument('--epochs-per-iter', default=80, metavar='N',
+                    help='')
+parser.add_argument('--dtype', default=dtype, metavar='N',
+                    help='')
+
+
+parser.add_argument('--device-np', default=device_np, metavar='N',
+                    help='')
 parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects/MasterThesis/TRPO learning/')
 args = parser.parse_args()
 
-learn_NP = False
+learn_NP = True
 
-run_id = 'TRPO_{}_{}b_size'.format(args.env_name, args.min_batch_size)
+run_id = 'NP_learns_TRPO_{}_{}b_size_{}epo'.format(args.env_name, args.min_batch_size, args.epochs_per_iter)
 args.directory_path += run_id
 directory_path = args.directory_path
-dtype = torch.float64
-torch.set_default_dtype(dtype)
-device_np = torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
-device_rl = torch.device("cpu")
 
 """environment"""
 use_running_state = False
@@ -80,14 +105,17 @@ else:
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 env.seed(args.seed)
+max_episode_len = env._max_episode_steps
 
 '''create neural process'''
-policy_np = NeuralProcess(state_dim, action_dim, 32, 12, 32).to(device_np)
+if args.use_attentive_np:
+    policy_np = AttentiveNeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim,
+                                                       args.a_dim, use_self_att=False).to(device_np)
+else:
+    policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(device_np)
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
-np_trainer = NeuralProcessTrainerRL(device_np, policy_np, optimizer,
-                                    num_context_range=(400, 500),
-                                    num_extra_target_range=(400, 500),
-                                    print_freq=100)
+np_trainer = NeuralProcessTrainerRL(device_np, policy_np, optimizer, (1, max_episode_len // 2),
+                                    print_freq=50)
 """create replay memory"""
 replay_memory_size = 10
 replay_memory = ReplayMemoryDatasetTRPO(replay_memory_size)
@@ -108,10 +136,7 @@ agent = Agent(env, policy_net, device_rl, running_state=running_state, render=ar
 
 
 def improvement_step(actions):
-    print('improving action')
-    grad = np.random.randn()
-    step = 0.1
-    return actions + step*grad*actions
+    pass
 
 
 def update_params_trpo(batch):
@@ -142,8 +167,9 @@ def set_limits(ax, env):
     ax.set_ylim(bounds_low[1], bounds_high[1])
     ax.set_zlim(env.action_space.low, env.action_space.high)
 
+
 num_test_context = 999
-def plot_NP_policy(context_xy, iter_pred, num_samples=1):
+def plot_NP_policy_old(context_xy, iter_pred, num_samples=1):
     from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
     import matplotlib.pyplot as plt
@@ -301,10 +327,53 @@ def plot_policy_CP(policy_net, info):
     # plt.show()
 
 
+def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
+    size = 10
+    fig = plt.figure(figsize=(16,8))
+    #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
+    x, X1, X2, xs = create_plot_grid(env, args, size=size)
+    with torch.no_grad():
+        context_x, context_y = merge_context(rm.data)
+        z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+        z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        stddev_low = z_mean - z_stddev
+        stddev_high = z_mean + z_stddev
+    ax = fig.add_subplot(1,2,1, projection='3d')
+    xp1, xp2 = np.meshgrid(xs[0], xs[2])
+    middle_vel = len(X2) // 2
+
+    i = 0
+    for y_slice in xs[2]:
+        ax.add_collection3d(
+            plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
+                             alpha=0.1),
+            zs=y_slice, zdir='y')
+        i += 1
+    #ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
+    ax.set_xlabel('cart position')
+    ax.set_ylabel('bar angle')
+    ax.set_zlabel('action')
+    ax.set_zlim(-1, 1)
+    ax.set_ylim(xs[2][1], xs[2][-1])
+    ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    ax2 = fig.add_subplot(1,2,2, projection='3d')
+    #ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax2.set_xlabel('cart velocity')
+    ax2.set_ylabel('bar velocity')
+    ax2.set_zlabel('action')
+    ax2.set_zlim(-1, 1)
+    xp1, xp2 = np.meshgrid(xs[1], xs[3])
+    ax2.scatter(context_x[..., 0], context_x[..., 1], context_y[..., 0], c=context_y[..., 0], cmap='viridis', vmin=-1., vmax=1.)
+
+    fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
+    plt.close(fig)
+
+
 def create_directories(directory_path):
     os.mkdir(directory_path)
     os.mkdir(directory_path+'/TRPO policies/')
-    os.mkdir(directory_path+'/NP estimate/')
+    os.mkdir(directory_path+'/policy/')
 
 def sample_context(x, y, num_context=100):
     x = x.to(dtype).to(device_np)
@@ -319,11 +388,10 @@ def sample_context(x, y, num_context=100):
     return x_context, y_context
 
 np_batch_size = 4
-epochs_per_iter = 10
 def train_np(datasets):
     policy_np.training = True
     data_loader = DataLoader(datasets, batch_size=np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, epochs_per_iter)
+    np_trainer.train(data_loader, args.epochs_per_iter)
     policy_np.training = False
 
 avg_rewards = []
@@ -342,29 +410,49 @@ def main_loop():
             improved_actions = improvement_step(batch)
             context_for_agent_collect_samples = improved_actions
         t1 = time.time()
-        plot_rewards_history(avg_rewards, args)
+        #plot_rewards_history(avg_rewards, args)
 
         avg_rewards.append(log['avg_reward'])
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
                 i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
-            plot_policy_CP(policy_net, (i_iter, log['avg_reward']))
+            if 'CartPole' in args.env_name:
+                plot_policy_CP(policy_net, (i_iter, log['avg_reward']))
+            elif 'MountainCar' in args.env_name:
+                plot_policy_MC(policy_net, (i_iter, log['avg_reward']))
         if learn_NP:
-            with torch.no_grad():
-                dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
-                if i_iter > 0:
-                    # predict with NP before training on last episode
-                    x, y, num_steps = dataset.data[0]
-                    x_context, y_context = sample_context(x.unsqueeze(0), y.unsqueeze(0), min(num_steps, num_test_context))
-                    plot_NP_policy([x_context, y_context], i_iter, num_samples=1)
+            dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
+            replay_memory.add(dataset)
 
-                replay_memory.add(dataset)
-            print('replay memory size:', len(replay_memory))
             train_np(replay_memory)
+            x_context, y_context = merge_context(replay_memory.data)
+            with torch.no_grad():
+                if 'CartPole' in args.env_name:
+                    plot_NP_policy(policy_np, [x_context, y_context], replay_memory, i_iter, None, env, args, [])
+                    plot_rm(i_iter)
+                elif 'MountainCar' in args.env_name:
+                    plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
+            print('replay memory size:', len(replay_memory))
+
 
 
     """clean up gpu memory"""
     torch.cuda.empty_cache()
+try:
+    create_directories(args.directory_path)
+except FileExistsError:
+    pass
 
-create_directories(directory_path)
+def plot_rm(i_iter):
+    import matplotlib.pyplot as plt
+    name = 'Replay memory ' + str(i_iter)
+    fig = plt.figure(figsize=(14, 10))
+    ax1 = fig.add_subplot(1,2,1,projection="3d")
+    ax2 = fig.add_subplot(1,2,2,projection="3d")
+    xs_context, ys_context = merge_context(replay_memory.data)
+    ax1.scatter(xs_context[..., 0].cpu(), xs_context[..., 2].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
+    ax2.scatter(xs_context[..., 1].cpu(), xs_context[..., 3].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
+    fig.savefig(args.directory_path + '/policy/' + name)
+    plt.close(fig)
+
 main_loop()

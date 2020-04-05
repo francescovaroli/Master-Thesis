@@ -41,7 +41,7 @@ parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='gae (default: 0.95)')
 parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
                     help='l2 regularization regression (default: 1e-3)')
-parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=6e-2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
@@ -49,7 +49,7 @@ parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=4994, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=7994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -71,7 +71,7 @@ parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
-parser.add_argument('--epochs-per-iter', default=80, metavar='N',
+parser.add_argument('--epochs-per-iter', default=50, metavar='N',
                     help='')
 parser.add_argument('--dtype', default=dtype, metavar='N',
                     help='')

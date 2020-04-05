@@ -572,7 +572,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     name_c = 'Context improvement iter ' + str(i_iter)
     ax.set_title(name_c)
     ax_rew = fig.add_subplot(122, projection='3d')
-    set_bounds([ax, ax_rew], [0,2])
+    set_bounds(env, [ax, ax_rew], [0,2])
     for a in [ax, ax_rew]:
         a.set_zlim(-1, 1)
         a.set_xlabel('cart position')

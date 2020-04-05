@@ -552,7 +552,7 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
                 axx.set_ylim(bounds_low[-1], bounds_high[-1])
 
         else:
-            set_bounds([ax, ax_rew], [0,3])
+            set_bounds(env, [ax, ax_rew], [0,3])
         if e == 0:
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.3)
             ax.scatter(states[:, 0].numpy(), states[:, 1].numpy(), new_means[:, 0].numpy(), c=new_means[:, 0].numpy(), marker='+', label='improved', alpha=0.6)

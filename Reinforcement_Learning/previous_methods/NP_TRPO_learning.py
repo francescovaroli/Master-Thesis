@@ -15,9 +15,8 @@ from core.agent import Agent
 from neural_process import NeuralProcess
 from multihead_attention_np import AttentiveNeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
-from new_plotting_functions import plot_rewards_history, create_plot_grid
+from new_plotting_functions import *
 from matplotlib import pyplot as plt
-from RL_plots import plot_NP_policy, create_plot_4d_grid
 
 torch.set_default_tensor_type(torch.DoubleTensor)
 dtype = torch.float64
@@ -50,7 +49,7 @@ parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
 parser.add_argument('--seed', type=int, default=7, metavar='N',
                     help='random seed (default: 1)')
-parser.add_argument('--min-batch-size', type=int, default=1994, metavar='N',
+parser.add_argument('--min-batch-size', type=int, default=4994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
 parser.add_argument('--max-iter-num', type=int, default=501, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -76,7 +75,8 @@ parser.add_argument('--epochs-per-iter', default=80, metavar='N',
                     help='')
 parser.add_argument('--dtype', default=dtype, metavar='N',
                     help='')
-
+parser.add_argument("--plot-every", type=int, default=5,
+                    help='plot every n iter')
 
 parser.add_argument('--device-np', default=device_np, metavar='N',
                     help='')
@@ -172,7 +172,6 @@ num_test_context = 999
 def plot_NP_policy_old(context_xy, iter_pred, num_samples=1):
     from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
-    import matplotlib.pyplot as plt
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
     if not use_running_state:
@@ -272,7 +271,7 @@ def plot_policy_MC(policy_net, info):
     ax.set_zlabel('Acceleration')
     ax.set_zlim(env.action_space.low, env.action_space.high)
     name = 'TRPO on {} iter: {} avg_rew: {}'.format(args.env_name, info[0], int(info[1]))
-    ax.set_title(name, pad=20)
+    #ax.set_title(name, pad=20)
     fig.savefig(directory_path+'/TRPO policies/'+name)
     plt.close(fig)
     # plt.show()
@@ -327,48 +326,6 @@ def plot_policy_CP(policy_net, info):
     # plt.show()
 
 
-def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
-    size = 10
-    fig = plt.figure(figsize=(16,8))
-    #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
-    x, X1, X2, xs = create_plot_grid(env, args, size=size)
-    with torch.no_grad():
-        context_x, context_y = merge_context(rm.data)
-        z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
-        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
-        z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
-        stddev_low = z_mean - z_stddev
-        stddev_high = z_mean + z_stddev
-    ax = fig.add_subplot(1,2,1, projection='3d')
-    xp1, xp2 = np.meshgrid(xs[0], xs[2])
-    middle_vel = len(X2) // 2
-
-    i = 0
-    for y_slice in xs[2]:
-        ax.add_collection3d(
-            plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
-                             alpha=0.1),
-            zs=y_slice, zdir='y')
-        i += 1
-    #ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
-    ax.set_xlabel('cart position')
-    ax.set_ylabel('bar angle')
-    ax.set_zlabel('action')
-    ax.set_zlim(-1, 1)
-    ax.set_ylim(xs[2][1], xs[2][-1])
-    ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
-    ax2 = fig.add_subplot(1,2,2, projection='3d')
-    #ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
-    ax2.set_xlabel('cart velocity')
-    ax2.set_ylabel('bar velocity')
-    ax2.set_zlabel('action')
-    ax2.set_zlim(-1, 1)
-    xp1, xp2 = np.meshgrid(xs[1], xs[3])
-    ax2.scatter(context_x[..., 0], context_x[..., 1], context_y[..., 0], c=context_y[..., 0], cmap='viridis', vmin=-1., vmax=1.)
-
-    fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
-    plt.close(fig)
-
 
 def create_directories(directory_path):
     os.mkdir(directory_path)
@@ -416,9 +373,9 @@ def main_loop():
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
                 i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
-            if 'CartPole' in args.env_name:
+            if 'CartPole' in args.env_name and i_iter % args.plot_every == 0:
                 plot_policy_CP(policy_net, (i_iter, log['avg_reward']))
-            elif 'MountainCar' in args.env_name:
+            elif 'MountainCar' in args.env_name and i_iter % args.plot_every == 0:
                 plot_policy_MC(policy_net, (i_iter, log['avg_reward']))
         if learn_NP:
             dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
@@ -426,12 +383,13 @@ def main_loop():
 
             train_np(replay_memory)
             x_context, y_context = merge_context(replay_memory.data)
-            with torch.no_grad():
-                if 'CartPole' in args.env_name:
-                    plot_NP_policy(policy_np, [x_context, y_context], replay_memory, i_iter, None, env, args, [])
-                    plot_rm(i_iter)
-                elif 'MountainCar' in args.env_name:
-                    plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
+            if i_iter % args.plot_every == 0:
+                with torch.no_grad():
+                    if 'CartPole' in args.env_name:
+                        plot_NP_policy_CP(policy_np, [x_context, y_context], replay_memory, i_iter, None, env, args, [])
+                        plot_rm(replay_memory, i_iter, args)
+                    elif 'MountainCar' in args.env_name:
+                        plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
             print('replay memory size:', len(replay_memory))
 
 
@@ -442,17 +400,5 @@ try:
     create_directories(args.directory_path)
 except FileExistsError:
     pass
-
-def plot_rm(i_iter):
-    import matplotlib.pyplot as plt
-    name = 'Replay memory ' + str(i_iter)
-    fig = plt.figure(figsize=(14, 10))
-    ax1 = fig.add_subplot(1,2,1,projection="3d")
-    ax2 = fig.add_subplot(1,2,2,projection="3d")
-    xs_context, ys_context = merge_context(replay_memory.data)
-    ax1.scatter(xs_context[..., 0].cpu(), xs_context[..., 2].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
-    ax2.scatter(xs_context[..., 1].cpu(), xs_context[..., 3].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
-    fig.savefig(args.directory_path + '/policy/' + name)
-    plt.close(fig)
 
 main_loop()

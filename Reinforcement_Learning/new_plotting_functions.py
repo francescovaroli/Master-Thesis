@@ -6,7 +6,20 @@ import gpytorch
 from torch.distributions import Normal
 
 
-def set_labels(ax, np_id='policy'):
+def set_labels(ax):
+    ax.set_xlabel('Position', fontsize=14)
+    ax.set_ylabel('Velocity', fontsize=14)
+    ax.set_zlabel('Acceleration', fontsize=14)
+
+def set_limits(ax, env):
+    bounds_high = env.observation_space.high
+    bounds_low = env.observation_space.low
+    ax.set_xlim(bounds_low[0], bounds_high[0])
+    ax.set_ylim(bounds_low[1], bounds_high[1])
+    ax.set_zlim(env.action_space.low, env.action_space.high)
+
+
+def set_labels_v(ax, np_id='policy'):
     ax.set_xlabel('Position', fontsize=14)
     ax.set_ylabel('Velocity', fontsize=14)
     if np_id == 'value':
@@ -14,7 +27,7 @@ def set_labels(ax, np_id='policy'):
     else:
         ax.set_zlabel('Acceleration', fontsize=14)
 
-def set_limits(ax, env, args, np_id='policy'):
+def set_limits_v(ax, env, args, np_id='policy'):
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
     if np_id == 'value':
@@ -32,12 +45,8 @@ def set_limits(ax, env, args, np_id='policy'):
 def create_plot_grid(env, args, size=20):
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
-    if not args.use_running_state:
-        x1 = np.linspace(bounds_low[0], bounds_high[0], size)
-        x2 = np.linspace(bounds_low[1], bounds_high[1], size)
-    else:
-        x1 = np.linspace(-2, 2, size)
-        x2 = np.linspace(-2, 2, size)
+    x1 = np.linspace(bounds_low[0], bounds_high[0], size)
+    x2 = np.linspace(bounds_low[1], bounds_high[1], size)
     X1, X2 = np.meshgrid(x1, x2)
 
     grid = torch.zeros(size, 2)
@@ -50,11 +59,12 @@ def create_plot_grid(env, args, size=20):
     return x, X1, X2, x1, x2
 
 
+
 def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
     size = 10
     fig = plt.figure(figsize=(16,8))
     #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
-    x, X1, X2, xs = create_plot_grid(env, args, size=size)
+    x, X1, X2, x1, x2 = create_plot_grid(env, args, size=size)
     with torch.no_grad():
         context_x, context_y = merge_context(rm.data)
         z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
@@ -63,34 +73,118 @@ def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
         stddev_low = z_mean - z_stddev
         stddev_high = z_mean + z_stddev
     ax = fig.add_subplot(1,2,1, projection='3d')
-    xp1, xp2 = np.meshgrid(xs[0], xs[2])
-    middle_vel = len(X2) // 2
+    xp1, xp2 = np.meshgrid(x1, x2)
+    set_labels(ax)
+    set_limits(ax, env)
 
     i = 0
-    for y_slice in xs[2]:
+    for y_slice in x2:
         ax.add_collection3d(
-            plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
+            plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen',
                              alpha=0.1),
             zs=y_slice, zdir='y')
         i += 1
     #ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
+    ax.set_zlim(-1, 1)
+    ax.plot_surface(xp1, xp2, z_mean.cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    ax2 = fig.add_subplot(1,2,2, projection='3d')
+    set_labels(ax2)
+    set_limits(ax2, env)
+    #ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax2.set_zlim(-1, 1)
+    ax2.scatter(context_x[..., 0].cpu(), context_x[..., 1].cpu(), context_y[..., 0].cpu(), c=context_y[..., 0].view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1.)
+
+    fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
+    plt.close(fig)
+
+
+
+def plot_NP_policy_CP(policy_np, rm, iter_pred, env, args):
+    size = 10
+    fig = plt.figure(figsize=(16,8))
+    #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
+    x, X1, X2, X3, X4, xs = create_plot_4d_grid(env, args, size=size)
+    stddev_low_list = []
+    stddev_high_list = []
+    z_means_list = []
+    with torch.no_grad():
+        context_x, context_y = merge_context(rm.data)
+        z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)
+        z_means_list.append(z_mean)  # x1_dim x x2_dim
+        z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        stddev_low_list.append(z_mean - z_stddev)
+        stddev_high_list.append(z_mean + z_stddev)
+    ax = fig.add_subplot(1,2,1, projection='3d')
+    xp1, xp2 = np.meshgrid(xs[0], xs[2])
+    middle_vel = len(X2) // 2
+
+    for stddev_low, stddev_high in zip(stddev_low_list, stddev_high_list):
+        i = 0
+        for y_slice in xs[2]:
+            ax.add_collection3d(
+                plt.fill_between(xs[0], stddev_low[i, middle_vel, :, middle_vel].cpu(), stddev_high[i, middle_vel, :, middle_vel].cpu(), color='lightseagreen',
+                                 alpha=0.1),
+                zs=y_slice, zdir='y')
+            i += 1
+    ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
     ax.set_xlabel('cart position')
     ax.set_ylabel('bar angle')
     ax.set_zlabel('action')
     ax.set_zlim(-1, 1)
     ax.set_ylim(xs[2][1], xs[2][-1])
-    ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    for z_mean in z_means_list:
+        ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
     ax2 = fig.add_subplot(1,2,2, projection='3d')
-    #ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
     ax2.set_xlabel('cart velocity')
     ax2.set_ylabel('bar velocity')
     ax2.set_zlabel('action')
     ax2.set_zlim(-1, 1)
     xp1, xp2 = np.meshgrid(xs[1], xs[3])
-    ax2.scatter(context_x[..., 0], context_x[..., 1], context_y[..., 0], c=context_y[..., 0], cmap='viridis', vmin=-1., vmax=1.)
+    for stddev_low, stddev_high in zip(stddev_low_list, stddev_high_list):
+        i = 0
+        for y_slice in  xs[3]:
+            ax2.add_collection3d(
+                plt.fill_between(xs[1], stddev_low[middle_vel, i, middle_vel, :].cpu(), stddev_high[middle_vel,i, middle_vel, :].cpu(), color='lightseagreen',
+                                 alpha=0.1),
+                zs=y_slice, zdir='y')
+            i += 1
+    for z_mean in z_means_list:
+        ax2.plot_surface(xp1, xp2, z_mean[middle_vel, :, middle_vel, :].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+
 
     fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
     plt.close(fig)
+
+def set_bounds(env, axes, dims):
+    bounds_high = env.observation_space.high
+    bounds_low = env.observation_space.low
+    num_dim = len(bounds_low)
+    nonInf_bounds = []
+    for bound_low, bound_high in zip(bounds_low, bounds_high):
+        if bound_low < -10e30 or bound_high > 10e30:
+            bound_low = -1
+            bound_high = 1
+        nonInf_bounds.append([bound_low, bound_high])
+    for ax in axes:
+        ax.set_xlim(nonInf_bounds[dims[0]])
+        ax.set_ylim(nonInf_bounds[dims[1]])
+        ax.set_zlim(-1, 1)
+
+
+def plot_rm(replay_memory, i_iter, args):
+    import matplotlib.pyplot as plt
+    name = 'Replay memory ' + str(i_iter)
+    fig = plt.figure(figsize=(14, 10))
+    ax1 = fig.add_subplot(1,2,1,projection="3d")
+    ax2 = fig.add_subplot(1,2,2,projection="3d")
+    xs_context, ys_context = merge_context(replay_memory.data)
+    ax1.scatter(xs_context[..., 0].cpu(), xs_context[..., 2].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
+    ax2.scatter(xs_context[..., 1].cpu(), xs_context[..., 3].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
+    fig.savefig(args.directory_path + '/policy/' + name)
+    plt.close(fig)
+
 
 def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
     num_test_context = 999
@@ -219,6 +313,88 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     cb.set_label('Discounted rewards')
     ax_rew.set_title('Discounted rewards')
     fig.savefig(args.directory_path+'/policy/Mean improvement/'+name, dpi=250)
+    plt.close(fig)
+
+
+def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
+
+    name = 'Improvement iter ' + str(i_iter)
+    fig = plt.figure(figsize=(16, 6))
+    #fig.suptitle(name, fontsize=20)
+    ax = fig.add_subplot(121, projection='3d')
+    name_c = 'Context improvement iter ' + str(i_iter)
+    #ax.set_title(name_c)
+    set_limits(ax, env)
+    set_labels(ax)
+    ax_rew = fig.add_subplot(122, projection='3d')
+    set_labels(ax_rew)
+    set_limits(ax_rew, env)
+    for e, episode in enumerate(all_dataset):
+        break
+    real_len = episode['real_len']
+    states = episode['states'][:real_len]
+    disc_rew = episode['discounted_rewards'][:real_len]
+    actions = episode['actions'][:real_len]
+    means = episode['means'][:real_len]
+    new_means = episode['new_means'][:real_len]
+    est_rew = est_rewards[e]
+    if e == 0:
+        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', s=4, label='sampled', alpha=0.3)
+        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=new_means[:, 0].cpu(), marker='+', label='improved', alpha=0.3)
+        leg = ax.legend(loc="upper right")
+    else:
+        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', s=4, alpha=0.3)
+        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=new_means[:, 0].cpu(), marker='+', alpha=0.3)
+
+    a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), cmap='viridis', alpha=0.5)
+    ax_rew.set_zlabel('Sampled actions')
+    cb = fig.colorbar(a)
+    cb.set_label('Advantages')
+    #ax_rew.set_title('Discounted rewards')
+    fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
+    plt.close(fig)
+
+
+def plot_improvements_CP(all_dataset, est_rewards, env, i_iter, args, colors):
+
+    name = 'Improvement iter ' + str(i_iter)
+    fig = plt.figure(figsize=(16, 6))
+    #fig.suptitle(name, fontsize=20)
+    ax = fig.add_subplot(121, projection='3d')
+    name_c = 'Context improvement iter ' + str(i_iter)
+    # ax.set_title(name_c)
+    ax_rew = fig.add_subplot(122, projection='3d')
+    set_bounds(env, [ax, ax_rew], [0,3])
+    ax.set_xlabel('cart position')
+    ax.set_ylabel('bar angle')
+    ax.set_zlabel('acceleration')
+    ax_rew.set_zlabel('acceleration')
+    ax_rew.set_xlabel('cart velocity')
+    ax_rew.set_ylabel('bar velocity')
+    for e, episode in enumerate(all_dataset):
+        break
+    real_len = episode['real_len']
+    states = episode['states'][:real_len].cpu()
+    disc_rew = episode['discounted_rewards'][:real_len].cpu()
+    actions = episode['actions'][:real_len].cpu()
+    means = episode['means'][:real_len].cpu()
+    new_means = episode['new_means'][:real_len].cpu()
+    est_rew = est_rewards[e]
+    if e == 0:
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', label='sampled', alpha=0.4)
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), marker='+', label='improved', alpha=0.8)
+        leg = ax.legend(loc="upper right")
+    else:
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), means[:, 0].numpy(), c='k', alpha=0.4)
+        ax.scatter(states[:, 0].numpy(), states[:, 2].numpy(), new_means[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), marker='+', alpha=0.8)
+
+    ax_rew.scatter(states[:, 1].numpy(), states[:, 3].numpy(), means[:, 0].numpy(), c='k', alpha=0.4)
+    a = ax_rew.scatter(states[:, 1].numpy(), states[:, 3].numpy(), new_means[:, 0].numpy(), c=est_rew.view(-1).cpu().numpy(), cmap='viridis', marker='+', alpha=0.8)
+
+    cb = fig.colorbar(a)
+    cb.set_label('Advantages')
+    #ax_rew.set_title('Discounted rewards')
+    fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
     plt.close(fig)
 
 

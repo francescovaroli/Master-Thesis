@@ -4,7 +4,7 @@ import os
 import sys
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import gpytorch
+from MeanInterpolatorModel import MeanInterpolator, MITrainer
 from utils_rl import *
 from models.mlp_policy import Policy
 from models.mlp_critic import Value
@@ -77,6 +77,19 @@ parser.add_argument('--dtype', default=dtype, metavar='N',
                     help='')
 parser.add_argument("--plot-every", type=int, default=5,
                     help='plot every n iter')
+## MI params
+parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
+                    help='dimension of latent variable in np')
+parser.add_argument('--h-mi-dim', type=int, default=128, metavar='N',
+                    help='dimension of hidden layers in np')
+parser.add_argument('--scaling', default='uniform', metavar='N',
+                    help='feature extractor scaling')
+parser.add_argument("--lr_nn", type=float, default=1e-4,
+                    help='plot every n iter')
+parser.add_argument("--num-testing-points", type=int, default=1000,
+                    help='how many point to use as only testing during MI training')
+parser.add_argument('--num-context', type=int, default=10000, metavar='N',
+                    help='number of context points to sample from rm')
 
 parser.add_argument('--device-np', default=device_np, metavar='N',
                     help='')
@@ -84,6 +97,7 @@ parser.add_argument('--directory-path', default='/home/francesco/PycharmProjects
 args = parser.parse_args()
 
 learn_NP = True
+learn_MI = True
 
 run_id = 'NP_learns_TRPO_{}_{}b_size_{}epo'.format(args.env_name, args.min_batch_size, args.epochs_per_iter)
 args.directory_path += run_id
@@ -116,6 +130,18 @@ else:
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 np_trainer = NeuralProcessTrainerRL(device_np, policy_np, optimizer, (1, max_episode_len // 2),
                                     print_freq=50)
+'''create MKI model'''
+
+
+mi_model = MeanInterpolator(state_dim, args.h_mi_dim, args.z_mi_dim, scaling=args.scaling).to(device_np).double()
+
+optimizer_mi = torch.optim.Adam([
+    {'params': mi_model.feature_extractor.parameters(), 'lr': args.lr_nn},
+    {'params': mi_model.interpolator.parameters(), 'lr': args.lr_nn}])
+
+# trainer
+model_trainer = MITrainer(device_np, mi_model, optimizer_mi, num_context=args.num_context, num_target=args.num_testing_points, print_freq=50)
+
 """create replay memory"""
 replay_memory_size = 10
 replay_memory = ReplayMemoryDatasetTRPO(replay_memory_size)
@@ -377,25 +403,30 @@ def main_loop():
                 plot_policy_CP(policy_net, (i_iter, log['avg_reward']))
             elif 'MountainCar' in args.env_name and i_iter % args.plot_every == 0:
                 plot_policy_MC(policy_net, (i_iter, log['avg_reward']))
-        if learn_NP:
             dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
             replay_memory.add(dataset)
-
+        if learn_NP:
             train_np(replay_memory)
             x_context, y_context = merge_context(replay_memory.data)
             if i_iter % args.plot_every == 0:
-                with torch.no_grad():
-                    if 'CartPole' in args.env_name:
-                        plot_NP_policy_CP(policy_np, [x_context, y_context], replay_memory, i_iter, None, env, args, [])
-                        plot_rm(replay_memory, i_iter, args)
-                    elif 'MountainCar' in args.env_name:
-                        plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
+                if 'CartPole' in args.env_name:
+                    plot_NP_policy_CP(policy_np, [x_context, y_context], replay_memory, i_iter, None, env, args, [])
+                    plot_rm(replay_memory, i_iter, args)
+                elif 'MountainCar' in args.env_name:
+                    plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
             print('replay memory size:', len(replay_memory))
-
-
-
-    """clean up gpu memory"""
+        if learn_MI:
+            data_loader = DataLoader(replay_memory, batch_size=1, shuffle=True)
+            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=None)
+            if i_iter % args.plot_every == 0:
+                if 'CartPole' in args.env_name:
+                    plot_NP_policy_CP(policy_np, None, replay_memory, i_iter, None, env, args, [])
+                    plot_rm(replay_memory, i_iter, args)
+                elif 'MountainCar' in args.env_name:
+                    plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
+        print('replay memory size:', len(replay_memory))
     torch.cuda.empty_cache()
+
 try:
     create_directories(args.directory_path)
 except FileExistsError:

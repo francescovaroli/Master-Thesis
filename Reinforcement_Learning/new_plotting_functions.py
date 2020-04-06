@@ -6,6 +6,31 @@ import gpytorch
 from torch.distributions import Normal
 
 
+def create_plot_4d_grid(env, args, size=20):
+    import gpytorch
+    bounds_high = env.observation_space.high
+    bounds_low = env.observation_space.low
+    num_dim = len(bounds_low)
+    xs = []
+    nonInf_bounds = []
+    for bound_low, bound_high in zip(bounds_low, bounds_high):
+        if bound_low < -10e30 or bound_high > 10e30:
+            bound_low = -1
+            bound_high = 1
+        nonInf_bounds.append([bound_low, bound_high])
+        xs.append(np.linspace(bound_low, bound_high, size))
+    X1, X2, X3, X4 = np.meshgrid(*xs)
+
+    grid = torch.zeros(size, num_dim)
+    for i, bounds in enumerate(nonInf_bounds):
+        grid_diff = float(bounds[1] - bounds[0]) / (size - 2)
+        grid[:, i] = torch.linspace(bounds[0] - grid_diff, bounds[1] + grid_diff, size)
+
+    x = gpytorch.utils.grid.create_data_from_grid(grid)
+    x = x.unsqueeze(0).to(args.dtype).to(args.device_np)
+    return x, X1, X2, X3, X4, xs
+
+
 def set_labels(ax):
     ax.set_xlabel('Position', fontsize=14)
     ax.set_ylabel('Velocity', fontsize=14)
@@ -17,7 +42,6 @@ def set_limits(ax, env):
     ax.set_xlim(bounds_low[0], bounds_high[0])
     ax.set_ylim(bounds_low[1], bounds_high[1])
     ax.set_zlim(env.action_space.low, env.action_space.high)
-
 
 def set_labels_v(ax, np_id='policy'):
     ax.set_xlabel('Position', fontsize=14)
@@ -58,18 +82,23 @@ def create_plot_grid(env, args, size=20):
     x = x.unsqueeze(0).to(args.dtype).to(args.device_np)
     return x, X1, X2, x1, x2
 
-
-
-def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
+def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
     size = 10
     fig = plt.figure(figsize=(16,8))
     #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
     x, X1, X2, x1, x2 = create_plot_grid(env, args, size=size)
     with torch.no_grad():
         context_x, context_y = merge_context(rm.data)
-        z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
-        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
-        z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        if 'NP' in policy_np.id:
+            z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+            z_mean = z_distr.mean.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+            z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        elif 'MI' in policy_np.id:
+            z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+            z_mean = z_distr.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+            z_stddev = torch.zeros_like(z_mean)  # x1_dim x x2_dim
+        if not use_np_sigma:
+            z_stddev[..., :] = args.fixed_sigma
         stddev_low = z_mean - z_stddev
         stddev_high = z_mean + z_stddev
     ax = fig.add_subplot(1,2,1, projection='3d')
@@ -94,12 +123,10 @@ def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args):
     ax2.set_zlim(-1, 1)
     ax2.scatter(context_x[..., 0].cpu(), context_x[..., 1].cpu(), context_y[..., 0].cpu(), c=context_y[..., 0].view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1.)
 
-    fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
+    fig.savefig(args.directory_path + '/policy/'+str(iter_pred)+policy_np.id, dpi=250)
     plt.close(fig)
 
-
-
-def plot_NP_policy_CP(policy_np, rm, iter_pred, env, args):
+def plot_NP_policy_CP(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
     size = 10
     fig = plt.figure(figsize=(16,8))
     #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
@@ -109,10 +136,16 @@ def plot_NP_policy_CP(policy_np, rm, iter_pred, env, args):
     z_means_list = []
     with torch.no_grad():
         context_x, context_y = merge_context(rm.data)
-        z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
-        z_mean = z_distr.mean.detach()[0].reshape(X1.shape)
-        z_means_list.append(z_mean)  # x1_dim x x2_dim
-        z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        if 'NP' in policy_np:
+            z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+            z_mean = z_distr.mean.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+            z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
+        elif 'MI' in policy_np:
+            z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
+            z_mean = z_distr.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+            z_stddev = torch.zeros_like(z_mean)  # x1_dim x x2_dim
+        if use_np_sigma:
+            z_stddev[..., :] = args.fixed_sigma
         stddev_low_list.append(z_mean - z_stddev)
         stddev_high_list.append(z_mean + z_stddev)
     ax = fig.add_subplot(1,2,1, projection='3d')
@@ -172,7 +205,6 @@ def set_bounds(env, axes, dims):
         ax.set_ylim(nonInf_bounds[dims[1]])
         ax.set_zlim(-1, 1)
 
-
 def plot_rm(replay_memory, i_iter, args):
     import matplotlib.pyplot as plt
     name = 'Replay memory ' + str(i_iter)
@@ -184,7 +216,6 @@ def plot_rm(replay_memory, i_iter, args):
     ax2.scatter(xs_context[..., 1].cpu(), xs_context[..., 3].cpu(), ys_context[..., 0].cpu(), c=ys_context.view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1., alpha=0.5)
     fig.savefig(args.directory_path + '/policy/' + name)
     plt.close(fig)
-
 
 def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args, colors):
     num_test_context = 999
@@ -261,7 +292,6 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
     fig.savefig(args.directory_path + '/policy/'+'/NP estimate/'+name, dpi=250)
     plt.close(fig)
 
-
 def plot_training_set(i_iter, replay_memory, env, args):
     name = 'Training trajectories ' + str(i_iter)
     fig = plt.figure()
@@ -315,7 +345,6 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     fig.savefig(args.directory_path+'/policy/Mean improvement/'+name, dpi=250)
     plt.close(fig)
 
-
 def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
 
     name = 'Improvement iter ' + str(i_iter)
@@ -354,9 +383,7 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
     plt.close(fig)
 
-
 def plot_improvements_CP(all_dataset, est_rewards, env, i_iter, args, colors):
-
     name = 'Improvement iter ' + str(i_iter)
     fig = plt.figure(figsize=(16, 6))
     #fig.suptitle(name, fontsize=20)

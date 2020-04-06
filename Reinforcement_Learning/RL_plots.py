@@ -129,7 +129,8 @@ parser.add_argument("--plot-every", type=int, default=5,
                     help='plot every n iter')
 parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as onl4y testing during NP training')
-
+parser.add_argument('--plot_np_sigma', default=False, type=boolean_string, metavar='N',
+                    help='plot stdev')
 parser.add_argument("--net-size", type=int, default=1,
                     help='multiplies all net pararms')
 
@@ -153,8 +154,8 @@ np_spec = '_NP_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}
                                                                                 args.a_dim)
 
 
-run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
-         '_{}target_loo:{}_picklc:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
+run_id = '/{}_NP_plotNPsigma{}_{}steps_{}epi_fixSTD:{}_{}gamma' \
+         '_{}target_loo:{}_picklc:{}_{}context'.format(args.env_name, args.plot_np_sigma, args.num_req_steps, args.num_ensembles,
                                                             args.fixed_sigma,args.gamma, args.num_testing_points, args.loo,
                                                             args.pick, args.num_context) + np_spec
 run_id = run_id.replace('.', ',')
@@ -371,11 +372,11 @@ def main_loop():
         avg_rewards_np.append(log_np['avg_reward'])
         if i_iter % args.plot_every == 0:
             if 'CartPole' in args.env_name:
-                plot_NP_policy_CP(policy_np, replay_memory, i_iter, env, args, [])
+                plot_NP_policy_CP(policy_np, replay_memory, i_iter, env, args, use_np_sigma=args.plot_np_sigma)
                 plot_rm(replay_memory, i_iter, args)
                 plot_improvements_CP(iter_dataset_np, advantages_np, env, i_iter, args, colors)
             elif 'MountainCar' in args.env_name:
-                plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
+                plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args, use_np_sigma=args.plot_np_sigma)
                 plot_improvements_MC(iter_dataset_np, advantages_np, env, i_iter, args, colors)
 
         if i_iter % args.log_interval == 0:

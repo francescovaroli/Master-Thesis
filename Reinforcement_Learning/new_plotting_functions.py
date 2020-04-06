@@ -95,7 +95,7 @@ def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
             z_stddev = z_distr.stddev.detach()[0].reshape(X1.shape)  # x1_dim x x2_dim
         elif 'MI' in policy_np.id:
             z_distr = policy_np(context_x, context_y, x)  # B x num_points x z_dim  (B=1)
-            z_mean = z_distr.detach()[0].reshape(X1.shape)# x1_dim x x2_dim
+            z_mean = z_distr.detach().reshape(X1.shape)# x1_dim x x2_dim
             z_stddev = torch.zeros_like(z_mean)  # x1_dim x x2_dim
         if not use_np_sigma:
             z_stddev[..., :] = args.fixed_sigma
@@ -190,7 +190,7 @@ def plot_NP_policy_CP(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
         ax2.plot_surface(xp1, xp2, z_mean[middle_vel, :, middle_vel, :].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
 
 
-    fig.savefig(args.directory_path + '/policy/'+str(iter_pred), dpi=250)
+    fig.savefig(args.directory_path + '/policy/'+str(iter_pred)+policy_np.id, dpi=250)
     plt.close(fig)
 
 def set_bounds(env, axes, dims):

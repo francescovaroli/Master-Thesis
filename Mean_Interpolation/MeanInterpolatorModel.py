@@ -3,7 +3,7 @@ import numpy as np
 from utils import context_target_split, context_target_split_CinT
 from utils_rl import *
 import matplotlib.pyplot as plt
-
+import time
 
 class Interpolator(torch.nn.Module):
     def __init__(self, input_dim):
@@ -104,9 +104,11 @@ class MITrainer():
                 # context_list = [ep for j, ep in enumerate(data_loader) if j != i]
             #all_context_points = merge_context(context_list)
             one_out_list.append(context_list)
+        loader_len = len(data_loader)
         for epoch in range(epochs):
             epoch_loss = 0.
             for i, data in enumerate(data_loader):
+                tt0 = time.time()
                 # Zero backprop gradients
                 self.optimizer.zero_grad()
                 # Get output from model
@@ -116,16 +118,21 @@ class MITrainer():
                 x_context, y_context = get_random_context(all_context_points, self.num_context)
                 num_target = min(self.num_target, num_points.item())
                 _, _, x_target, y_target = context_target_split(x[:, :num_points, :], y[:, :num_points, :], 0, num_target)
+                tp0 = time.time()
                 prediction = self.model(x_context, y_context, x_target)
+                tp1 = time.time()
                 loss = self._loss(y_target, prediction)
                 loss.backward()
+                tb0 = time.time()
                 self.optimizer.step()
-                epoch_loss += loss.item()
-                avg_loss = epoch_loss / len(data_loader)
-
+                tb1 = time.time()
+                if epoch % self.print_freq == 0 or epoch == epochs-1:
+                    epoch_loss += loss.item()
+                avg_loss = epoch_loss / loader_len
+                tt1 = time.time()
             if epoch % self.print_freq == 0 or epoch == epochs-1 :
-                print("Epoch: {}, Avg_loss: {}, W_sum: {}".format(epoch, avg_loss, self.model.interpolator.W.sum().item()))
-
+                print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
+                #print('tot-forw: ', tp0-tt1, '  forw-back:', tb0-tp1, '  back-nw:', tb1-tb0)
             self.epoch_loss_history.append(avg_loss)
             if early_stopping is not None:
                 if avg_loss < early_stopping:

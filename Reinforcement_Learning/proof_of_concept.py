@@ -418,7 +418,7 @@ def main_loop():
             print('replay memory size:', len(replay_memory))
         if learn_MI and i_iter % args.plot_every == 0:
             data_loader = DataLoader(replay_memory, batch_size=1, shuffle=True)
-            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=None)
+            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter//2, early_stopping=None)
             if 'CartPole' in args.env_name:
                 plot_NP_policy_CP(mi_model, None, replay_memory, i_iter, None, env, args, [])
                 plot_rm(replay_memory, i_iter, args)

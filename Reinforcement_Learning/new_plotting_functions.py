@@ -370,16 +370,14 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     means = episode['means'][:real_len]
     new_means = episode['new_means'][:real_len]
     est_rew = est_rewards[e]
-    if e == 0:
-        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', s=4, label='sampled', alpha=0.3)
-        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=new_means[:, 0].cpu(), marker='+', label='improved', alpha=0.3)
-        leg = ax.legend(loc="upper right")
-    else:
-        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', s=4, alpha=0.3)
-        ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=new_means[:, 0].cpu(), marker='+', alpha=0.3)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c=est_rew.view(-1), s=4, label='Sampled means', alpha=0.5)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), marker='+', label='Improved means', alpha=0.5)
+    leg = ax.legend(loc="upper right")
 
-    a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), cmap='viridis', alpha=0.5)
-    ax_rew.set_zlabel('Sampled actions')
+    a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), marker='*',
+                       cmap='viridis', alpha=0.5, label='Sampled actions')
+    leg2 = ax_rew.legend(loc="upper right")
+    ax_rew.set_zlabel('Acceleration')
     cb = fig.colorbar(a)
     cb.set_label('Advantages')
     #ax_rew.set_title('Discounted rewards')

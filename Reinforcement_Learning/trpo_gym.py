@@ -25,7 +25,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
-parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
+parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
                     help='discount factor (default: 0.99)')
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='gae (default: 0.95)')
@@ -61,7 +61,7 @@ if torch.cuda.is_available():
     torch.cuda.set_device(args.gpu_index)
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 
-run_id = 'TRPO_{}_{}_{}kl'.format(args.env_name, args.min_batch_size, args.max_kl)
+run_id = 'TRPO_{}_{}_{}kl_{}gamma_'.format(args.env_name, args.min_batch_size, args.max_kl, args.gamma)
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 

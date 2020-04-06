@@ -110,16 +110,16 @@ def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
     for y_slice in x2:
         ax.add_collection3d(
             plt.fill_between(x1, stddev_low[i, :].cpu(), stddev_high[i, :].cpu(), color='lightseagreen',
-                             alpha=0.1),
+                             alpha=0.1, label='stdev'),
             zs=y_slice, zdir='y')
         i += 1
-    #ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
     ax.set_zlim(-1, 1)
-    ax.plot_surface(xp1, xp2, z_mean.cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+    surf = ax.plot_surface(xp1, xp2, z_mean.cpu().numpy(), cmap='viridis', vmin=-1., vmax=1., label='mean')
     ax2 = fig.add_subplot(1,2,2, projection='3d')
     set_labels(ax2)
     set_limits(ax2, env)
-    #ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax.set_title('Policy', pad=40)
+    ax2.set_title('Context set', pad=40)
     ax2.set_zlim(-1, 1)
     ax2.scatter(context_x[..., 0].cpu(), context_x[..., 1].cpu(), context_y[..., 0].cpu(), c=context_y[..., 0].view(-1).cpu(), cmap='viridis', vmin=-1., vmax=1.)
 
@@ -160,16 +160,19 @@ def plot_NP_policy_CP(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
                                  alpha=0.1),
                 zs=y_slice, zdir='y')
             i += 1
-    ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
+    #ax.set_title('cart v: {:.2f}, bar v:{:.2f}'.format(xs[1][middle_vel], xs[3][middle_vel]))
     ax.set_xlabel('cart position')
     ax.set_ylabel('bar angle')
     ax.set_zlabel('action')
     ax.set_zlim(-1, 1)
     ax.set_ylim(xs[2][1], xs[2][-1])
     for z_mean in z_means_list:
-        ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1.)
+        ax.plot_surface(xp1, xp2, z_mean[:, middle_vel, :, middle_vel].cpu().numpy(), cmap='viridis', vmin=-1., vmax=1., label='mean')
     ax2 = fig.add_subplot(1,2,2, projection='3d')
-    ax2.set_title('cart p: {:.2f}, bar angle:{:.2f}'.format(xs[0][middle_vel], xs[2][middle_vel]))
+    ax.set_title('Policy', pad=20)
+    ax2.set_title('Context set', pad=20)
+    leg = ax.legend()
+    leg = ax2.lgend()
     ax2.set_xlabel('cart velocity')
     ax2.set_ylabel('bar velocity')
     ax2.set_zlabel('action')

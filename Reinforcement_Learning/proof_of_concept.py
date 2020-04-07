@@ -71,7 +71,7 @@ parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
-parser.add_argument('--epochs-per-iter', default=30, metavar='N',
+parser.add_argument('--epochs-per-iter', default=50, metavar='N',
                     help='')
 parser.add_argument('--dtype', default=dtype, metavar='N',
                     help='')
@@ -99,7 +99,7 @@ args = parser.parse_args()
 learn_NP = True
 learn_MI = True
 
-run_id = 'NP_MI_learn_TRPO_{}_{}b_size_{}epo'.format(args.env_name, args.min_batch_size, args.epochs_per_iter)
+run_id = 'NP_MI_learn_TRPO_{}_{}b_size_{}epochs'.format(args.env_name, args.min_batch_size, args.epochs_per_iter)
 args.directory_path += run_id
 directory_path = args.directory_path
 
@@ -398,6 +398,8 @@ def main_loop():
         #plot_rewards_history(avg_rewards, args)
 
         avg_rewards.append(log['avg_reward'])
+        dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
+        replay_memory.add(dataset)
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\tR_min {:.2f}\tR_max {:.2f}\tR_avg {:.2f}'.format(
                 i_iter, log['sample_time'], t1 - t0, log['min_reward'], log['max_reward'], log['avg_reward']))
@@ -405,8 +407,7 @@ def main_loop():
                 plot_policy_CP(policy_net, (i_iter, log['avg_reward']))
             elif 'MountainCar' in args.env_name and i_iter % args.plot_every == 0:
                 plot_policy_MC(policy_net, (i_iter, log['avg_reward']))
-            dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
-            replay_memory.add(dataset)
+
         if learn_NP and i_iter % args.plot_every in [0, 1]:
             train_np(replay_memory)
             x_context, y_context = merge_context(replay_memory.data)
@@ -418,7 +419,7 @@ def main_loop():
             print('replay memory size:', len(replay_memory))
         if learn_MI and i_iter % args.plot_every in [0, 1]:
             data_loader = DataLoader(replay_memory, batch_size=1, shuffle=True)
-            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=1.)
+            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=0.5)
             if 'CartPole' in args.env_name:
                 plot_NP_policy_CP(mi_model, None, replay_memory, i_iter, None, env, args, [])
                 plot_rm(replay_memory, i_iter, args)

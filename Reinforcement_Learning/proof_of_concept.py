@@ -407,7 +407,7 @@ def main_loop():
                 plot_policy_MC(policy_net, (i_iter, log['avg_reward']))
             dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
             replay_memory.add(dataset)
-        if learn_NP and i_iter % args.plot_every == 0:
+        if learn_NP and args.plot_every % i_iter in [0, 1]:
             train_np(replay_memory)
             x_context, y_context = merge_context(replay_memory.data)
             if 'CartPole' in args.env_name:
@@ -416,7 +416,7 @@ def main_loop():
             elif 'MountainCar' in args.env_name:
                 plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
             print('replay memory size:', len(replay_memory))
-        if learn_MI and i_iter % args.plot_every == 0:
+        if learn_MI and args.plot_every % i_iter in [0, 1]:
             data_loader = DataLoader(replay_memory, batch_size=1, shuffle=True)
             model_trainer.train_rl_loo(data_loader, args.epochs_per_iter//2, early_stopping=None)
             if 'CartPole' in args.env_name:

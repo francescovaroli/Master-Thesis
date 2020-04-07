@@ -370,13 +370,13 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     means = episode['means'][:real_len]
     new_means = episode['new_means'][:real_len]
     est_rew = est_rewards[e]
-    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', label='Sampled means', alpha=1.)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', label='Sampled means', alpha=0.6)
     ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), marker='+',
-               label='Improved means', alpha=0.3)
+               label='Improved means', alpha=0.9)
     leg = ax.legend(loc="upper right")
 
     a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), marker='*',
-                       cmap='viridis', alpha=0.5, label='Sampled actions')
+                       cmap='viridis', alpha=0.7, label='Sampled actions')
     leg2 = ax_rew.legend(loc="upper right")
     ax_rew.set_zlabel('Acceleration')
     cb = fig.colorbar(a)
@@ -386,7 +386,7 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     plt.close(fig)
 
 
-def plot_improvements_MC_sep(all_dataset, est_rewards, env, i_iter, args, colors):
+def plot_improvements_MC_all(complete_dataset, est_rewards, env, i_iter, args, colors):
 
     name = 'Improvement iter ' + str(i_iter)
     fig = plt.figure(figsize=(20, 6))
@@ -403,18 +403,19 @@ def plot_improvements_MC_sep(all_dataset, est_rewards, env, i_iter, args, colors
     ax_impr = fig.add_subplot(133, projection='3d')
     set_limits(ax_impr, env)
     set_labels(ax_impr)
-    for e, episode in enumerate(all_dataset):
-        break
-    real_len = episode['real_len']
-    states = episode['states'][:real_len]
-    actions = episode['actions'][:real_len]
-    means = episode['means'][:real_len]
-    new_means = episode['new_means'][:real_len]
-    est_rew = est_rewards[e]
-    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c=est_rew.view(-1), s=4, label='Sampled means', alpha=0.5)
-    ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), marker='*',
-                   cmap='viridis', alpha=0.5, label='Sampled actions')
-    a = ax_impr.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), cmap='viridis',marker='+', label='Improved means', alpha=0.5)
+    all_states, all_means, all_new_means, all_actions = merge_padded_lists(
+        [episode['states'] for episode in complete_dataset],
+        [episode['means'] for episode in complete_dataset],
+        [episode['new_means'] for episode in complete_dataset],
+        [episode['actions'] for episode in complete_dataset],
+        max_lens=[episode['real_len'] for episode in complete_dataset])
+    all_advantages = torch.cat(est_rewards, dim=0).view(-1)
+    ax.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_means[:, 0].cpu(), c=all_advantages.view(-1),
+               label='Sampled means', alpha=0.7)
+    ax_rew.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_actions[:, 0].cpu(), c=all_advantages.view(-1), marker='*',
+                   cmap='viridis', alpha=0.9, label='Sampled actions')
+    a = ax_impr.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_new_means[:, 0].cpu(), c=all_advantages.view(-1),
+                        cmap='viridis',marker='+', label='Improved means', alpha=0.7)
     leg = ax.legend(loc="upper right")
     leg = ax_impr.legend(loc="upper right")
     leg = ax_rew.legend(loc="upper right")

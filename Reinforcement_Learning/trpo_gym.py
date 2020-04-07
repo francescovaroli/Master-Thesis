@@ -61,7 +61,7 @@ if torch.cuda.is_available():
     torch.cuda.set_device(args.gpu_index)
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 
-run_id = 'TRPO_{}_{}_{}kl_{}gamma_'.format(args.env_name, args.min_batch_size, args.max_kl, args.gamma)
+run_id = 'TRPO_{}_{}_{}kl_{}gamma_{}'.format(args.env_name, args.min_batch_size, args.max_kl, args.gamma, args.tau)
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id
 

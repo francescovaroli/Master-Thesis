@@ -11,10 +11,10 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_mount_6/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_7/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
-alpha = 5/num_folders
+alpha = 0.6
 max_len = 1000000
 chunk_size = 50000
 num_seeds = 3

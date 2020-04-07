@@ -370,8 +370,9 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     means = episode['means'][:real_len]
     new_means = episode['new_means'][:real_len]
     est_rew = est_rewards[e]
-    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c=est_rew.view(-1), s=4, label='Sampled means', alpha=0.5)
-    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), marker='+', label='Improved means', alpha=0.5)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', label='Sampled means', alpha=1.)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), marker='+',
+               label='Improved means', alpha=0.3)
     leg = ax.legend(loc="upper right")
 
     a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), marker='*',
@@ -380,6 +381,44 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     ax_rew.set_zlabel('Acceleration')
     cb = fig.colorbar(a)
     cb.set_label('Advantages')
+    #ax_rew.set_title('Discounted rewards')
+    fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
+    plt.close(fig)
+
+
+def plot_improvements_MC_sep(all_dataset, est_rewards, env, i_iter, args, colors):
+
+    name = 'Improvement iter ' + str(i_iter)
+    fig = plt.figure(figsize=(20, 6))
+    fig.tight_layout(pad=2.0)
+    #fig.suptitle(name, fontsize=20)
+    ax = fig.add_subplot(131, projection='3d')
+    name_c = 'Context improvement iter ' + str(i_iter)
+    #ax.set_title(name_c)
+    set_limits(ax, env)
+    set_labels(ax)
+    ax_rew = fig.add_subplot(132, projection='3d')
+    set_labels(ax_rew)
+    set_limits(ax_rew, env)
+    ax_impr = fig.add_subplot(133, projection='3d')
+    set_limits(ax_impr, env)
+    set_labels(ax_impr)
+    for e, episode in enumerate(all_dataset):
+        break
+    real_len = episode['real_len']
+    states = episode['states'][:real_len]
+    actions = episode['actions'][:real_len]
+    means = episode['means'][:real_len]
+    new_means = episode['new_means'][:real_len]
+    est_rew = est_rewards[e]
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c=est_rew.view(-1), s=4, label='Sampled means', alpha=0.5)
+    ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), marker='*',
+                   cmap='viridis', alpha=0.5, label='Sampled actions')
+    a = ax_impr.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), cmap='viridis',marker='+', label='Improved means', alpha=0.5)
+    leg = ax.legend(loc="upper right")
+    leg = ax_impr.legend(loc="upper right")
+    leg = ax_rew.legend(loc="upper right")
+    cb = fig.colorbar(a)
     #ax_rew.set_title('Discounted rewards')
     fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
     plt.close(fig)

@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_mount_6/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mount_trpo_np/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 5/num_folders
@@ -24,15 +24,7 @@ ax_rew.set_xlabel('number of steps')
 ax_rew.set_ylabel('average reward')
 title = 'Reward History Percentile '+all_folders[2].split('-')[0].split('/')[-1]
 ax_rew.set_title(title)
-if 'NP' in all_folders[1]:
-    label = 'Attentive Neural Process'
-    color = 'b'
-elif 'MI' in all_folders[1]:
-    label = 'Mean Kearnel Interpolation'
-    color = 'g'
-elif 'MLP' in all_folders[1]:
-    label = 'Multi Layer Perceptron'
-    color = 'magenta'
+
 
 rew_param = []
 for s, subfolder_path in enumerate(all_folders[1:]):

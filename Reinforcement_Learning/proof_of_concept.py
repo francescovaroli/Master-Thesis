@@ -21,7 +21,7 @@ from matplotlib import pyplot as plt
 torch.set_default_tensor_type(torch.DoubleTensor)
 dtype = torch.float64
 torch.set_default_dtype(dtype)
-device_np = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device_np = torch.device('cuda') if torch.cuda.is_available() and False else torch.device('cpu')
 device_rl = torch.device("cpu")
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
@@ -71,7 +71,7 @@ parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
 parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
-parser.add_argument('--epochs-per-iter', default=50, metavar='N',
+parser.add_argument('--epochs-per-iter', default=30, metavar='N',
                     help='')
 parser.add_argument('--dtype', default=dtype, metavar='N',
                     help='')
@@ -86,9 +86,9 @@ parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')
 parser.add_argument("--lr_nn", type=float, default=1e-4,
                     help='plot every n iter')
-parser.add_argument("--num-testing-points", type=int, default=500,
+parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during MI training')
-parser.add_argument('--num-context', type=int, default=5000, metavar='N',
+parser.add_argument('--num-context', type=int, default=2500, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--device-np', default=device_np, metavar='N',
@@ -407,7 +407,7 @@ def main_loop():
                 plot_policy_MC(policy_net, (i_iter, log['avg_reward']))
             dataset = MemoryDatasetTRPO(memory.memory, device_np, dtype, max_len=999)
             replay_memory.add(dataset)
-        if learn_NP and args.plot_every % i_iter in [0, 1]:
+        if learn_NP and i_iter % args.plot_every in [0, 1]:
             train_np(replay_memory)
             x_context, y_context = merge_context(replay_memory.data)
             if 'CartPole' in args.env_name:
@@ -416,9 +416,9 @@ def main_loop():
             elif 'MountainCar' in args.env_name:
                 plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args)
             print('replay memory size:', len(replay_memory))
-        if learn_MI and args.plot_every % i_iter in [0, 1]:
+        if learn_MI and i_iter % args.plot_every in [0, 1]:
             data_loader = DataLoader(replay_memory, batch_size=1, shuffle=True)
-            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter//2, early_stopping=None)
+            model_trainer.train_rl_loo(data_loader, args.epochs_per_iter, early_stopping=1.)
             if 'CartPole' in args.env_name:
                 plot_NP_policy_CP(mi_model, None, replay_memory, i_iter, None, env, args, [])
                 plot_rm(replay_memory, i_iter, args)

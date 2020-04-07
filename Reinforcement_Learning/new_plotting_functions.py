@@ -348,6 +348,42 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     fig.savefig(args.directory_path+'/policy/Mean improvement/'+name, dpi=250)
     plt.close(fig)
 
+def plot_improvements_MC_all(complete_dataset, est_rewards, env, i_iter, args, colors):
+
+    name = 'Improvement iter ' + str(i_iter)
+    fig = plt.figure(figsize=(16, 6))
+    #fig.suptitle(name, fontsize=20)
+    ax = fig.add_subplot(121, projection='3d')
+    name_c = 'Context improvement iter ' + str(i_iter)
+    #ax.set_title(name_c)
+    set_limits(ax, env)
+    set_labels(ax)
+    ax_rew = fig.add_subplot(122, projection='3d')
+    set_labels(ax_rew)
+    set_limits(ax_rew, env)
+    all_states, all_means, all_new_means, all_actions = merge_padded_lists(
+        [episode['states'] for episode in complete_dataset],
+        [episode['means'] for episode in complete_dataset],
+        [episode['new_means'] for episode in complete_dataset],
+        [episode['actions'] for episode in complete_dataset],
+        max_lens=[episode['real_len'] for episode in complete_dataset])
+    all_advantages = torch.cat(est_rewards, dim=0).view(-1)
+
+    ax.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_means[:, 0].cpu(), c='k', label='Sampled means', alpha=0.4)
+    ax.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_new_means[:, 0].cpu(), c=all_advantages.view(-1).cpu(), marker='+',
+               label='Improved means', alpha=0.8)
+    leg = ax.legend(loc="upper right")
+
+    a = ax_rew.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_actions[:, 0].cpu(), c=all_advantages.view(-1).cpu(), marker='*',
+                       cmap='viridis', alpha=0.7, label='Sampled actions')
+    leg2 = ax_rew.legend(loc="upper right")
+    ax_rew.set_zlabel('Acceleration')
+    cb = fig.colorbar(a)
+    cb.set_label('Advantages')
+    #ax_rew.set_title('Discounted rewards')
+    fig.savefig(args.directory_path+'/Mean improvement/'+name+'ALL', dpi=250)
+    plt.close(fig)
+
 def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
 
     name = 'Improvement iter ' + str(i_iter)
@@ -370,12 +406,12 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     means = episode['means'][:real_len]
     new_means = episode['new_means'][:real_len]
     est_rew = est_rewards[e]
-    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', label='Sampled means', alpha=0.6)
-    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1), marker='+',
-               label='Improved means', alpha=0.9)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), means[:, 0].cpu(), c='k', label='Sampled means', alpha=0.4)
+    ax.scatter(states[:, 0].cpu(), states[:, 1].cpu(), new_means[:, 0].cpu(), c=est_rew.view(-1).cpu(), marker='+',
+               label='Improved means', alpha=0.8)
     leg = ax.legend(loc="upper right")
 
-    a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1), marker='*',
+    a = ax_rew.scatter(states[:, 0].cpu(), states[:, 1].cpu(), actions[:, 0].cpu(), c=est_rew.view(-1).cpu(), marker='*',
                        cmap='viridis', alpha=0.7, label='Sampled actions')
     leg2 = ax_rew.legend(loc="upper right")
     ax_rew.set_zlabel('Acceleration')
@@ -386,7 +422,7 @@ def plot_improvements_MC(all_dataset, est_rewards, env, i_iter, args, colors):
     plt.close(fig)
 
 
-def plot_improvements_MC_all(complete_dataset, est_rewards, env, i_iter, args, colors):
+def plot_improvements_MC_sep_all(complete_dataset, est_rewards, env, i_iter, args, colors):
 
     name = 'Improvement iter ' + str(i_iter)
     fig = plt.figure(figsize=(20, 6))
@@ -410,18 +446,18 @@ def plot_improvements_MC_all(complete_dataset, est_rewards, env, i_iter, args, c
         [episode['actions'] for episode in complete_dataset],
         max_lens=[episode['real_len'] for episode in complete_dataset])
     all_advantages = torch.cat(est_rewards, dim=0).view(-1)
-    ax.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_means[:, 0].cpu(), c=all_advantages.view(-1),
+    ax.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_means[:, 0].cpu(), c=all_advantages.view(-1).cpu(),
                label='Sampled means', alpha=0.7)
-    ax_rew.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_actions[:, 0].cpu(), c=all_advantages.view(-1), marker='*',
+    ax_rew.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_actions[:, 0].cpu(), c=all_advantages.view(-1).cpu(), marker='*',
                    cmap='viridis', alpha=0.9, label='Sampled actions')
-    a = ax_impr.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_new_means[:, 0].cpu(), c=all_advantages.view(-1),
+    a = ax_impr.scatter(all_states[:, 0].cpu(), all_states[:, 1].cpu(), all_new_means[:, 0].cpu(), c=all_advantages.view(-1).cpu(),
                         cmap='viridis',marker='+', label='Improved means', alpha=0.7)
     leg = ax.legend(loc="upper right")
     leg = ax_impr.legend(loc="upper right")
     leg = ax_rew.legend(loc="upper right")
     cb = fig.colorbar(a)
     #ax_rew.set_title('Discounted rewards')
-    fig.savefig(args.directory_path+'/Mean improvement/'+name, dpi=250)
+    fig.savefig(args.directory_path+'/Mean improvement/'+name+'ALL', dpi=250)
     plt.close(fig)
 
 def plot_improvements_CP(all_dataset, est_rewards, env, i_iter, args, colors):

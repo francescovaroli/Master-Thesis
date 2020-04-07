@@ -27,7 +27,7 @@ from core.common import discounted_rewards, estimate_v_a, improvement_step_all, 
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -142,7 +142,7 @@ args.r_dim *= args.net_size
 args.h_dim *= args.net_size
 args.a_dim *= args.net_size
 
-args.epochs_per_iter = 2000 // args.replay_memory_size #+ 10
+args.epochs_per_iter = 800 // args.replay_memory_size #+ 10
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
@@ -378,6 +378,7 @@ def main_loop():
             elif 'MountainCar' in args.env_name:
                 plot_NP_policy_MC(policy_np, replay_memory, i_iter, env, args, use_np_sigma=args.plot_np_sigma)
                 plot_improvements_MC(iter_dataset_np, advantages_np, env, i_iter, args, colors)
+                plot_improvements_MC_all(iter_dataset_np, advantages_np, env, i_iter, args, colors)
 
         if i_iter % args.log_interval == 0:
             print(i_iter)

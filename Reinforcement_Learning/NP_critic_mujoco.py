@@ -33,13 +33,13 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G',
+parser.add_argument('--env-name', default="Ant-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
 parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 
-parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=False, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
@@ -66,7 +66,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.5, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -254,9 +254,11 @@ def train_value_np(value_replay_memory):
 def sample_initial_context_normal(num_episodes):
     initial_episodes = []
     #policy_np.apply(init_func)
-    sigma = args.fixed_sigma*0.1
-    #sigma = 0.1
-    for e in range(10):
+    if args.fixed_sigma is not None:
+        sigma = args.fixed_sigma*0.1
+    else:
+        sigma = 0.1*ones(action_dim)
+    for e in range(2):
         states = torch.zeros([1, max_episode_len, state_dim])
 
         for i in range(max_episode_len):
@@ -334,8 +336,6 @@ def main_loop():
     for i in range(num_episodes):
         colors.append('#%06X' % randint(0, 0xFFFFFF))
     improved_context_list_np = sample_initial_context_normal(args.num_ensembles)
-    if initial_training and False:
-        train_on_initial(improved_context_list_np)
     for i_iter in range(args.max_iter_num):
 
         # generate multiple trajectories that reach the minimum batch_size

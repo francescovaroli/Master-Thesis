@@ -64,7 +64,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 if fixed_sigma is not None:
                     sigma = fixed_sigma
                 else:
-                    sigma = stddev
+                    sigma = stddev.view(-1)
                 cov = torch.diag(sigma ** 2)
                 #action_distribution = Normal(mean, sigma)
                 action_distribution = MultivariateNormal(mean, cov)

@@ -74,7 +74,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 if fixed_sigma is not None:
                     sigma = fixed_sigma
                 else:
-                    sigma = stddev
+                    sigma = stddev.view(-1)
 
                 action_distribution = Normal(mean, sigma)
 
@@ -100,7 +100,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
                                           sigma.cpu().numpy(), None, cov))
                 action_sum += action
-                if render or reward_episode>900:
+                if render:
                     env.render()
                 if done:
                     memory.push(episode)

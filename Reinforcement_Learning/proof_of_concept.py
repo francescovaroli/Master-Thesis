@@ -35,7 +35,7 @@ parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
 parser.add_argument('--log-std', type=float, default=-1.0, metavar='G',
                     help='log std for the policy (default: -1.0)')
-parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
+parser.add_argument('--gamma', type=float, default=0.9999, metavar='G',
                     help='discount factor (default: 0.99)')
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='gae (default: 0.95)')
@@ -47,7 +47,7 @@ parser.add_argument('--damping', type=float, default=1e-2, metavar='G',
                     help='damping (default: 1e-2)')
 parser.add_argument('--num-threads', type=int, default=1, metavar='N',
                     help='number of threads for agent (default: 4)')
-parser.add_argument('--seed', type=int, default=7, metavar='N',
+parser.add_argument('--seed', type=int, default=9, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--min-batch-size', type=int, default=7994, metavar='N',
                     help='minimal batch size per TRPO update (default: 2048)')
@@ -99,7 +99,7 @@ args = parser.parse_args()
 learn_NP = True
 learn_MI = True
 
-run_id = 'NP_MI_learn_TRPO_{}_{}b_size_{}epochs'.format(args.env_name, args.min_batch_size, args.epochs_per_iter)
+run_id = 'NP_MI_learn_TRPO_{}_{}gamma_{}b_size_{}epochs'.format(args.env_name, args.gamma, args.min_batch_size, args.epochs_per_iter)
 args.directory_path += run_id
 directory_path = args.directory_path
 

@@ -57,7 +57,7 @@ parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.4, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
@@ -329,7 +329,7 @@ def update_critic(states, returns, l2_reg=1e-3):
 
 avg_rewards_np = [0]
 tot_steps_np = [0]
-
+sigma_history = [torch.tensor(args.fixed_sigma)]
 
 def main_loop():
     colors = []
@@ -370,7 +370,7 @@ def main_loop():
         tn1 = time.time()
         tot_steps_np.append(tot_steps_np[-1] + log_np['num_steps'])
         avg_rewards_np.append(log_np['avg_reward'])
-        if i_iter % args.plot_every == 0:
+        if i_iter % args.plot_every in [0,1]:
             if 'CartPole' in args.env_name:
                 plot_NP_policy_CP(policy_np, replay_memory, i_iter, env, args, use_np_sigma=args.plot_np_sigma)
                 plot_rm(replay_memory, i_iter, args)
@@ -386,6 +386,8 @@ def main_loop():
         print('new sigma', args.fixed_sigma)
         plot_rewards_history(tot_steps_np, avg_rewards_np)
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
+        sigma_history.append(torch.tensor(args.fixed_sigma))
+        plot_sigma_history(sigma_history)
         if tot_steps_np[-1] > args.tot_steps:
             break
         """clean up gpu memory"""
@@ -405,7 +407,21 @@ def plot_rewards_history(steps, rews):
     fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
 
-def create_plot_4d_grid(env, args, size=21):
+def plot_sigma_history(sigma_list):
+    colors = ['b', 'r', 'g', 'y']
+    fig, ax = plt.subplots(1, 1)
+    sigmas = torch.stack(sigma_list, dim=0)
+    for i in range(sigmas.shape[-1]):
+        ax.scatter(np.arange(len(sigma_list)), sigmas[..., i].cpu(), c=colors[i])
+    ax.set_xlabel('Iterations')
+    ax.set_ylabel('Standard deviation')
+    ax.set_title('Sigma History')
+    #plt.legend()
+    plt.grid()
+    fig.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed)+'sigmas')
+    plt.close(fig)
+
+def create_plot_4d_gridas(env, args, size=21):
     import gpytorch
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low

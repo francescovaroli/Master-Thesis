@@ -331,7 +331,8 @@ def update_critic(states, returns, l2_reg=1e-3):
 
 avg_rewards_np = [0]
 tot_steps_np = [0]
-sigma_history = [torch.tensor(args.fixed_sigma)]
+if args.fixed_sigma is not None:
+    sigma_history = [torch.tensor(args.fixed_sigma)]
 
 def main_loop():
     colors = []
@@ -386,7 +387,10 @@ def main_loop():
         print('new sigma', args.fixed_sigma)
         plot_rewards_history(tot_steps_np, avg_rewards_np)
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
-        sigma_history.append(torch.tensor(args.fixed_sigma))
+        if args.fixed_sigma is not None:
+            sigma_history.append(torch.tensor(args.fixed_sigma))
+        else:
+            sigma_history.append(torch.cat([ep['stddev'] for ep in iter_dataset_np]).mean(dim=0))
         plot_sigma_history(sigma_history)
         if tot_steps_np[-1] > args.tot_steps:
             break

@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_8/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_8a/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 0.6
@@ -72,12 +72,12 @@ for s, subfolder_path in enumerate(all_folders[1:]):
     else:
         color='b'
         label = 'ER size: 120 ep'''
-    if '10000' in subfolder_path:
+    if '14000' in subfolder_path:
         color = 'r'
-        label = '10k'
-    elif '2kkl' in subfolder_path:
+        label = '14k'
+    elif '10000' in subfolder_path:
         color = 'b'
-        label = '0,02 kl'
+        label = '10k'
     else:
         color='g'
         label = '8k'

@@ -20,9 +20,9 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_mount_9/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_9a/'
 
-keys = ['TRPO', 'NP']
+keys = ['Last iteration as context', 'RM as context']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
@@ -32,11 +32,11 @@ chunk_size = 50000
 num_seeds = 3
 first = 0
 fig_rew, ax_rew = plt.subplots(1, 1)
-ax_rew.set_xlabel('number of steps')
-ax_rew.set_ylabel('average reward')
+ax_rew.set_xlabel('Number of steps')
+ax_rew.set_ylabel('Average reward')
 title = 'Reward History Percentile ' + all_folders[2].split('-')[0].split('/')[-1]
 colors = ['b', 'r', 'g', 'y']
-ax_rew.set_title(title)
+#ax_rew.set_title(title)
 for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
     if subfolder == []:
         continue
@@ -92,7 +92,7 @@ for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
     #handles, labels = plt.gca().get_legend_handles_labels()
     #by_label = dict(zip(labels, handles))
     #plt.legend(by_label.values(), by_label.keys())
-plt.legend()
+plt.legend(loc='lower right')
 title += label
 plt.grid()
 fig_rew.savefig(folder_path+title)

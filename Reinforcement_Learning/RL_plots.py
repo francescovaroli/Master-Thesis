@@ -57,7 +57,7 @@ parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.6, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.75, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')

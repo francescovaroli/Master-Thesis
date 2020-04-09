@@ -177,6 +177,8 @@ is_disc_action = len(env.action_space.shape) == 0
 
 if args.fixed_sigma is not None:
     args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
+else:
+    args.plot_np_sigma = True
 
 """seeding"""
 np.random.seed(args.seed)
@@ -333,6 +335,8 @@ avg_rewards_np = [0]
 tot_steps_np = [0]
 if args.fixed_sigma is not None:
     sigma_history = [torch.tensor(args.fixed_sigma)]
+else:
+    sigma_history = []
 
 def main_loop():
     colors = []
@@ -390,7 +394,7 @@ def main_loop():
         if args.fixed_sigma is not None:
             sigma_history.append(torch.tensor(args.fixed_sigma))
         else:
-            sigma_history.append(torch.cat([ep['stddev'] for ep in iter_dataset_np]).mean(dim=0))
+            sigma_history.append(torch.cat([ep['stddevs'] for ep in iter_dataset_np.data]).mean(dim=0))
         plot_sigma_history(sigma_history)
         if tot_steps_np[-1] > args.tot_steps:
             break

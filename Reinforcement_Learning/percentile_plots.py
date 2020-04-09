@@ -20,15 +20,15 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_9a/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_9b/'
 
-keys = ['Last iteration as context', 'RM as context']
+keys = ['TRPO', 'RM as context']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 0.3
 max_len = 1000000
-chunk_size = 50000
+chunk_size = 10000
 num_seeds = 3
 first = 0
 fig_rew, ax_rew = plt.subplots(1, 1)

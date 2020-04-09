@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_9a/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_9b/'
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 0.6
@@ -75,15 +75,15 @@ for s, subfolder_path in enumerate(all_folders[1:]):
     else:
         color='b'
         label = 'ER size: 120 ep'''
-    if '5000' in subfolder_path:
+    if '0,96' in subfolder_path:
         color = 'r'
-        label = '5k'
-    elif '0,9l5' in subfolder_path:
+        label = '0,96 tau'
+    elif '8lkl' in subfolder_path:
         color = 'b'
-        label = '0,95 tau'
+        label = '0,8 kl'
     else:
         color = 'g'
-        label = '10k'
+        label = '0,99 tau'
     ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c=color, label=label)
 
     handles, labels = plt.gca().get_legend_handles_labels()

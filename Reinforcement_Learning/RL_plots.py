@@ -57,7 +57,7 @@ parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.75, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.7, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -423,8 +423,8 @@ def plot_sigma_history(sigma_list):
         ax.scatter(np.arange(len(sigma_list)), sigmas[..., i].cpu(), c=colors[i])
     ax.set_xlabel('Iterations')
     ax.set_ylabel('Standard deviation')
-    ax.set_title('Sigma History')
-    #plt.legend()
+    ax.set_title('Average standard deviation for epsilon =' + str(args.max_kl_np))
+    plt.legend()
     plt.grid()
     fig.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed)+'sigmas')
     plt.close(fig)

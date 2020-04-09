@@ -48,9 +48,9 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
-parser.add_argument('--num-context', default=50, type=int,
+parser.add_argument('--num-context', default=100, type=int,
                     help='pick context points depending on index')
-parser.add_argument('--pick-dist', default=0.1, type=float,
+parser.add_argument('--pick-dist', default=None, type=float,
                     help='if None use index, else defines limit distance for chosing a point')
 parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
                     help='number of context points to sample from rm')

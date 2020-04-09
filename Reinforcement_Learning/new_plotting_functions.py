@@ -82,8 +82,8 @@ def create_plot_grid(env, args, size=20):
     x = x.unsqueeze(0).to(args.dtype).to(args.device_np)
     return x, X1, X2, x1, x2
 
-def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args, use_np_sigma=True):
-    size = 10
+def plot_NP_policy_MC(policy_np, rm, iter_pred, env, args, use_np_sigma=True, size = 20):
+
     fig = plt.figure(figsize=(16,8))
     #fig.suptitle('NP policy for iteration {}, , avg rew {} '.format(iter_pred, int(avg_rew)), fontsize=20)
     x, X1, X2, x1, x2 = create_plot_grid(env, args, size=size)
@@ -233,7 +233,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
 
     ax_context = fig.add_subplot(222, projection='3d')
     set_labels(ax_context)
-    set_limits(ax_context, env, args)
+    set_limits_v(ax_context, env, args)
     ax_context.set_title('Context points improved', pad=30, fontsize=16)
 
     ax_samples = fig.add_subplot(223, projection='3d')
@@ -241,7 +241,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
         ax_samples.set_title('Samples from policy, fixed sigma {:.2f}'.format(args.fixed_sigma.item()), pad=30, fontsize=16)
     else:
         ax_samples.set_title('Samples from policy, sigma from NP', pad=30, fontsize=16)
-    set_limits(ax_samples, env, args)
+    set_limits_v(ax_samples, env, args)
     set_labels(ax_samples)
 
     stddev_low_list = []
@@ -281,7 +281,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
         ax_samples.plot_surface(X1, X2, z_sample.cpu().numpy(), color=colors[e], alpha=0.2)
 
     ax_rm = fig.add_subplot(224, projection='3d')
-    set_limits(ax_rm, env, args)
+    set_limits_v(ax_rm, env, args)
     set_labels(ax_rm)
     ax_rm.set_title('Training set (RM)', pad=30, fontsize=16)
     for traj in rm:
@@ -289,7 +289,7 @@ def plot_NP_policy(policy_np, all_context_xy, rm, iter_pred, avg_rew, env, args,
         ax_rm.scatter(traj[0][:r_len, 0].cpu(), traj[0][:r_len, 1].cpu(), traj[1][:r_len, 0].cpu(),
                       c=traj[1][:r_len, 0].cpu(), alpha=0.1, cmap='viridis')
     set_labels(ax_mean)
-    set_limits(ax_mean, env, args)
+    set_limits_v(ax_mean, env, args)
     ax_mean.set_title('Mean of the NP policies', pad=30, fontsize=16)
     # plt.show()
     fig.savefig(args.directory_path + '/policy/'+'/NP estimate/'+name, dpi=250)
@@ -319,11 +319,11 @@ def plot_improvements(all_dataset, est_rewards, env, i_iter, args, colors):
     ax = fig.add_subplot(121, projection='3d')
     name_c = 'Context improvement iter ' + str(i_iter)
     ax.set_title(name_c)
-    set_limits(ax, env, args)
-    set_labels(ax)
+    set_limits_v(ax, env, args)
+    set_labels_v(ax)
     ax_rew = fig.add_subplot(122, projection='3d')
     set_labels(ax_rew)
-    set_limits(ax_rew, env, args)
+    set_limits_v(ax_rew, env, args)
     for e, episode in enumerate(all_dataset):
         real_len = episode['real_len']
         states = episode['states'][:real_len]
@@ -582,7 +582,7 @@ def plot_chosen_context(context_list, num_context, i_iter, args, env):
     #    colors.append('#%06X' % randint(0, 0xFFFFFF))
     if args.pick_context:
         if args.pick_dist is None:
-            color = 'y'
+            color = 'b'
             name = 'Context chosen by index'
             p=0
 
@@ -608,14 +608,14 @@ def plot_chosen_context(context_list, num_context, i_iter, args, env):
         else:
             title = 'Index: {}   number of context points: {}'.format(index, args.num_ensembles*999)
         ax.set_title(title)
-        set_limits(ax, env, args, np_id='policy')
+        set_limits_v(ax, env, args, np_id='policy')
         if args.pick_context:
             x_context, y_context = get_close_context(index, test_episode[0][:, index, :].unsqueeze(0), context_list,
                                                      args.pick_dist, num_tot_context=num_context)
         else:
             x_context, y_context = merge_context(context_list)
         if True:
-            ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=color, alpha=0.05,
+            ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=color, alpha=0.2,
                        marker='+', label='Chosen context', zorder=-1)
             ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(),
                        test_episode[1][0, index, 0].cpu(),c='k', alpha=1, label='Target point', zorder=1)

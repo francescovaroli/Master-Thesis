@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
+parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')

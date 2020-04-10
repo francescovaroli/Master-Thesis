@@ -35,9 +35,9 @@ parser.add_argument('--render', action='store_true', default=False,
 
 parser.add_argument('--use-running-state', default=False,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl', type=float, default=0.01, metavar='G',
+parser.add_argument('--max-kl', type=float, default=0.1, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=2, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -48,7 +48,7 @@ parser.add_argument('--gamma', type=float, default=0.999, metavar='G',
 
 parser.add_argument('--pick-context', default=True, metavar='N',
                     help='pick context points depending on index')
-parser.add_argument('--num-context', default=100, type=int,
+parser.add_argument('--num-context', default=1000, type=int,
                     help='pick context points depending on index')
 parser.add_argument('--pick-dist', default=None, type=float,
                     help='if None use index, else defines limit distance for chosing a point')
@@ -330,6 +330,7 @@ def main_loop():
             plot_rewards_history(avg_rewards, tot_steps, args)
             #if args.pick_context:
             plot_chosen_context(improved_context_list, args.num_context, i_iter, args, env)
+            plot_all_training_set(i_iter, replay_memory, env, args)
         if args.fixed_sigma is not None:
             args.fixed_sigma = args.fixed_sigma * args.gamma
     plot_rewards_history(avg_rewards, args)
@@ -341,6 +342,20 @@ try:
     create_directories(args.directory_path)
 except FileExistsError:
     pass
+
+def plot_all_training_set(i_iter, replay_memory, env, args):
+    name = 'sTraining trajectories ' + str(i_iter)
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+    #ax.set_title(name)
+    set_limits_v(ax, env, args)
+    set_labels(ax)
+    xs_context, ys_context = merge_context(replay_memory.data)
+    z = ys_context[..., 0].view(-1)
+    ax.scatter(xs_context[..., 0], xs_context[..., 1], z, c=z, cmap='viridis', alpha=0.1, vmin=-1., vmax=1.)
+    fig.savefig(args.directory_path + '/policy/'+'/Training/'+name)
+    plt.close(fig)
+
 main_loop()
 
 

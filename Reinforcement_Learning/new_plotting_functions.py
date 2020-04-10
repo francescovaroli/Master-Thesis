@@ -602,7 +602,7 @@ def plot_chosen_context(context_list, num_context, i_iter, args, env):
     for index in np.arange(0, real_len, real_len//(num_tested_points-1)):
         ax = fig.add_subplot(1, 3, e + 1, projection='3d')
         if p==0:
-            title = 'Index: {}   number of context points: {}'.format(index, args.num_context)
+            title = 'Index: {}   number of chosen points: {}'.format(index, args.num_context)
         elif p==1:
             title = 'Index: {},  euclidian distance: {} '.format(index, args.pick_dist)
         else:
@@ -615,10 +615,11 @@ def plot_chosen_context(context_list, num_context, i_iter, args, env):
         else:
             x_context, y_context = merge_context(context_list)
         if True:
-            ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=color, alpha=0.2,
+            z = y_context[0, :, 0].cpu().view(-1)
+            ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), z, c=z, cmap='viridis', alpha=0.15, vmin=-1., vmax=1.,
                        marker='+', label='Chosen context', zorder=-1)
             ax.scatter(test_episode[0][0, index, 0].cpu(), test_episode[0][0, index, 1].cpu(),
-                       test_episode[1][0, index, 0].cpu(),c='k', alpha=1, label='Target point', zorder=1)
+                       0.,c='k', alpha=1, label='Target state', zorder=1)
         else:
             ax.scatter(x_context[0, :, 0].cpu(), x_context[0, :, 1].cpu(), y_context[0, :, 0].cpu(), c=color, alpha=0.5,
                        marker='+', zorder=-1)

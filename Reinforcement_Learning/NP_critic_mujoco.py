@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -44,13 +44,14 @@ parser.add_argument('--loo', default=True, type=boolean_string, help='train leav
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
+parser.add_argument('--learn-baseline', default=False, type=boolean_string, help='use V estimate')
 
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=300, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
@@ -275,16 +276,6 @@ def sample_initial_context_normal(num_episodes):
         initial_episodes.append([states, actions_init, max_episode_len])
     return initial_episodes
 
-def train_on_initial(initial_context_list):
-    #print('training on initial context')
-    train_list = []
-    for episode in initial_context_list:
-        train_list.append([episode[0].squeeze(0), episode[1].squeeze(0), episode[2]])
-
-    policy_np.training = True
-    data_loader = DataLoader(train_list, batch_size=args.np_batch_size, shuffle=True)
-    np_trainer.train(data_loader, 10*args.epochs_per_iter, early_stopping=0)
-    policy_np.training = False
 
 def critic_estimate(states_list, rewards_list, args):
     adv_list = []
@@ -349,15 +340,17 @@ def main_loop():
         disc_rew_np = discounted_rewards(batch_np.memory, args.gamma)
         iter_dataset_np = BaseDataset(batch_np.memory, disc_rew_np, args.device_np, args.dtype,  max_len=max_episode_len)
         print('np avg actions: ', log_np['action_mean'])
-        if args.value_net:
-            state_list = [ep['states'][:ep['real_len']] for ep in iter_dataset_np]
-            advantages_np, returns = critic_estimate(state_list, disc_rew_np, args)
-            update_critic(torch.cat(state_list, dim=0), torch.cat(returns, dim=0))
+        if args.learn_baseline:
+            if args.value_net:
+                state_list = [ep['states'][:ep['real_len']] for ep in iter_dataset_np]
+                advantages_np, returns = critic_estimate(state_list, disc_rew_np, args)
+                update_critic(torch.cat(state_list, dim=0), torch.cat(returns, dim=0))
+            else:
+                advantages_np = estimate_v_a(iter_dataset_np, disc_rew_np, value_replay_memory, value_np, args)
+                value_replay_memory.add(iter_dataset_np)
+                train_value_np(value_replay_memory)
         else:
-            advantages_np = estimate_v_a(iter_dataset_np, disc_rew_np, value_replay_memory, value_np, args)
-            value_replay_memory.add(iter_dataset_np)
-            train_value_np(value_replay_memory)
-
+            advantages_np = disc_rew_np
         improved_context_list_np = improvement_step_all(iter_dataset_np, advantages_np, args.max_kl_np, args)
         # training
         tn0 = time.time()

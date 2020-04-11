@@ -44,7 +44,7 @@ parser.add_argument('--loo', default=True, type=boolean_string, help='train leav
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
-parser.add_argument('--learn-baseline', default=False, type=boolean_string, help='use V estimate')
+parser.add_argument('--learn-baseline', default=True, type=boolean_string, help='use V estimate')
 
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
@@ -146,7 +146,7 @@ args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim
 args.v_r_dim = args.r_dim
 
-np_spec = '_NP_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.value_net, args.replay_memory_size, args.v_replay_memory_size,
+np_spec = '_NP_baseline:{}_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_attention:{}_{}a'.format(args.learn_baseline, args.value_net, args.replay_memory_size, args.v_replay_memory_size,
                                                                 args.rm_as_context, args.epochs_per_iter,args.v_epochs_per_iter, args.z_dim,
                                                                 args.h_dim, args.max_kl_np, args.use_attentive_np,
                                                                                 args.a_dim)

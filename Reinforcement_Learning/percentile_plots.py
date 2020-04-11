@@ -20,9 +20,9 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mlp/mlp_mount_11c/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/critic_compar/np_hopper_no_critic/'
 
-keys = ['MLP', 'NP']
+keys = ['Critic network', 'NP baseline estimate']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
@@ -91,12 +91,12 @@ for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
     perc_20, perc_80 = np.percentile(rew_param, [20, 80], 0)
     mean = rew_param.mean(axis=0)
     step_plot = np.arange(1, len(avg_rews)+1)*chunk_size
-    ax_rew.plot(step_plot, mean, alpha=alpha, c=colors[e], label=keys[e]+add_label[e])
+    ax_rew.plot(step_plot, mean, alpha=alpha, c=colors[e], label=keys[e]) #+add_label[e]
     ax_rew.fill_between(step_plot, perc_20, perc_80, color=colors[e], alpha=alpha/3)
     #handles, labels = plt.gca().get_legend_handles_labels()
     #by_label = dict(zip(labels, handles))
     #plt.legend(by_label.values(), by_label.keys())
-    ax_rew.set_title('MountainCarContinuous-v0')
+    ax_rew.set_title('Hopper-v2')
 plt.legend(loc='lower right')
 title += label
 plt.grid()

@@ -140,7 +140,7 @@ args.r_dim *= args.net_size
 args.h_dim *= args.net_size
 args.a_dim *= args.net_size
 
-args.epochs_per_iter = 2000 // args.replay_memory_size #+ 10
+args.epochs_per_iter = 1000 // args.replay_memory_size + 50
 args.v_epochs_per_iter = args.epochs_per_iter
 args.v_replay_memory_size = args.replay_memory_size
 args.v_z_dim = args.z_dim

@@ -20,9 +20,9 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_mount_10/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/pick_context/hopper'
 
-keys = ['TRPO', 'NP']
+keys = ['picklc:False', 'picklc:True']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
@@ -62,11 +62,14 @@ for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
         rew_data = []
         lens = []
         for i in range(num_seeds):
-            file_path = subfolder_path + '/avg{}.csv'.format(i)
-            data = np.genfromtxt(file_path, delimiter=',')
-            step_data.extend(data[:, 0])
-            rew_data.extend(data[:, 1])
-            lens.append(data[-1, 0])
+            try:
+                file_path = subfolder_path + '/avg{}.csv'.format(i)
+                data = np.genfromtxt(file_path, delimiter=',')
+                step_data.extend(data[:, 0])
+                rew_data.extend(data[:, 1])
+                lens.append(data[-1, 0])
+            except OSError:
+                pass
         min_len = min(min(lens), max_len)
         start = 0
         avg_rews = []
@@ -92,6 +95,7 @@ for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
     #handles, labels = plt.gca().get_legend_handles_labels()
     #by_label = dict(zip(labels, handles))
     #plt.legend(by_label.values(), by_label.keys())
+    #ax_rew.set_title('MountainCarContinuous-v0')
 plt.legend(loc='lower right')
 title += label
 plt.grid()

@@ -111,7 +111,7 @@ np_spec = '_critic:{}_{},{}rm_{},{}epo_{}h_{}kl_'.format(args.value_net, args.re
                                                args.v_epochs_per_iter, args.h_dim, args.max_kl_mlp)
 
 
-run_id = '/{}_MLP_{}epi_fixSTD:{}_{}gamma'.format(args.env_name, args.num_ensembles, args.fixed_sigma,
+run_id = '/{}_MLP_{}steps_{}epi_fixSTD:{}_{}gamma'.format(args.env_name, args.num_req_steps, args.num_ensembles, args.fixed_sigma,
                                                    args.gamma) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id

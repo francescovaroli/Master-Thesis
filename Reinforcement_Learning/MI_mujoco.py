@@ -30,7 +30,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -317,7 +317,7 @@ def main_loop():
             sigma_history.append(torch.tensor(args.fixed_sigma))
         else:
             sigma_history.append(torch.cat([ep['stddevs'] for ep in iter_dataset_mi.data]).mean(dim=0))
-        plot_sigma_history(sigma_history)
+        #plot_sigma_history(sigma_history)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(tot_steps_mi,avg_rewards_mi)
         if tot_steps_mi[-1] > args.tot_steps:

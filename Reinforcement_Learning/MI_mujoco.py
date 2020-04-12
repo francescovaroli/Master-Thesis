@@ -48,7 +48,7 @@ parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
 
-parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=500, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--z-mi-dim', type=int, default=32, metavar='N',
@@ -111,7 +111,7 @@ parser.add_argument("--net-size", type=int, default=1,
 args = parser.parse_args()
 initial_training = True
 
-args.epochs_per_iter = 2000 // args.replay_memory_size
+args.epochs_per_iter = 1000 // args.replay_memory_size
 
 args.z_mi_dim *= args.net_size
 args.h_mi_dim *= args.net_size
@@ -264,6 +264,10 @@ def sample_initial_context_normal(num_episodes):
 
 avg_rewards_mi = [0]
 tot_steps_mi = [0]
+if args.fixed_sigma is not None:
+    sigma_history = [torch.tensor(args.fixed_sigma)]
+else:
+    sigma_history = []
 
 
 def main_loop():
@@ -309,6 +313,11 @@ def main_loop():
             print('mi: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_mi['min_reward'], log_mi['max_reward'], log_mi['avg_reward']))
         print('new sigma', args.fixed_sigma)
         store_avg_rewards(tot_steps_mi[-1], log_mi['avg_reward'], mi_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
+        if args.fixed_sigma is not None:
+            sigma_history.append(torch.tensor(args.fixed_sigma))
+        else:
+            sigma_history.append(torch.cat([ep['stddevs'] for ep in iter_dataset_mi.data]).mean(dim=0))
+        plot_sigma_history(sigma_history)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(tot_steps_mi,avg_rewards_mi)
         if tot_steps_mi[-1] > args.tot_steps:
@@ -329,6 +338,20 @@ def plot_rewards_history(steps, rews):
     plt.grid()
     fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
+
+def plot_sigma_history(sigma_list):
+    colors = ['b', 'r', 'g', 'y']
+    fig, ax = plt.subplots(1, 1)
+    sigmas = torch.stack(sigma_list, dim=0)
+    for i in range(sigmas.shape[-1]):
+        ax.scatter(np.arange(len(sigma_list)), sigmas[..., i].cpu(), c=colors[i])
+    ax.set_xlabel('Iterations')
+    ax.set_ylabel('Standard deviation')
+    ax.set_title('Average standard deviation for epsilon =' + str(args.max_kl_mi))
+    #plt.legend()
+    plt.grid()
+    fig.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed)+'sigmas')
+    plt.close(fig)
 
 
 def create_directories(directory_path):

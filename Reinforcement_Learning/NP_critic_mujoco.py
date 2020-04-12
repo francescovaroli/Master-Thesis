@@ -33,8 +33,8 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
-                    help='name of the environment to run')
+parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+                    help='name of the environment to rufig:pick_ctxtn')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
 parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
@@ -51,12 +51,12 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=300, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.6, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=3.6, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -319,6 +319,10 @@ def update_critic(states, returns, l2_reg=1e-3):
 
 avg_rewards_np = [0]
 tot_steps_np = [0]
+if args.fixed_sigma is not None:
+    sigma_history = [torch.tensor(args.fixed_sigma)]
+else:
+    sigma_history = []
 
 
 def main_loop():
@@ -366,6 +370,11 @@ def main_loop():
         print('new sigma', args.fixed_sigma)
         plot_rewards_history(tot_steps_np, avg_rewards_np)
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
+        if args.fixed_sigma is not None:
+            sigma_history.append(torch.tensor(args.fixed_sigma))
+        else:
+            sigma_history.append(torch.cat([ep['stddevs'] for ep in iter_dataset_np.data]).mean(dim=0))
+        plot_sigma_history(sigma_history)
         if tot_steps_np[-1] > args.tot_steps:
             break
         """clean up gpu memory"""
@@ -385,6 +394,19 @@ def plot_rewards_history(steps, rews):
     fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
 
+def plot_sigma_history(sigma_list):
+    colors = ['b', 'r', 'g', 'y']
+    fig, ax = plt.subplots(1, 1)
+    sigmas = torch.stack(sigma_list, dim=0)
+    for i in range(sigmas.shape[-1]):
+        ax.scatter(np.arange(len(sigma_list)), sigmas[..., i].cpu(), c=colors[i])
+    ax.set_xlabel('Iterations')
+    ax.set_ylabel('Standard deviation')
+    ax.set_title('Average standard deviation for epsilon =' + str(args.max_kl_np))
+    plt.legend()
+    plt.grid()
+    fig.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed)+'sigmas')
+    plt.close(fig)
 
 def create_directories(directory_path):
     os.mkdir(directory_path)

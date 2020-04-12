@@ -575,6 +575,7 @@ def plot_initial_context(context_points, colors, env, args, i_iter):
     fig.savefig(args.directory_path + '/policy/'+ '/All policies samples/' + name)
     plt.close(fig)
 
+
 def plot_chosen_context(context_list, num_context, i_iter, args, env):
     #colors = []
     num_tested_points = 3

@@ -20,14 +20,14 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/no_baseline/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_walk_hop/hop'
 
-keys = ['Without baseline', 'With baseline']
+keys = ['MI', 'With baseline']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 0.3
-max_len = 1000000
+max_len = 650000
 chunk_size = 20000
 num_seeds = 3
 first = 0
@@ -96,7 +96,7 @@ for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
     #handles, labels = plt.gca().get_legend_handles_labels()
     #by_label = dict(zip(labels, handles))
     #plt.legend(by_label.values(), by_label.keys())
-    ax_rew.set_title('MountainCarContinuous-v0')
+    ax_rew.set_title('Hopper-v2')
 plt.legend(loc='lower right')
 title += label
 plt.grid()

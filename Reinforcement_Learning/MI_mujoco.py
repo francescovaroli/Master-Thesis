@@ -30,7 +30,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
+parser.add_argument('--env-name', default="CartPole-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -264,10 +264,6 @@ def sample_initial_context_normal(num_episodes):
 
 avg_rewards_mi = [0]
 tot_steps_mi = [0]
-if args.fixed_sigma is not None:
-    sigma_history = [torch.tensor(args.fixed_sigma)]
-else:
-    sigma_history = []
 
 
 def main_loop():
@@ -313,11 +309,6 @@ def main_loop():
             print('mi: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_mi['min_reward'], log_mi['max_reward'], log_mi['avg_reward']))
         print('new sigma', args.fixed_sigma)
         store_avg_rewards(tot_steps_mi[-1], log_mi['avg_reward'], mi_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
-        if args.fixed_sigma is not None:
-            sigma_history.append(torch.tensor(args.fixed_sigma))
-        else:
-            sigma_history.append(torch.cat([ep['stddevs'] for ep in iter_dataset_mi.data]).mean(dim=0))
-        #plot_sigma_history(sigma_history)
         if i_iter % args.plot_every == 0:
             plot_rewards_history(tot_steps_mi,avg_rewards_mi)
         if tot_steps_mi[-1] > args.tot_steps:
@@ -338,20 +329,6 @@ def plot_rewards_history(steps, rews):
     plt.grid()
     fig_rew.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed))
     plt.close(fig_rew)
-
-def plot_sigma_history(sigma_list):
-    colors = ['b', 'r', 'g', 'y']
-    fig, ax = plt.subplots(1, 1)
-    sigmas = torch.stack(sigma_list, dim=0)
-    for i in range(sigmas.shape[-1]):
-        ax.scatter(np.arange(len(sigma_list)), sigmas[..., i].cpu(), c=colors[i])
-    ax.set_xlabel('Iterations')
-    ax.set_ylabel('Standard deviation')
-    ax.set_title('Average standard deviation for epsilon =' + str(args.max_kl_mi))
-    #plt.legend()
-    plt.grid()
-    fig.savefig(args.directory_path + run_id.replace('.', ',')+str(args.seed)+'sigmas')
-    plt.close(fig)
 
 
 def create_directories(directory_path):

@@ -20,9 +20,9 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/pick_context_not_for_mlp_compar/walk/'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/no_baseline/'
 
-keys = ['Choose context', 'RM as context', 'Bigger RM']
+keys = ['Without baseline', 'With baseline']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
@@ -96,7 +96,7 @@ for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
     #handles, labels = plt.gca().get_legend_handles_labels()
     #by_label = dict(zip(labels, handles))
     #plt.legend(by_label.values(), by_label.keys())
-    ax_rew.set_title('Walker2d-v2')
+    ax_rew.set_title('MountainCarContinuous-v0')
 plt.legend(loc='lower right')
 title += label
 plt.grid()

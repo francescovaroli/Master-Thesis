@@ -41,7 +41,7 @@ parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
 parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 
-parser.add_argument('--learn-sigma', default=False, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
@@ -68,7 +68,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.4, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')

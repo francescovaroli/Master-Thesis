@@ -68,7 +68,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.25, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.3, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')

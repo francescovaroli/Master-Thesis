@@ -20,7 +20,7 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_muj/ant'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_muj/reach'
 
 keys = ['MI', 'NP']
 

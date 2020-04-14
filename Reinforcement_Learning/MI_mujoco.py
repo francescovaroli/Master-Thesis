@@ -117,7 +117,7 @@ args.z_mi_dim *= args.net_size
 args.h_mi_dim *= args.net_size
 
 
-mi_spec = '_MI_critic:{}_{}rm_isctxt:{}_{}epo_{}z_{}h_{}kl_{}'.format(args.value_net,args.replay_memory_size, args.rm_as_context, args.epochs_per_iter, args.z_mi_dim,
+mi_spec = '_MI_critic:{}_{}_steps_{}rm_isctxt:{}_{}epo_{}z_{}h_{}kl_{}'.format(args.value_net, args.num_req_steps, args.replay_memory_size, args.rm_as_context, args.epochs_per_iter, args.z_mi_dim,
                                           args.h_mi_dim,args.max_kl_mi, args.scaling)
 
 run_id = '/{}_MI_{}epi_fixSTD:{}_{}gamma_{}target_loo:{}_pick:{}_{}context'.format(args.env_name, args.num_ensembles, args.fixed_sigma,

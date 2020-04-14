@@ -10,8 +10,8 @@ def list_folders(dir):
         subfold.append(folder[0])
     return subfold
 
-for sub in ['chee', 'mount']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_muj/'+sub
+for sub in ['swim', 'mount', 'human']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_mount_hum_swim/'+sub
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
     alpha = 0.6

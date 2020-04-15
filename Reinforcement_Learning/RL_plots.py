@@ -57,7 +57,7 @@ parser.add_argument('--num-req-steps', type=int, default=4000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.45, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=0.8, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=6, metavar='N',
                     help='episode to collect per iteration')
@@ -68,7 +68,7 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.3, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.45, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')

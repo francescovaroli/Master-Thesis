@@ -111,7 +111,7 @@ parser.add_argument("--net-size", type=int, default=1,
 args = parser.parse_args()
 initial_training = True
 
-args.epochs_per_iter = 1000 // args.replay_memory_size
+args.epochs_per_iter = 1000 // args.replay_memory_size +10
 
 args.z_mi_dim *= args.net_size
 args.h_mi_dim *= args.net_size

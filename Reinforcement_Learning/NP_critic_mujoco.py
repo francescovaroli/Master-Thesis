@@ -37,11 +37,11 @@ parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
                     help='name of the environment to rufig:pick_ctxtn')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
-parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--mean-action', default=True, type=boolean_string, help='update the stddev of the policy')
 
-parser.add_argument('--learn-sigma', default=False, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
-parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 parser.add_argument('--learn-baseline', default=True, type=boolean_string, help='use V estimate')
@@ -56,7 +56,7 @@ parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=0.6, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=1.6, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
                     help='episode to collect per iteration')
@@ -67,9 +67,9 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.6, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=35, metavar='G',
                     help='size of training set in episodes ')
@@ -83,7 +83,7 @@ parser.add_argument('--a-dim', type=int, default=128, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
+parser.add_argument('--early-stopping', type=int, default=-1000, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',

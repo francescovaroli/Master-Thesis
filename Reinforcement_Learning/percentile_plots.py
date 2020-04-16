@@ -20,14 +20,14 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 
-folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/rm_ablation'
+folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/rm_ablation/'
 
 keys = ['Without RM', 'With RM']
 
 all_folders = list_folders(folder_path)
 num_folders = len(all_folders)
 alpha = 0.3
-max_len = 650000
+max_len = 1000000
 chunk_size = 20000
 num_seeds = 3
 first = 0

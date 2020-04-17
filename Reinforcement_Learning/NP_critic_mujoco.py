@@ -37,7 +37,7 @@ parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
                     help='name of the environment to rufig:pick_ctxtn')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
-parser.add_argument('--mean-action', default=True, type=boolean_string, help='update the stddev of the policy')
+parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')

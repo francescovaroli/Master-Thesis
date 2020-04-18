@@ -51,14 +51,14 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=500, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=1.6, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=4, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -71,7 +71,7 @@ parser.add_argument('--fixed-sigma', default=0.6, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=35, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=80, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=128, metavar='N',
                     help='dimension of latent variable in np')

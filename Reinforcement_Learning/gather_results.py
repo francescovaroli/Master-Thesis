@@ -10,8 +10,8 @@ def list_folders(dir):
         subfold.append(folder[0])
     return subfold
 
-for sub in ['walk', 'swim', 'hop', 'chee']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_walk_hop/'+sub
+for sub in ['ant']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/rm_no_pick/'+sub
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
     alpha = 0.6
@@ -75,15 +75,15 @@ for sub in ['walk', 'swim', 'hop', 'chee']:
         else:
             color='b'
             label = 'ER size: 120 ep'''
-        if '0,6kl' in subfolder_path:
+        if '6rm' in subfolder_path:
             color = 'r'
-            label = '0,6 kl'
-        elif '0,04kl' in subfolder_path:
+            label = '6rm'
+        elif '40rm' in subfolder_path:
             color = 'b'
-            label = '0,04 kl'
+            label = '40 rm'
         else:
             color = 'g'
-            label = '1,5 kl'
+            label = '80rm'
         ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c=color, label=label)
 
         handles, labels = plt.gca().get_legend_handles_labels()

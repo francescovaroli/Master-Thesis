@@ -19,10 +19,10 @@ def separate_subfolders(folders, keys):
                 key_subf.append(folder)
         subf.append(key_subf)
     return subf
-for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_double_pole/'+sub
+for sub in ['inver', 'pend']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_pendo/'+sub
 
-    keys = ['TRPO', '40rm', '80rm']
+    keys = ['NP', '40rm', '80rm']
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
@@ -39,7 +39,7 @@ for sub in ['']:
     add_label = [' (no context)', ' (context)']
     #ax_rew.set_title(title)
     for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
-        if subfolder == []:
+        if subfolder == [] or 'nop' in subfolder:
             continue
         if 'NP' in subfolder[0]:
             label = 'Attentive Neural Process'

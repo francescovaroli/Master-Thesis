@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="InvertedDoublePendulum-v2", metavar='G',
+parser.add_argument('--env-name', default="Swimmer-v2", metavar='G',
                     help='name of the environment to rufig:pick_ctxtn')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -73,13 +73,13 @@ parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=80, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=128, metavar='N',
+parser.add_argument('--z-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=128, metavar='N',
+parser.add_argument('--r-dim', type=int, default=64, metavar='N',
                     help='dimension of representation space in np')
-parser.add_argument('--h-dim', type=int, default=128, metavar='N',
+parser.add_argument('--h-dim', type=int, default=64, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--a-dim', type=int, default=128, metavar='N',
+parser.add_argument('--a-dim', type=int, default=64, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
@@ -129,7 +129,7 @@ parser.add_argument("--plot-every", type=int, default=1,
 parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during NP training')
 
-parser.add_argument("--net-size", type=int, default=1,
+parser.add_argument("--net-size", type=int, default=2,
                     help='multiplies all net pararms')
 
 args = parser.parse_args()

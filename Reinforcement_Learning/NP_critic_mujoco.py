@@ -33,15 +33,15 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
-                    help='name of the environment to rufig:pick_ctxtn')
+parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+                    help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
 parser.add_argument('--mean-action', default=False, type=boolean_string, help='update the stddev of the policy')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
-parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 parser.add_argument('--learn-baseline', default=True, type=boolean_string, help='use V estimate')
@@ -51,14 +51,14 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=4000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')

@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
+parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
                     help='name of the environment to rufig:pick_ctxtn')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -51,14 +51,14 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=4000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=20, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')

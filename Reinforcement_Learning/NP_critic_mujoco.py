@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment to rufig:pick_ctxtn')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -51,14 +51,14 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=3000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=1.6, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=15, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -67,19 +67,19 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=0.2, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.3, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=40, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=25, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=80, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=40, metavar='G',
                     help='size of training set in episodes ')
-parser.add_argument('--z-dim', type=int, default=64, metavar='N',
+parser.add_argument('--z-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=64, metavar='N',
+parser.add_argument('--r-dim', type=int, default=32, metavar='N',
                     help='dimension of representation space in np')
-parser.add_argument('--h-dim', type=int, default=64, metavar='N',
+parser.add_argument('--h-dim', type=int, default=32, metavar='N',
                     help='dimension of hidden layers in np')
-parser.add_argument('--a-dim', type=int, default=64, metavar='N',
+parser.add_argument('--a-dim', type=int, default=32, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
@@ -129,7 +129,7 @@ parser.add_argument("--plot-every", type=int, default=1,
 parser.add_argument("--num-testing-points", type=int, default=1000,
                     help='how many point to use as only testing during NP training')
 
-parser.add_argument("--net-size", type=int, default=2,
+parser.add_argument("--net-size", type=int, default=1,
                     help='multiplies all net pararms')
 
 args = parser.parse_args()

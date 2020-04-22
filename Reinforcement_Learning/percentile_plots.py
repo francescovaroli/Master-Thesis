@@ -19,10 +19,10 @@ def separate_subfolders(folders, keys):
                 key_subf.append(folder)
         subf.append(key_subf)
     return subf
-for sub in ['swim']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_antt/'+sub
+for sub in ['human', 'ant']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_humanant/'+sub
 
-    keys = ['20epi', '10epi']
+    keys = ['NP', 'STD:s0,25']
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)

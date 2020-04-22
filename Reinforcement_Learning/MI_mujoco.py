@@ -48,12 +48,12 @@ parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
 
-parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=1500, metavar='N',
                     help='number of context points to sample from rm')
 
-parser.add_argument('--z-mi-dim', type=int, default=126, metavar='N',
+parser.add_argument('--z-mi-dim', type=int, default=64, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-mi-dim', type=int, default=126, metavar='N',
+parser.add_argument('--h-mi-dim', type=int, default=64, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')

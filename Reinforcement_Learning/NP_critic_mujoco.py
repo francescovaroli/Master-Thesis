@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="DoubleInvertedPendulum-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -71,7 +71,7 @@ parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
                     help='sigma of the policy')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=50, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')

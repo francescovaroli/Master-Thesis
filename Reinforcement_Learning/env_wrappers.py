@@ -42,7 +42,11 @@ class HumanoidWrapper():
 
   @property
   def observation_space(self):
-    return self.env.observation_space
+    obs = self.env.reset()
+    low = np.full([len(INDS_HUM)], -float('inf'))
+    high = np.full([len(INDS_HUM)], float('inf'))
+    space = gym.spaces.Box(low, high, dtype=obs.dtype)
+    return space
 
   @property
   def _max_episode_steps(self):
@@ -52,8 +56,8 @@ class HumanoidWrapper():
     observation, reward, done, info = self.env.step(action)
     return observation[INDS_HUM], reward, done, info
 
-  def render(self, mode):
-    return self.env.render(mode=mode)
+  def render(self):
+    return self.env.render()
 
   def seed(self, seed):
     return self.env.seed(seed)
@@ -78,7 +82,11 @@ class AntWrapper():
 
   @property
   def observation_space(self):
-    return self.env.observation_space
+    obs = self.env.reset()
+    low = np.full([len(INDS_ANT)], -float('inf'))
+    high = np.full([len(INDS_ANT)], float('inf'))
+    space = gym.spaces.Box(low, high, dtype=obs.dtype)
+    return space
 
   @property
   def _max_episode_steps(self):
@@ -88,8 +96,8 @@ class AntWrapper():
     observation, reward, done, info = self.env.step(action)
     return observation[INDS_ANT], reward, done, info
 
-  def render(self, mode):
-    return self.env.render(mode=mode)
+  def render(self):
+    return self.env.render()
 
   def seed(self, seed):
     return self.env.seed(seed)
@@ -114,7 +122,7 @@ class InvertedDoublePendulumWrapper():
 
   @property
   def observation_space(self):
-    return self.env.observation_space
+    return len(INDS_IDP)
 
   @property
   def _max_episode_steps(self):
@@ -124,8 +132,8 @@ class InvertedDoublePendulumWrapper():
     observation, reward, done, info = self.env.step(action)
     return observation[INDS_IDP], reward, done, info
 
-  def render(self, mode):
-    return self.env.render(mode=mode)
+  def render(self):
+    return self.env.render()
 
   def seed(self, seed):
     return self.env.seed(seed)

@@ -55,7 +55,7 @@ class Attention(nn.Module):
 
         self.residual_dropout = nn.Dropout(p=0.1)
 
-        self.fcinal_linear = Linear(num_hidden * 2, num_hidden)
+        self.final_linear = Linear(num_hidden * 2, num_hidden)
 
         self.layer_norm = nn.LayerNorm(num_hidden)
 

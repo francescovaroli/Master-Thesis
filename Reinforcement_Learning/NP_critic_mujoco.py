@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Ant-v2", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -69,7 +69,7 @@ parser.add_argument('--tau', type=float, default=0.95, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--min-sigma', default=0.15, type=float, metavar='N',
+parser.add_argument('--min-sigma', default=0.2, type=float, metavar='N',
                     help='minimum value of the NP policy stddev')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
@@ -120,7 +120,7 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--use-attentive-np', default=False, type=boolean_string, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, type=boolean_string, metavar='N',
                      help='use attention in policy and value NPs')
 parser.add_argument('--v-use-attentive-np', default=True, type=boolean_string, metavar='N',
                      help='use attention in policy and value NPs')
@@ -194,9 +194,9 @@ env.seed(args.seed)
 '''create neural process'''
 if args.use_attentive_np:
     policy_np = AttentiveNeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim,
-                                                       args.a_dim, use_self_att=False).to(args.device_np)
+                                                       args.a_dim, use_self_att=False, min_sigma=args.min_sigma).to(args.device_np)
 else:
-    policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim).to(args.device_np)
+    policy_np = NeuralProcess(state_dim, action_dim, args.r_dim, args.z_dim, args.h_dim, min_sigma=args.min_sigma).to(args.device_np)
 optimizer = torch.optim.Adam(policy_np.parameters(), lr=3e-4)
 
 if args.value_net:

@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="DoubleInvertedPendulum-v2", metavar='G',
+parser.add_argument('--env-name', default="Ant-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -152,7 +152,7 @@ np_spec = '_NP_baseline:{}_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_att
                                                                                 args.a_dim)
 
 
-run_id = '/{}_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
+run_id = '/{}_0_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
          '_{}target_loo:{}_picklc:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
                                                             args.fixed_sigma,args.gamma, args.num_testing_points, args.loo,
                                                             args.pick, args.num_context) + np_spec

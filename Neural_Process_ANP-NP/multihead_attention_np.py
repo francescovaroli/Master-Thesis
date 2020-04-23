@@ -310,7 +310,7 @@ class Decoder(nn.Module):
         # Define sigma following convention in "Empirical Evaluation of Neural
         # Process Objectives" and "Attentive Neural Processes"
         if self.fixed_sigma is None:
-            sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
+            sigma = 0.2 + 0.8 * F.softplus(pre_sigma)
         else:
             sigma = torch.Tensor(mu.shape)
             sigma.fill_(self.fixed_sigma)

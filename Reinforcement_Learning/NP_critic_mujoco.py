@@ -18,7 +18,7 @@ from training_module_RL import NeuralProcessTrainerRL
 from training_leave_one_out_pick import NeuralProcessTrainerLooPick
 import scipy.optimize
 from models.mlp_critic import Value
-
+from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 from multihead_attention_np import *
 from torch.distributions import Normal
 from core.common import discounted_rewards, estimate_v_a, improvement_step_all, compute_gae
@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Ant-v2", metavar='G',
+parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -51,14 +51,14 @@ parser.add_argument('--value-net', default=True, type=boolean_string, help='use 
 
 parser.add_argument('--num-context', type=int, default=10000, metavar='N',
                     help='number of context points to sample from rm')
-parser.add_argument('--num-req-steps', type=int, default=2000, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
 parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
@@ -69,7 +69,7 @@ parser.add_argument('--tau', type=float, default=0.95, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--epochs-per-iter', type=int, default=50, metavar='G',
+parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=50, metavar='G',
                     help='size of training set in episodes ')
@@ -164,7 +164,14 @@ np_file = args.directory_path + '/{}.csv'.format(args.seed)
 #torch.set_default_dtype(args.dtype)
 
 """environment"""
-env = gym.make(args.env_name)
+if args.env_name == 'Humanoid-v2' or args.env_name == 'HumanoidStandup-v2':
+    env = HumanoidWrapper(args.env_name)
+elif args.env_name == 'Ant-v2':
+    env = AntWrapper(args.env_name)
+elif args.env_name == 'InvertedDoublePendulum-v2':
+    env = InvertedDoublePendulumWrapper(args.env_name)
+else:
+    env = gym.make(args.env_name)
 max_episode_len = env._max_episode_steps
 
 state_dim = env.observation_space.shape[0]

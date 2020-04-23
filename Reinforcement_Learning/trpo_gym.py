@@ -14,10 +14,11 @@ from core.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 from utils_rl.store_results import *
+from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G',
+parser.add_argument('--env-name', default="Ant-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--model-path', metavar='G',
                     help='path of pre-trained model')
@@ -68,7 +69,14 @@ args.directory_path += run_id
 np_file = args.directory_path + '/{}.csv'.format(args.seed)
 
 """environment"""
-env = gym.make(args.env_name)
+if args.env_name == 'Humanoid-v2' or args.env_name == 'HumanoidStandup-v2':
+    env = HumanoidWrapper(args.env_name)
+elif args.env_name == 'Ant-v2':
+    env = AntWrapper(args.env_name)
+elif args.env_name == 'InvertedDoublePendulum-v2':
+    env = InvertedDoublePendulumWrapper(args.env_name)
+else:
+    env = gym.make(args.env_name)
 state_dim = env.observation_space.shape[0]
 is_disc_action = len(env.action_space.shape) == 0
 # running_state = ZFilter((state_dim,), clip=5)

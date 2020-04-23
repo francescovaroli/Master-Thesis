@@ -19,10 +19,10 @@ def separate_subfolders(folders, keys):
                 key_subf.append(folder)
         subf.append(key_subf)
     return subf
-for sub in ['ant_np']:
-    folder_path = '/media/francesco/Irene1/Francesco/Master Thesis/scratch/SIGMA_zero/'+sub
+for sub in ['']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_walkk/'+sub
 
-    keys = ['Initial stddev: 0,2', 'Initial stddev: 0,4']
+    keys = ['64z', '192z']
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
@@ -102,5 +102,5 @@ for sub in ['ant_np']:
     plt.legend(loc='lower right')
     title += label
     plt.grid()
-    fig_rew.savefig(folder_path+title)
+    fig_rew.savefig(folder_path+title+keys[0])
     plt.close(fig_rew)

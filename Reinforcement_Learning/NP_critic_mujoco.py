@@ -69,6 +69,8 @@ parser.add_argument('--tau', type=float, default=0.95, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
                     help='sigma of the policy')
+parser.add_argument('--min-sigma', default=0.15, type=float, metavar='N',
+                    help='minimum value of the NP policy stddev')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
@@ -152,9 +154,9 @@ np_spec = '_NP_baseline:{}_critic:{}_{},{}rm_isctxt:{}_{},{}epo_{}z_{}h_{}kl_att
                                                                                 args.a_dim)
 
 
-run_id = '/{}_0_NP_{}steps_{}epi_fixSTD:{}_{}gamma' \
+run_id = '/{}_0_NP_{}steps_{}epi_fixSTD:{}_min_sigma:{}_{}gamma' \
          '_{}target_loo:{}_picklc:{}_{}context'.format(args.env_name, args.num_req_steps, args.num_ensembles,
-                                                            args.fixed_sigma,args.gamma, args.num_testing_points, args.loo,
+                                                            args.fixed_sigma, args.min_sigma, args.gamma, args.num_testing_points, args.loo,
                                                             args.pick, args.num_context) + np_spec
 run_id = run_id.replace('.', ',')
 args.directory_path += run_id

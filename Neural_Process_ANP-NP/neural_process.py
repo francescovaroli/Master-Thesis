@@ -115,7 +115,7 @@ class Decoder(nn.Module):
     y_dim : int
         Dimension of y values.
     """
-    def __init__(self, x_dim, rep_dim, h_dim, y_dim, fixed_sigma):
+    def __init__(self, x_dim, rep_dim, h_dim, y_dim, fixed_sigma, min_sigma):
         super(Decoder, self).__init__()
 
         self.x_dim = x_dim
@@ -123,6 +123,7 @@ class Decoder(nn.Module):
         self.h_dim = h_dim
         self.y_dim = y_dim
         self.fixed_sigma = fixed_sigma
+        self.min_sigma = min_sigma
 
         layers = [nn.Linear(x_dim + rep_dim, h_dim),
                   nn.ReLU(inplace=True)]
@@ -159,7 +160,7 @@ class Decoder(nn.Module):
         # Define sigma following convention in "Empirical Evaluation of Neural
         # Process Objectives" and "Attentive Neural Processes"
         if self.fixed_sigma is None:
-            sigma = 0.2 + 0.8 * F.softplus(pre_sigma)
+            sigma = self.min_sigma + (1 - self.min_sigma) * F.softplus(pre_sigma)
         else:
             sigma = torch.Tensor(mu.shape)
             sigma.fill_(self.fixed_sigma)
@@ -190,7 +191,7 @@ class NeuralProcess(nn.Module):
     h_dim : int
         Dimension of hidden layer in encoder and decoder.
     """
-    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, fixed_sigma=None):
+    def __init__(self, x_dim, y_dim, r_dim, z_dim, h_dim, fixed_sigma=None, min_sigma=0.1):
         super(NeuralProcess, self).__init__()
         self.x_dim = x_dim
         self.y_dim = y_dim
@@ -202,7 +203,7 @@ class NeuralProcess(nn.Module):
         # Initialize networks
         self.xy_to_r = Encoder(x_dim, y_dim, h_dim, r_dim)
         self.xy_to_mu_sigma = MuSigmaEncoder(x_dim, y_dim, h_dim, r_dim, z_dim)
-        self.xrep_to_y = Decoder(x_dim, z_dim+r_dim, h_dim, y_dim, fixed_sigma)
+        self.xrep_to_y = Decoder(x_dim, z_dim+r_dim, h_dim, y_dim, fixed_sigma, min_sigma)
 
 
     def forward(self, x_context, y_context, x_target, y_target=None):

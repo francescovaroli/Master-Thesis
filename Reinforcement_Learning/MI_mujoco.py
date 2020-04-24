@@ -19,6 +19,7 @@ from torch.distributions import Normal
 
 from core.common import estimate_v_a, compute_gae, improvement_step_all, discounted_rewards
 from models.mlp_critic import Value
+from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -131,7 +132,14 @@ mi_file = args.directory_path + '/{}.csv'.format(args.seed)
 #torch.set_default_dtype(args.dtype)
 
 """environment"""
-env = gym.make(args.env_name)
+if args.env_name == 'Humanoid-v2' or args.env_name == 'HumanoidStandup-v2':
+    env = HumanoidWrapper(args.env_name)
+elif args.env_name == 'Ant-v2':
+    env = AntWrapper(args.env_name)
+elif args.env_name == 'InvertedDoublePendulum-v2':
+    env = InvertedDoublePendulumWrapper(args.env_name)
+else:
+    env = gym.make(args.env_name)
 max_episode_len = env._max_episode_steps
 
 state_dim = env.observation_space.shape[0]

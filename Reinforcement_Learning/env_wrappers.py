@@ -109,7 +109,7 @@ class AntWrapper():
 class InvertedDoublePendulumWrapper():
   def __init__(self, task):
     self.env = gym.make(task)
-    assert(self.env.observation_space.shape[0] == 9)
+    assert(self.env.observation_space.shape[0] == 11)
     assert(len(self.env.observation_space.shape) == 1)
 
   def reset(self):
@@ -122,7 +122,11 @@ class InvertedDoublePendulumWrapper():
 
   @property
   def observation_space(self):
-    return len(INDS_IDP)
+    obs = self.env.reset()
+    low = np.full([len(INDS_IDP)], -float('inf'))
+    high = np.full([len(INDS_IDP)], float('inf'))
+    space = gym.spaces.Box(low, high, dtype=obs.dtype)
+    return space
 
   @property
   def _max_episode_steps(self):

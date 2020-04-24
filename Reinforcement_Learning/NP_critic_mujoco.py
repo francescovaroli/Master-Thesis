@@ -375,7 +375,7 @@ def main_loop():
         print('new sigma', args.fixed_sigma)
         plot_rewards_history(tot_steps_np, avg_rewards_np)
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
-        if tot_steps_np[-1] > args.tot_steps or log_np['avg_reward'] < 5000:
+        if tot_steps_np[-1] > args.tot_steps or log_np['avg_reward'] < -5000:
             break
         """clean up gpu memory"""
         torch.cuda.empty_cache()

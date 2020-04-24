@@ -20,13 +20,13 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_mcc/'+sub
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_muj/hop'+sub
 
-    keys = ['MI', 'picklc:False']
+    keys = ['20rm', '30rm', '50rm', 'NP', 'TRPO', 'MKI', ]
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
-    alpha = 0.3
+    alpha = 0.6
     max_len = 1000000
     chunk_size = 20000
     num_seeds = 3
@@ -34,7 +34,7 @@ for sub in ['']:
     fig_rew, ax_rew = plt.subplots(1, 1)
     ax_rew.set_xlabel('Number of steps')
     ax_rew.set_ylabel('Average reward')
-    title = 'Reward History Percentile ' + all_folders[2].split('-')[0].split('/')[-1]
+    title = 'Reward History Percentile ' + all_folders[2].split('_NP')[0].split('/')[-1]
     colors = ['b', 'r', 'g', 'y']
     add_label = [' (no context)', ' (context)']
     #ax_rew.set_title(title)
@@ -98,9 +98,9 @@ for sub in ['']:
         #by_label = dict(zip(labels, handles))
         #plt.legend(by_label.values(), by_label.keys())
         #title = subfolder.split('-v2')[0]
-        ax_rew.set_title(title.split('Percentile')[1])
+        ax_rew.set_title('MountainCarContinuous-v0')
     plt.legend(loc='lower right')
-    title += label
+    #title += label
     plt.grid()
     fig_rew.savefig(folder_path+title+keys[0])
     plt.close(fig_rew)

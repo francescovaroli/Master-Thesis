@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Swimmer-v2", metavar='G',
+parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -56,7 +56,7 @@ parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=2., metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=.2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
@@ -375,7 +375,7 @@ def main_loop():
         print('new sigma', args.fixed_sigma)
         plot_rewards_history(tot_steps_np, avg_rewards_np)
         store_avg_rewards(tot_steps_np[-1], avg_rewards_np[-1], np_file.replace(str(args.seed)+'.csv', 'avg'+str(args.seed)+'.csv'))
-        if tot_steps_np[-1] > args.tot_steps:
+        if tot_steps_np[-1] > args.tot_steps or log_np['avg_reward'] < 5000:
             break
         """clean up gpu memory"""
         torch.cuda.empty_cache()

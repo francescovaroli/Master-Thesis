@@ -19,10 +19,10 @@ def separate_subfolders(folders, keys):
                 key_subf.append(folder)
         subf.append(key_subf)
     return subf
-for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_muj/hop'+sub
+for sub in ['ant']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_ha_minsigma/'+sub
 
-    keys = ['20rm', '30rm', '50rm', 'NP', 'TRPO', 'MKI', ]
+    keys = ['NP', 'TRPO', 'MKI', ]
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
@@ -98,7 +98,7 @@ for sub in ['']:
         #by_label = dict(zip(labels, handles))
         #plt.legend(by_label.values(), by_label.keys())
         #title = subfolder.split('-v2')[0]
-        ax_rew.set_title('MountainCarContinuous-v0')
+        ax_rew.set_title('Humanoid-v2')
     plt.legend(loc='lower right')
     #title += label
     plt.grid()

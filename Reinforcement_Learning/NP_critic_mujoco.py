@@ -85,7 +85,7 @@ parser.add_argument('--a-dim', type=int, default=32, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--np-batch-size', type=int, default=1, metavar='N',
                     help='batch size for np training')
-parser.add_argument('--early-stopping', type=int, default=-10000, metavar='N',
+parser.add_argument('--early-stopping', type=int, default=-100000, metavar='N',
                     help='stop training training when avg_loss reaches it')
 
 parser.add_argument('--v-epochs-per-iter', type=int, default=20, metavar='G',

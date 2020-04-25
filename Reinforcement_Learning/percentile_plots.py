@@ -19,10 +19,10 @@ def separate_subfolders(folders, keys):
                 key_subf.append(folder)
         subf.append(key_subf)
     return subf
-for sub in ['ant']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_ha_minsigma/'+sub
+for sub in ['hum', 'inver', 'ant']:
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/trpo_ahi/'+sub
 
-    keys = ['NP', 'TRPO', 'MKI', ]
+    keys = ['NP', 'TRPO', 'MI', ]
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
@@ -34,7 +34,7 @@ for sub in ['ant']:
     fig_rew, ax_rew = plt.subplots(1, 1)
     ax_rew.set_xlabel('Number of steps')
     ax_rew.set_ylabel('Average reward')
-    title = 'Reward History Percentile ' + all_folders[2].split('_NP')[0].split('/')[-1]
+    title = 'Reward History Percentile ' + all_folders[2].split('-')[0].split('/')[-1]
     colors = ['b', 'r', 'g', 'y']
     add_label = [' (no context)', ' (context)']
     #ax_rew.set_title(title)
@@ -98,7 +98,7 @@ for sub in ['ant']:
         #by_label = dict(zip(labels, handles))
         #plt.legend(by_label.values(), by_label.keys())
         #title = subfolder.split('-v2')[0]
-        ax_rew.set_title('Humanoid-v2')
+        ax_rew.set_title(title)
     plt.legend(loc='lower right')
     #title += label
     plt.grid()

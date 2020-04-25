@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -67,9 +67,9 @@ parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
 parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                     help='discount factor (default: 0.95)')
 
-parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
+parser.add_argument('--fixed-sigma', default=0.3, type=float, metavar='N',
                     help='sigma of the policy')
-parser.add_argument('--min-sigma', default=0.2, type=float, metavar='N',
+parser.add_argument('--min-sigma', default=0.1, type=float, metavar='N',
                     help='minimum value of the NP policy stddev')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')

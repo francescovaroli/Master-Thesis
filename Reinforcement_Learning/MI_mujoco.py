@@ -31,7 +31,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="InvertedDoublePendulum-v2", metavar='G',
+parser.add_argument('--env-name', default="Ant-v2", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -42,14 +42,14 @@ parser.add_argument('--loo', default=True, type=boolean_string, help='train leav
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
-parser.add_argument('--num-context', type=int, default=10000, metavar='N',
+parser.add_argument('--num-context', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 
 parser.add_argument('--value-net', default=True, type=boolean_string, help='use NN for V estimate')
 
 
-parser.add_argument('--num-req-steps', type=int, default=1500, metavar='N',
+parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
                     help='number of context points to sample from rm')
 
 parser.add_argument('--z-mi-dim', type=int, default=64, metavar='N',

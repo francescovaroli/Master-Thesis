@@ -70,6 +70,7 @@ class MeanInterpolator(torch.nn.Module):
         try:
             return self.interpolator(z_context, y_context.squeeze(0), z_target)
         except RuntimeError:
+            torch.cuda.empty_cache()
             y_target = torch.zeros(1, x_target.shape[1], y_context.shape[-1])
             st = 1
             for n in range(0, x_target.shape[1], st):

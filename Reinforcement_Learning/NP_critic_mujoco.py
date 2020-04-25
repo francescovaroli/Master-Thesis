@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+parser.add_argument('--env-name', default="HumanoidStandup-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')

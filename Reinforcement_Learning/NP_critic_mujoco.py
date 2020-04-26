@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="HumanoidStandup-v2", metavar='G',
+parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -41,7 +41,7 @@ parser.add_argument('--mean-action', default=False, type=boolean_string, help='u
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
-parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--gae', default=True, type=boolean_string, help='use generalized advantage estimate')
 parser.add_argument('--learn-baseline', default=True, type=boolean_string, help='use V estimate')
@@ -56,7 +56,7 @@ parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
 
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=.2, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=1.2, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='episode to collect per iteration')
@@ -112,7 +112,7 @@ parser.add_argument('--device-np', default=device,
                     help='device')
 parser.add_argument('--dtype', default=torch.float64,
                     help='default type')
-parser.add_argument('--seed', type=int, default=0, metavar='N',
+parser.add_argument('--seed', type=int, default=1, metavar='N',
                     help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')

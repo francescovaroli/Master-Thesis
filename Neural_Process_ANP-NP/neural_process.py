@@ -92,7 +92,7 @@ class MuSigmaEncoder(nn.Module):
         mu = self.hidden_to_mu(hidden)
         # Define sigma following convention in "Empirical Evaluation of Neural
         # Process Objectives" and "Attentive Neural Processes"
-        sigma = 0.1 + 0.9 * torch.sigmoid(self.hidden_to_sigma(hidden))
+        sigma = 0.2 + 0.8 * torch.sigmoid(self.hidden_to_sigma(hidden))
         return mu, sigma
 
 

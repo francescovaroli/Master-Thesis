@@ -41,7 +41,7 @@ parser.add_argument('--tau', type=float, default=0.9, metavar='G',
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 
 parser.add_argument('--learn-sigma', default=True, type=boolean_string, help='update the stddev of the policy')
-parser.add_argument('--pick', default=True, type=boolean_string, help='choose subset of rm')
+parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
 parser.add_argument('--num-context', type=int, default=2500, metavar='N',
                     help='number of context points to sample from rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string, help='choose subset of rm')

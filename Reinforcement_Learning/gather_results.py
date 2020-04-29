@@ -11,7 +11,7 @@ def list_folders(dir):
     return subfold
 
 for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_aaa/'+sub
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_aant/'+sub
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
     alpha = 0.6

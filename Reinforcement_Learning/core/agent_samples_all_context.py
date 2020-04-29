@@ -27,10 +27,12 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
     action_sum = zeros(context_points_list[0][1].shape[-1])
 
     with torch.no_grad():
-        all_x_context, all_y_context = merge_context(context_points_list)
+        all_x_context, all_y_context = merge_context(context_points_list)  # merge episodes in one context set
+        #  compute step-independent values
         if policy.id == 'DKL':
             policy.set_train_data(inputs=all_x_context.squeeze(0), targets=all_y_context.view(-1), strict=False)
         elif policy.id in 'ANP':
+            #  compute context representation and latent variable
             if attention:
                 encoder_input, keys = policy.xy_to_a.get_input_key(all_x_context, all_y_context)
             else:
@@ -58,12 +60,11 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                         pi = policy(state_var)
                     mean = pi.mean
                     stddev = pi.stddev
-                    if torch.isnan(stddev):
-                        print(stddev)
+
                 elif policy.id == 'MI':
                     mean = policy(all_x_context, all_y_context, state_var)
                     stddev = fixed_sigma
-                else:
+                else:  #  NPs and ANPs
                     if attention:
                         a_repr = policy.xy_to_a.get_repr(encoder_input, keys, state_var)
                         representation = torch.cat([z_sample, a_repr.squeeze(0)], dim=-1)
@@ -72,9 +73,9 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                         mean, stddev = policy.xrep_to_y(state_var, rep)
 
                 if fixed_sigma is not None:
-                    sigma = fixed_sigma
+                    sigma = fixed_sigma      # use sigma learnt by update step
                 else:
-                    sigma = stddev.view(-1)
+                    sigma = stddev.view(-1)  # use predicted sigma (NPs)
 
                 action_distribution = Normal(mean, sigma)
 
@@ -82,10 +83,12 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                     action = mean.view(-1)  # use mean value
                     mean_rep = torch.cat([z_dist.mean, r_context], dim=-1)
                     mean, stddev = policy.xrep_to_y(state_var, mean_rep)
-                    #sigma = z_dist.stddev.mean().repeat(action.shape[0])
+                    mean_s, _ = policy.xrep_to_y(state_var, torch.cat([z_dist.mean + z_dist.stddev, r_context], dim=-1))
+                    sigma = torch.abs(mean_s - mean)
                 else:
                     action = action_distribution.sample().view(-1)   # sample from normal distribution
                 cov = torch.diag(sigma.view(-1)**2)
+
                 next_state, reward, done, _ = env.step(action.cpu().numpy())
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
@@ -165,7 +168,7 @@ class Agent_all_ctxt:
         self.attention = attention
         self.fixed_sigma = fixed_sigma
 
-    def collect_episodes(self, context_list, num_steps, num_ep, render=False):
+    def collect_episodes(self, context_list, num_steps, num_ep):
         t_start = time.time()
         # to_device(torch.device('cpu'), self.policy)
 

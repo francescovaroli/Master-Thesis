@@ -2,6 +2,8 @@ import torch
 from utils_rl import to_device
 from utils_rl.memory_dataset import merge_padded_lists, merge_context
 from utils_rl.store_results import rewards_from_batch
+import scipy.optimize
+from utils_rl.torch import *
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
@@ -102,10 +104,11 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
             states = episode['states'][:real_len]
             actions = episode['actions'][:real_len]
             means = episode['means'][:real_len]
+            stddevs = episode['stddevs'][:real_len]
             new_padded_means = torch.zeros_like(episode['means'])
 
             i = 0
-            for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, all_stdv):
+            for state, action, mean, advantage, stddev in zip(states, actions, means, episode_adv, stddevs):
                 if args.fixed_sigma is None:
                     sigma = stddev
                 else:
@@ -119,7 +122,7 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
             episode['new_means'] = new_padded_means
             all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
             # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-    # print('avg diff: ', (0.5*((((torch.stack(all_new_m, dim=0)-torch.stack(all_m, dim=0))**2)/(sigma**2)).mean(0).sum())))
+    # print('avg diff: ', (0.5*((((torch.stack(all_new_m, dim=0)-torch.stack(all_m, dim=0))**2)/(all_stdv**2)).mean(0).sum())))
     new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
     if args.learn_sigma and args.fixed_sigma is not None:
         args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)
@@ -189,3 +192,62 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
         return gae_advantages
     return estimated_advantages
 
+
+def sample_initial_context_normal(env, initial_num=4, init_sigma=0.1):
+    initial_episodes = []
+    max_episode_len = env._max_episode_steps
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+
+    sigma = init_sigma*torch.ones(action_dim)
+    for e in range(initial_num):
+        states = torch.zeros([1, max_episode_len, state_dim])
+        for i in range(max_episode_len):
+            states[:, i, :] = torch.from_numpy(env.observation_space.sample()) # torch.randn(state_dim)
+
+        dims = [1, max_episode_len, action_dim]
+        actions_init = torch.normal(torch.zeros(dims), sigma*torch.ones(dims))
+        initial_episodes.append([states, actions_init, max_episode_len])
+
+    return initial_episodes
+
+
+def critic_estimate(value_net, states_list, rewards_list, args):
+    adv_list = []
+    ret_list = []
+    for states, rewards in zip(states_list, rewards_list):
+        with torch.no_grad():
+            values = value_net(states)
+        advantages = compute_gae(rewards, values, args.gamma, args.tau)
+        returns = values + advantages
+        adv_list.append(advantages)
+        ret_list.append(returns)
+    return adv_list, ret_list
+
+
+def update_critic(value_net, states, returns, l2_reg=1e-3):
+    def get_value_loss(flat_params):
+        """
+        compute the loss for the value network comparing estimated values with empirical ones
+        and optimizes the network parameters
+        :param flat_params:
+        :return:
+        """
+        set_flat_params_to(value_net, tensor(flat_params))
+        for param in value_net.parameters():
+            if param.grad is not None:
+                param.grad.data.fill_(0)
+        values_pred = value_net(states)
+        value_loss = (values_pred - returns).pow(2).mean()  # MeanSquaredError
+
+        # weight decay
+        for param in value_net.parameters():
+            value_loss += param.pow(2).sum() * l2_reg
+        value_loss.backward()
+        return value_loss.item(), get_flat_grad_from(value_net.parameters()).cpu().numpy()
+
+    flat_params, _, opt_info = scipy.optimize.fmin_l_bfgs_b(get_value_loss,
+                                                            get_flat_params_from(value_net).detach().cpu().numpy(),
+                                                            maxiter=25)
+    set_flat_params_to(value_net, tensor(flat_params))
+    return value_net

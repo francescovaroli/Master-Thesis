@@ -115,16 +115,16 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
                     sigma = args.fixed_sigma
                 new_mean = mean + eta * advantage * ((action - mean) / sigma**2)
                 new_padded_means[i, :] = new_mean
-                new_sigma_list.append(eta * advantage * (((action - mean)**2 - sigma**2)/sigma**3))
+                if args.learn_sigma:
+                    new_sigma_list.append(eta * advantage * (((action - mean)**2 - sigma**2)/sigma**3))
                 all_m.append(mean)
                 all_new_m.append(new_mean)
                 i += 1
             episode['new_means'] = new_padded_means
             all_improved_context.append([episode['states'].unsqueeze(0), new_padded_means.unsqueeze(0), real_len])
-            # all_improved_context.append([episode['states'].unsqueeze(0), new_padded_actions.unsqueeze(0), real_len])
-    # print('avg diff: ', (0.5*((((torch.stack(all_new_m, dim=0)-torch.stack(all_m, dim=0))**2)/(all_stdv**2)).mean(0).sum())))
-    new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
+    # print('avg kl diff: ', (0.5*((((torch.stack(all_new_m, dim=0)-torch.stack(all_m, dim=0))**2)/(all_stdv**2)).mean(0).sum())))
     if args.learn_sigma and args.fixed_sigma is not None:
+        new_sigma = torch.stack(new_sigma_list, dim=0).mean(dim=0)
         args.fixed_sigma += new_sigma.view(args.fixed_sigma.shape)
 
 
@@ -138,8 +138,8 @@ def compute_gae(rewards, values, gamma, tau):
     prev_value = 0
     prev_advantage = 0
     for i in reversed(range(rewards.size(0))):
-        deltas[i] = rewards[i] + gamma * prev_value - values[i]  # at the end of every episode m=0 so we're
-        advantages[i] = deltas[i] + gamma * tau * prev_advantage  # computing from there backwards each time
+        deltas[i] = rewards[i] + gamma * prev_value - values[i]
+        advantages[i] = deltas[i] + gamma * tau * prev_advantage
         prev_value = values[i, 0]
         prev_advantage = advantages[i, 0]
 
@@ -193,20 +193,25 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
     return estimated_advantages
 
 
-def sample_initial_context_normal(env, initial_num=4, init_sigma=0.1):
+def sample_initial_context_normal(env, initial_num=20, init_sigma=0.1):
     initial_episodes = []
     max_episode_len = env._max_episode_steps
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
+    state_sigma = []
+    for l, h in zip(env.observation_space.low, env.observation_space.high):
+        s_l = max(l, -1000)
+        s_h = min(h, 1000)
+        state_sigma.append(torch.tensor((s_h - s_l) / 4))
+    state_sigma = torch.stack(state_sigma)
 
-    sigma = init_sigma*torch.ones(action_dim)
     for e in range(initial_num):
         states = torch.zeros([1, max_episode_len, state_dim])
         for i in range(max_episode_len):
-            states[:, i, :] = torch.from_numpy(env.observation_space.sample()) # torch.randn(state_dim)
+            states[:, i, :] = torch.normal(torch.zeros(state_dim), state_sigma)  #  torch.from_numpy(env.observation_space.sample())
 
         dims = [1, max_episode_len, action_dim]
-        actions_init = torch.normal(torch.zeros(dims), sigma*torch.ones(dims))
+        actions_init = torch.normal(torch.zeros(dims), init_sigma*torch.ones(dims))
         initial_episodes.append([states, actions_init, max_episode_len])
 
     return initial_episodes

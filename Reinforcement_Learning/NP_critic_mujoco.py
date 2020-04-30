@@ -21,6 +21,7 @@ from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrap
 from multihead_attention_np import *
 from torch.distributions import Normal
 from core.common import discounted_rewards, estimate_v_a, improvement_step_all, sample_initial_context_normal, critic_estimate, update_critic
+from weights_init import InitFunc
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -32,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Walker2d-v2", metavar='G',
+parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -57,7 +58,7 @@ parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
                     help='min number of steps to gather in one iter')
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=.4, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=.2, metavar='G',
                     help='max kl value')
 parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='min num episode to collect per iteration')
@@ -70,19 +71,19 @@ parser.add_argument('--tau', type=float, default=0.95, metavar='G',
 
 parser.add_argument('--fixed-sigma', default=None, type=float, metavar='N',
                     help='initial sigma of the policy (changes if learn-sigma==True), if None NP prediction is used')
+parser.add_argument('--min-sigma', default=0.1, type=float, metavar='N',
+                    help='minimum value of the NP policy stddev')
 
 #  NP for policy estimate
 parser.add_argument('--use-attentive-np', default=False, type=boolean_string, metavar='N',
                      help='use attention in policy NP')
-parser.add_argument('--min-sigma', default=0.1, type=float, metavar='N',
-                    help='minimum value of the NP policy stddev')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
 parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--r-dim', type=int, default=1, metavar='N',
+parser.add_argument('--r-dim', type=int, default=32, metavar='N',
                     help='dimension of representation space in np')
 parser.add_argument('--h-dim', type=int, default=32, metavar='N',
                     help='dimension of hidden layers in np')
@@ -242,8 +243,8 @@ if not args.pick:
                               attention=args.use_attentive_np, fixed_sigma=args.fixed_sigma, mean_action=args.mean_action)
 else:
     print('agent pick')
-    agent_np = AgentPicker(env, policy_np, args.device_np, args.num_context, custom_reward=None, pick_dist=None,
-                           mean_action=False, render=args.render, running_state=None, fixed_sigma=args.fixed_sigma)
+    agent_np = AgentPicker(env, policy_np, args.device_np, args.num_context, pick_dist=None, mean_action=False,
+                           render=args.render, running_state=None, fixed_sigma=args.fixed_sigma)
 
 def train_np(datasets, epochs=args.epochs_per_iter):
     print('Policy training')
@@ -259,12 +260,20 @@ def train_value_np(value_replay_memory):
     value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=args.v_early_stopping)
     value_np.training = False
 
+def train_on_initial(initial_context_list):
+    train_list = []
+    for episode in initial_context_list:
+        train_list.append([episode[0].squeeze(0), episode[1].squeeze(0), episode[2]])
+
+    train_np(train_list, 2*args.epochs_per_iter)
 
 avg_rewards_np = [0]
 tot_steps_np = [0]
 
 def main_loop():
-    improved_context_list_np = sample_initial_context_normal(env)
+    improved_context_list_np = sample_initial_context_normal(env,  init_sigma=0.05)
+    #train_on_initial(improved_context_list_np)
+    policy_np.apply(InitFunc.init_zero)
     for i_iter in range(args.max_iter_num):
 
         # define context set

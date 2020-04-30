@@ -11,12 +11,12 @@ def list_folders(dir):
     return subfold
 
 for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/mi_aant/'+sub
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_walk_ls/'+sub
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
     alpha = 0.6
     max_len = 1000000
-    chunk_size = 10000
+    chunk_size = 50000
     num_seeds = 3
     first = 0
     fig_rew, ax_rew = plt.subplots(1, 1)
@@ -75,10 +75,10 @@ for sub in ['']:
         else:
             color='b'
             label = 'ER size: 120 ep'''
-        if '40rm' in subfolder_path:
+        if '1,2kl' in subfolder_path:
             color = 'r'
-            label = '40rm'
-        elif '6000' in subfolder_path:
+            label = '1,2kl'
+        elif '67000' in subfolder_path:
             color = 'b'
             label = '6kl'
         elif '8 000' in subfolder_path:
@@ -86,7 +86,7 @@ for sub in ['']:
             label = '8k'
         else:
             color = 'g'
-            label = '160rm'
+            label = '0,4kl'
         ax_rew.plot(np.arange(1, len(avg_rews)+1)*chunk_size, avg_rews, alpha=alpha, c=color, label=label)
 
         handles, labels = plt.gca().get_legend_handles_labels()

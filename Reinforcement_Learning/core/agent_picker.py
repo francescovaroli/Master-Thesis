@@ -9,12 +9,12 @@ from torch.distributions import Normal, MultivariateNormal
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_reward, num_context, render,
+def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, num_context, render,
                     running_state, context_points_list, pick_dist, fixed_sigma):
-    # (2)
+
     torch.randn(pid)
     log = dict()
-    memory = Memory()  # every time we collect a batch he memory is re-initialized
+    memory = Memory()
     num_steps = 0
     total_reward = 0
     min_reward = 1e6
@@ -24,11 +24,13 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
     max_c_reward = -1e6
     num_episodes = 0
     action_sum = zeros(context_points_list[0][1].shape[-1])
+
+    # merge all episodes in RM in a single set
     all_x = torch.cat([ep[0][:ep[-1], :] for ep in context_points_list], dim=-2)
     all_y = torch.cat([ep[1][:ep[-1], :] for ep in context_points_list], dim=-2)
-
     num_tot_context = all_x.shape[-2]
-    if num_tot_context < num_context:
+
+    if num_tot_context < num_context:  # no need to select a subset
         pick = False
         all_x_context, all_y_context = [all_x.view(1, num_tot_context, -1), all_y.view(1, num_tot_context, -1)]
     else:
@@ -66,7 +68,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 else:
                     sigma = stddev.view(-1)
                 cov = torch.diag(sigma ** 2)
-                #action_distribution = Normal(mean, sigma)
+
                 action_distribution = MultivariateNormal(mean, cov)
                 action = action_distribution.sample().view(-1)  # sample from normal distribution
 
@@ -74,11 +76,6 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                     next_state = running_state(next_state)
-                if custom_reward is not None:  # by default is None, unless given when init Agent
-                    reward = custom_reward(state, action)
-                    total_c_reward += reward
-                    min_c_reward = min(min_c_reward, reward)
-                    max_c_reward = max(max_c_reward, reward)
 
                 episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
                                           sigma.cpu().numpy(), None, cov))
@@ -107,11 +104,6 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward
     log['action_mean'] = action_sum / num_steps
-    if custom_reward is not None:
-        log['total_c_reward'] = total_c_reward
-        log['avg_c_reward'] = total_c_reward / num_steps
-        log['max_c_reward'] = max_c_reward
-        log['min_c_reward'] = min_c_reward
 
     return memory, log
 
@@ -124,23 +116,17 @@ def merge_log(log_list):
     log['avg_reward'] = log['total_reward'] / log['num_episodes']
     log['max_reward'] = max([x['max_reward'] for x in log_list])
     log['min_reward'] = min([x['min_reward'] for x in log_list])
-    if 'total_c_reward' in log_list[0]:
-        log['total_c_reward'] = sum([x['total_c_reward'] for x in log_list])
-        log['avg_c_reward'] = log['total_c_reward'] / log['num_steps']
-        log['max_c_reward'] = max([x['max_c_reward'] for x in log_list])
-        log['min_c_reward'] = min([x['min_c_reward'] for x in log_list])
 
     return log
 
 
 class AgentPicker:
 
-    def __init__(self, env, policy, device, num_context, custom_reward=None, pick_dist=None,
+    def __init__(self, env, policy, device, num_context, pick_dist=None,
                  mean_action=False, render=False, running_state=None, fixed_sigma=None):
         self.env = env
         self.policy = policy
         self.device = device
-        self.custom_reward = custom_reward
         self.mean_action = mean_action
         self.running_state = running_state
         self.render = render
@@ -152,7 +138,7 @@ class AgentPicker:
         t_start = time.time()
         #to_device(torch.device('cpu'), self.policy)
 
-        memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.custom_reward, self.num_context,
+        memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.num_context,
                                       self.render, self.running_state, context_list, self.pick_dist, self.fixed_sigma)
 
         batch = memory.memory

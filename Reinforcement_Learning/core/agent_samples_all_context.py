@@ -10,12 +10,12 @@ import gpytorch
 Transition = namedtuple('Transition', ('state', 'action', 'next_state',
                                        'reward', 'mean', 'stddev', 'disc_rew', 'covariance'))
 
-def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_reward, mean_action, render,
+def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, mean_action, render,
                     running_state, context_points_list, attention, fixed_sigma):
-    # (2)
+
     torch.randn(pid)
     log = dict()
-    memory = Memory()  # every time we collect a batch he memory is re-initialized
+    memory = Memory()
     num_steps = 0
     total_reward = 0
     min_reward = 1e6
@@ -93,13 +93,7 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
                 reward_episode += reward
                 if running_state is not None:  # running list of normalized states allowing to access precise mean and std
                     next_state = running_state(next_state)
-                if custom_reward is not None:  # by default is None, unless given when init Agent
-                    reward = custom_reward(state, action)
-                    total_c_reward += reward
-                    min_c_reward = min(min_c_reward, reward)
-                    max_c_reward = max(max_c_reward, reward)
-                if any(torch.isnan(state_var.view(-1))) or any(torch.isnan(action.view(-1))) or any(torch.isnan(mean.view(-1))):
-                    print('wat')
+
                 episode.append(Transition(state, action.cpu().numpy(), next_state, reward, mean.cpu().numpy(),
                                           sigma.cpu().numpy(), None, cov))
                 action_sum += action
@@ -127,11 +121,6 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, custom_re
     log['max_reward'] = max_reward
     log['min_reward'] = min_reward
     log['action_mean'] = action_sum / num_steps
-    if custom_reward is not None:
-        log['total_c_reward'] = total_c_reward
-        log['avg_c_reward'] = total_c_reward / num_steps
-        log['max_c_reward'] = max_c_reward
-        log['min_c_reward'] = min_c_reward
 
     return memory, log
 
@@ -145,23 +134,17 @@ def merge_log(log_list):
     log['avg_reward'] = log['total_reward'] / log['num_episodes']
     log['max_reward'] = max([x['max_reward'] for x in log_list])
     log['min_reward'] = min([x['min_reward'] for x in log_list])
-    if 'total_c_reward' in log_list[0]:
-        log['total_c_reward'] = sum([x['total_c_reward'] for x in log_list])
-        log['avg_c_reward'] = log['total_c_reward'] / log['num_steps']
-        log['max_c_reward'] = max([x['max_c_reward'] for x in log_list])
-        log['min_c_reward'] = min([x['min_c_reward'] for x in log_list])
 
     return log
 
 
 class Agent_all_ctxt:
 
-    def __init__(self, env, policy, device, custom_reward=None, attention=False,
+    def __init__(self, env, policy, device, attention=False,
                  mean_action=False, render=False, running_state=None, fixed_sigma=None):
         self.env = env
         self.policy = policy
         self.device = device
-        self.custom_reward = custom_reward
         self.mean_action = mean_action
         self.running_state = running_state
         self.render = render
@@ -172,7 +155,7 @@ class Agent_all_ctxt:
         t_start = time.time()
         # to_device(torch.device('cpu'), self.policy)
 
-        memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.custom_reward, self.mean_action,
+        memory, log = collect_samples(0, self.env, self.policy, num_steps, num_ep, self.mean_action,
                                       self.render, self.running_state, context_list, self.attention, self.fixed_sigma)
 
         batch = memory.memory

@@ -20,9 +20,9 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/np_walk_ls/'+sub
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/WALK/'+sub
 
-    keys = ['NP', '$\sigma_{min}^{NP}$: 0,1 ' ,'$\sigma_{min}^{NP}$: 0,15 ','$\sigma_{min}^{NP}$: 0,2 ', '$\sigma_{min}^{NP}$: 0,25 ' ]
+    keys = ['NP', 'TRPO', 'MKI', '$\sigma_{min}^{NP}$: 0,1 ' ,'$\sigma_{min}^{NP}$: 0,15 ','$\sigma_{min}^{NP}$: 0,2 ', '$\sigma_{min}^{NP}$: 0,25 ' ]
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
@@ -98,7 +98,7 @@ for sub in ['']:
         #by_label = dict(zip(labels, handles))
         #plt.legend(by_label.values(), by_label.keys())
         #title = subfolder.split('-v2')[0]
-        ax_rew.set_title('Humanoid-v2')
+        ax_rew.set_title('Walker2d-v2')
     plt.legend(loc='lower right', ncol=1)
     #title += label
     plt.grid()

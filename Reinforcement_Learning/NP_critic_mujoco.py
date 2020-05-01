@@ -33,7 +33,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
                     help='name of the environment')
 parser.add_argument('--render', default=False, type=boolean_string,
                     help='render the environment')
@@ -58,7 +58,7 @@ parser.add_argument('--num-req-steps', type=int, default=1000, metavar='N',
                     help='min number of steps to gather in one iter')
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-np', type=float, default=.2, metavar='G',
+parser.add_argument('--max-kl-np', type=float, default=11., metavar='G',
                     help='max kl value')
 parser.add_argument('--num-ensembles', type=int, default=5, metavar='N',
                     help='min num episode to collect per iteration')
@@ -75,11 +75,11 @@ parser.add_argument('--min-sigma', default=0.1, type=float, metavar='N',
                     help='minimum value of the NP policy stddev')
 
 #  NP for policy estimate
-parser.add_argument('--use-attentive-np', default=False, type=boolean_string, metavar='N',
+parser.add_argument('--use-attentive-np', default=True, type=boolean_string, metavar='N',
                      help='use attention in policy NP')
 parser.add_argument('--epochs-per-iter', type=int, default=20, metavar='G',
                     help='training epochs of NP')
-parser.add_argument('--replay-memory-size', type=int, default=20, metavar='G',
+parser.add_argument('--replay-memory-size', type=int, default=50, metavar='G',
                     help='size of training set in episodes ')
 parser.add_argument('--z-dim', type=int, default=32, metavar='N',
                     help='dimension of latent variable in np')

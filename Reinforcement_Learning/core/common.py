@@ -17,7 +17,7 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
     :param device:
     :return:
     """
-    # (4)
+
     #rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
     tensor_type = type(rewards)
     deltas = tensor_type(rewards.size(0), 1)
@@ -146,6 +146,10 @@ def compute_gae(rewards, values, gamma, tau):
     return advantages
 
 def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
+    '''
+    Function to estimate the advantage by predicting the baseline V(s) = M(s)
+    and the advantage A(s,t) = Q(a, t)- V(t)
+    '''
     ep_rewards = disc_rew
     ep_states = [ep['states'] for ep in iter_dataset]
     real_lens = [ep['real_len'] for ep in iter_dataset]
@@ -183,7 +187,6 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
             estimated_values.append(values.squeeze(0))
             estimated_advantages.append(advantages.squeeze(0))
     if args.gae:
-        #print('gae estimate')
         gae_advantages = []
         for rew, val in zip(ep_rewards, estimated_values):
             gae_adv = compute_gae(rew, val, args.gamma, args.tau)

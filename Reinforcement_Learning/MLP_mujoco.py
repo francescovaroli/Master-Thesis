@@ -11,10 +11,10 @@ from utils_rl.memory_dataset import *
 from utils_rl.store_results import *
 
 from MLPmodel import MLPTrainer, MultiLayerPerceptron, AgentMLP
-import csv
+from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 from multihead_attention_np import *
 from torch.distributions import Normal
-from core.common import discounted_rewards, estimate_v_a, compute_gae, improvement_step_all
+from core.common import discounted_rewards, estimate_v_a, improvement_step_all, critic_estimate, update_critic
 import scipy.optimize
 from models.mlp_critic import Value
 
@@ -96,8 +96,6 @@ parser.add_argument('--save-model-interval', type=int, default=0, metavar='N',
                     help="interval between saving model (default: 0, means don't save)")
 parser.add_argument('--gpu-index', type=int, default=0, metavar='N')
 
-parser.add_argument('--episode-specific-value', default=False, type=boolean_string, metavar='N',
-                    help='condition the value np on all episodes')
 parser.add_argument("--plot-every", type=int, default=1,
                     help='plot every n iter')
 args = parser.parse_args()
@@ -121,7 +119,15 @@ mlp_file = args.directory_path + '/{}.csv'.format(args.seed)
 #torch.set_default_dtype(args.dtype)
 
 """environment"""
-env = gym.make(args.env_name)
+if args.env_name == 'Humanoid-v2' or args.env_name == 'HumanoidStandup-v2':
+    env = HumanoidWrapper(args.env_name)
+elif args.env_name == 'Ant-v2':
+    env = AntWrapper(args.env_name)
+elif args.env_name == 'InvertedDoublePendulum-v2':
+    env = InvertedDoublePendulumWrapper(args.env_name)
+else:
+    env = gym.make(args.env_name)
+
 max_episode_len = env._max_episode_steps
 
 state_dim = env.observation_space.shape[0]
@@ -130,7 +136,8 @@ print('state_dim', state_dim)
 print('action_dim', action_dim)
 is_disc_action = len(env.action_space.shape) == 0
 
-args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
+if args.fixed_sigma is not None:
+    args.fixed_sigma = args.fixed_sigma * torch.ones(action_dim)
 
 """seeding"""
 np.random.seed(args.seed)
@@ -142,12 +149,12 @@ env.seed(args.seed)
 policy = MultiLayerPerceptron(state_dim, action_dim, args.h_dim).to(args.device_np)
 optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
 np_trainer = MLPTrainer(args.device_np, policy, optimizer, print_freq=50)
+
 if args.value_net:
     value_net = Value(state_dim)
     value_net.to(args.device_np)
 else:
     value_net = MultiLayerPerceptron(state_dim, 1, args.h_dim).to(args.device_np)
-
     value_optimizer = torch.optim.Adam(value_net.parameters(), lr=3e-4)
     value_np_trainer = MLPTrainer(args.device_np, value_net, value_optimizer, print_freq=50)
 
@@ -170,91 +177,37 @@ def train_value(value_replay_memory):
     value_np_trainer.train(value_data_loader, args.v_epochs_per_iter, early_stopping=None)
 
 
-def estimate_v_a_old(iter_dataset, disc_rew):
-    ep_rewards = disc_rew
-    ep_states = [ep['states'] for ep in iter_dataset]
-    real_lens = [ep['real_len'] for ep in iter_dataset]
-    estimated_advantages = []
-
-    for states, rewards, real_len in zip(ep_states, ep_rewards, real_lens):
-        s_target = states[:real_len, :].unsqueeze(0)
-        r_target = rewards.view(1, -1, 1)
-        with torch.no_grad():
-            values = value_net(s_target)
-        advantages = r_target - values
-        estimated_advantages.append(advantages.squeeze(0))
-    return estimated_advantages
-
-
-def critic_estimate(states_list, rewards_list, args):
-    adv_list = []
-    ret_list = []
-    for states, rewards in zip(states_list, rewards_list):
-        with torch.no_grad():
-            values = value_net(states)
-        advantages = compute_gae(rewards, values, args.gamma, args.tau)
-        returns = values + advantages
-        adv_list.append(advantages)
-        ret_list.append(returns)
-    return adv_list, ret_list
-
-
-def update_critic(states, returns, l2_reg=1e-3):
-    def get_value_loss(flat_params):
-        """
-        compute the loss for the value network comparing estimated values with empirical ones
-        and optimizes the network parameters
-        :param flat_params:
-        :return:
-        """
-        set_flat_params_to(value_net, tensor(flat_params))
-        for param in value_net.parameters():
-            if param.grad is not None:
-                param.grad.data.fill_(0)
-        values_pred = value_net(states)
-        value_loss = (values_pred - returns).pow(2).mean()  # MeanSquaredError
-
-        # weight decay
-        for param in value_net.parameters():
-            value_loss += param.pow(2).sum() * l2_reg
-        value_loss.backward()
-        return value_loss.item(), get_flat_grad_from(value_net.parameters()).cpu().numpy()
-
-    flat_params, _, opt_info = scipy.optimize.fmin_l_bfgs_b(get_value_loss,
-                                                            get_flat_params_from(value_net).detach().cpu().numpy(),
-                                                            maxiter=25)
-    set_flat_params_to(value_net, tensor(flat_params))
-
-
 avg_rewards = [0]
 tot_steps = [0]
 
 def main_loop():
-    colors = []
-    num_episodes = args.num_ensembles
-    for i in range(num_episodes):
-        colors.append('#%06X' % randint(0, 0xFFFFFF))
+
     for i_iter in range(args.max_iter_num):
+        # collect samples
         batch, log = agent.collect_episodes(args.num_req_steps)
-        # generate multiple trajectories that reach the minimum batch_size
-        # store_rewards(batch.memory, mlp_file)
+
+        # compute discounted rewards
         disc_rew_mlp = discounted_rewards(batch.memory, args.gamma)
         iter_dataset = BaseDataset(batch.memory, disc_rew_mlp, args.device_np, args.dtype,  max_len=max_episode_len)
+
+        # estimate advantages
         if args.value_net:
             state_list = [ep['states'][:ep['real_len']] for ep in iter_dataset]
-            advantages, returns = critic_estimate(state_list, disc_rew_mlp, args)
-            update_critic(torch.cat(state_list, dim=0), torch.cat(returns, dim=0))
+            advantages, returns = critic_estimate(value_net, state_list, disc_rew_mlp, args)
+            update_critic(value_net, torch.cat(state_list, dim=0), torch.cat(returns, dim=0))
         else:
             advantages = estimate_v_a(iter_dataset, disc_rew_mlp, value_replay_memory, value_net, args)
             value_replay_memory.add(iter_dataset)
             train_value(value_replay_memory)
 
+        # returned context not used but added to iter_dataset inside the function
         improved_context_list = improvement_step_all(iter_dataset, advantages, args.max_kl_mlp, args)
 
-        tn0 = time.time()
+        # training
         replay_memory.add(iter_dataset)
         train_policy(replay_memory)
-        tn1 = time.time()
+
+        # prints & plots
         tot_steps.append(tot_steps[-1] + log['num_steps'])
         avg_rewards.append(log['avg_reward'])
 
@@ -268,7 +221,7 @@ def main_loop():
         if tot_steps[-1] > args.tot_steps:
             break
     """clean up gpu memory"""
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
 
 

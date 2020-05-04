@@ -2,12 +2,9 @@ import argparse
 import gym
 import os
 import sys
-import time
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils_rl import *
 from new_plotting_functions import *
-from core.common import discounted_rewards
-from core.agent_np import Agent
 from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
 

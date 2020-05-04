@@ -5,17 +5,13 @@ import sys
 import time
 from random import randint
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 import gpytorch
-from utils import context_target_split
-from plotting_functions_DKL import plot_posterior
-from torch.utils.data import DataLoader
-from core.agent_ensembles_all_context import Agent_all_ctxt
+from previous_methods.previous_agents.agent_ensembles_all_context import Agent_all_ctxt
 from DKModel import GPRegressionModel, DKMTrainer, DKMTrainer_loo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
-from new_plotting_functions import plot_initial_context, plot_rewards_history, set_labels, create_plot_grid
+from new_plotting_functions import plot_rewards_history, create_plot_grid
 from core.common import discounted_rewards
 from core.agent_picker import AgentPicker
 

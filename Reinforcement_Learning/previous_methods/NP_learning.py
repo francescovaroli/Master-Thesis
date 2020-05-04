@@ -7,11 +7,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import gpytorch
 from utils_rl import *
 from core.common import discounted_rewards
-from core.agent_np import Agent
+from previous_methods.previous_agents.agent_np import Agent
 from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from torch.distributions import Normal
 
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot

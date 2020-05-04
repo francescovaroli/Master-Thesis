@@ -5,15 +5,14 @@ import sys
 import time
 from random import randint
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
-from new_plotting_functions import plot_rewards_history, set_labels, create_plot_grid
+from new_plotting_functions import plot_rewards_history
 from core.common import discounted_rewards
-from core.agent_ensembles_all_context import Agent
+from previous_methods.previous_agents.agent_ensembles_all_context import Agent
 from neural_process import NeuralProcess
 from training_leave_one_out import NeuralProcessTrainerLoo
-from training_module_RL import NeuralProcessTrainerRL
 from multihead_attention_np import *
 from torch.distributions import Normal
 from weights_init import InitFunc

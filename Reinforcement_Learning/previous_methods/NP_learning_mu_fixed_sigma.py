@@ -4,13 +4,13 @@ import os
 import sys
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from new_plotting_functions import *
+from plotting_functions_RL import *
 from core.common import discounted_rewards
 from previous_methods.previous_agents.agent_ensembles import Agent
 from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
 from multihead_attention_np import *
-from weights_init import InitFunc
+from utils.weights_init import InitFunc
 from torch.distributions import Normal
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 torch.set_default_tensor_type(torch.DoubleTensor)

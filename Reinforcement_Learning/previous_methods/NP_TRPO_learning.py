@@ -4,18 +4,15 @@ import os
 import sys
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import gpytorch
-from utils_rl import *
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from models.mlp_policy_disc import DiscretePolicy
-from core.trpo import trpo_step
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 from neural_process import NeuralProcess
 from multihead_attention_np import AttentiveNeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
-from new_plotting_functions import *
+from plotting_functions_RL import *
 from matplotlib import pyplot as plt
 
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -170,7 +167,6 @@ def set_limits(ax, env):
 
 num_test_context = 999
 def plot_NP_policy_old(context_xy, iter_pred, num_samples=1):
-    from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
     bounds_high = env.observation_space.high
     bounds_low = env.observation_space.low
@@ -243,7 +239,6 @@ def plot_NP_policy_old(context_xy, iter_pred, num_samples=1):
     plt.close(fig)
 
 def plot_policy_MC(policy_net, info):
-    from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
     import matplotlib.pyplot as plt
     fig = plt.figure()
@@ -278,7 +273,6 @@ def plot_policy_MC(policy_net, info):
 
 
 def plot_policy_CP(policy_net, info):
-    from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
     import matplotlib.pyplot as plt
 

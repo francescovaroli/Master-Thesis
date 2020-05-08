@@ -1,7 +1,5 @@
-import torch
-from utils_rl import to_device
 from utils_rl.memory_dataset import merge_padded_lists, merge_context
-from utils_rl.store_results import rewards_from_batch
+from RL_results.store_results import rewards_from_batch
 import scipy.optimize
 from utils_rl.torch import *
 

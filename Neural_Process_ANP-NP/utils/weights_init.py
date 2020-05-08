@@ -7,7 +7,7 @@ from neural_process import NeuralProcess
 from torch import nn
 
 from multihead_attention_np import AttentiveNeuralProcess
-from utils import context_target_split
+from utils.utils import context_target_split
 import os
 
 

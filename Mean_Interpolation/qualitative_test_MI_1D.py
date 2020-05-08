@@ -2,11 +2,9 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt
 import torch
-import gpytorch
-from utils import context_target_split
-from plotting_functions_DKL import plot_posterior
+from utils.utils import context_target_split
 from torch.utils.data import DataLoader
-from dataset_generator import SineData, MultiGPData
+from utils.dataset_generator import MultiGPData
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import os
 
@@ -76,10 +74,7 @@ args.directory_path += id
 # Create dataset
 dataset = MultiGPData(mean, kernel, num_samples=args.num_tot_samples, amplitude_range=x_range)
 data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-#all_dataset = [dataset.data[0][0], dataset.data[0][1]]
-#for func in dataset.data[1:]:
-#    all_train_dataset = [torch.cat([all_dataset[0], func[0]], dim=0), torch.cat([all_dataset[1], func[1]], dim=0)]
-#train_x, train_y = all_train_dataset
+
 test_dataset = MultiGPData(mean, kernel, num_samples=5, amplitude_range=x_range)
 test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
 
@@ -89,22 +84,22 @@ x_init, y_init = data_init
 x_init, y_init, _, _ = context_target_split(x_init[0:1], y_init[0:1],
                                                                 args.num_context,
                                                                 args.num_target)
-#x_init, y_init = dataset.data[0]
 print('dataset created')
 # create model
 model = MeanInterpolator(args.x_dim, args.h_dim, args.z_dim, scaling=args.scaling).to(device).double()
 
 
-
 optimizer = torch.optim.Adam([
     {'params': model.feature_extractor.parameters(), 'lr':learning_rate},
     {'params': model.interpolator.parameters(), 'lr': 1e-1}])
+
 try:
     os.mkdir(args.directory_path)
 except FileExistsError:
     pass
-model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, print_freq=10)
+
 print('start training')
+model_trainer = MITrainer(device, model, optimizer, num_context=args.num_context, print_freq=10)
 model_trainer.train(data_loader, args.epochs, early_stopping=args.early_stopping)
 
 # Visualize data samples

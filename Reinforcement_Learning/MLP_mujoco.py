@@ -2,21 +2,17 @@ import argparse
 import gym
 import os
 import sys
-import time
-from random import randint
 import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
-from utils_rl.store_results import *
+from RL_results.store_results import *
 
 from MLPmodel import MLPTrainer, MultiLayerPerceptron, AgentMLP
-from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
+from utils_rl.env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 from multihead_attention_np import *
-from torch.distributions import Normal
 from core.common import discounted_rewards, estimate_v_a, improvement_step_all, critic_estimate, update_critic
-import scipy.optimize
-from models.mlp_critic import Value
+from core.mlp_critic import Value
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)

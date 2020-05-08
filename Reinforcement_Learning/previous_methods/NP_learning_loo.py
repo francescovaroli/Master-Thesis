@@ -4,16 +4,15 @@ import os
 import sys
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from new_plotting_functions import *
+from plotting_functions_RL import *
 from core.common import discounted_rewards, improvement_step_all
 from core.agent_picker import AgentPicker
 from previous_methods.previous_agents.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
-from training_leave_one_out_pick import NeuralProcessTrainerLooPick
-from training_leave_one_out import NeuralProcessTrainerLoo
+from training_module_RL import NeuralProcessTrainerRL, NeuralProcessTrainerLoo, NeuralProcessTrainerLooPick
 from multihead_attention_np import *
 from torch.distributions import Normal
-from weights_init import InitFunc
+from utils.weights_init import InitFunc
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
 
 

@@ -1,20 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
-from random import randint
 from torch.utils.data import DataLoader
 from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
 from multihead_attention_np import AttentiveNeuralProcess
-from dataset_generator import SineData, MultiGPData
-from utils import context_target_split
+from utils.dataset_generator import SineData, MultiGPData
+from utils.utils import context_target_split
 import os
 import time
 import torch
-from torch.distributions import Normal
-from torch import nn
-from torch.nn import functional as F
-
 
 if torch.cuda.is_available() and False:
     device = torch.device("cuda")

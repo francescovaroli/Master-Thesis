@@ -8,15 +8,13 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
-from utils_rl.store_results import *
+from RL_results.store_results import *
 from core.agent_samples_all_context import Agent_all_ctxt
 #from core.agent_conditionning import Agent_all_ctxt
 from core.agent_picker import AgentPicker
 from neural_process import NeuralProcess
-from training_leave_one_out import NeuralProcessTrainerLoo
-from training_module_RL import NeuralProcessTrainerRL
-from training_leave_one_out_pick import NeuralProcessTrainerLooPick
-import csv
+from training_module_RL import NeuralProcessTrainerRL, NeuralProcessTrainerLoo, NeuralProcessTrainerLooPick
+
 from multihead_attention_np import *
 from torch.distributions import Normal
 from core.common import discounted_rewards, estimate_v_a, improvement_step_all

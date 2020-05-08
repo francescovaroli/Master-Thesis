@@ -7,10 +7,10 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils_rl import *
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from models.mlp_policy_disc import DiscretePolicy
-from core.trpo import trpo_step
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
+from trpo_model.mlp_policy_disc import DiscretePolicy
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 
@@ -105,7 +105,6 @@ run_id = 'deb'
 directory_path = '/home/francesco/PycharmProjects/MasterThesis/value learning/' + run_id
 
 def plot_policy(net, info):
-    from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
     import matplotlib.pyplot as plt
     fig = plt.figure()

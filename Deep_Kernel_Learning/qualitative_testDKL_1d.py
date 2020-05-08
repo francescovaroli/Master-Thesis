@@ -3,10 +3,10 @@ import argparse
 import matplotlib.pyplot as plt
 import torch
 import gpytorch
-from utils import context_target_split
+from utils.utils import context_target_split
 from plotting_functions_DKL import plot_posterior
 from torch.utils.data import DataLoader
-from dataset_generator import SineData, MultiGPData
+from utils.dataset_generator import MultiGPData
 from DKModel import GPRegressionModel, DKMTrainer
 import os
 import time

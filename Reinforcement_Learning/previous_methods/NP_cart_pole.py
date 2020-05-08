@@ -8,18 +8,18 @@ import matplotlib.pyplot as plt
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
-from new_plotting_functions import plot_rewards_history
+from plotting_functions_RL import plot_rewards_history
 from core.common import discounted_rewards
 from previous_methods.previous_agents.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
-from training_leave_one_out import NeuralProcessTrainerLoo
+from training_module_RL import NeuralProcessTrainerRL, NeuralProcessTrainerLoo, NeuralProcessTrainerLooPick
 from multihead_attention_np import *
 from torch.distributions import Normal
-from weights_init import InitFunc
+from utils.weights_init import InitFunc
 # Axes3D import has side effects, it enables using projection='3d' in add_subplot
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from core.trpo import trpo_step
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 

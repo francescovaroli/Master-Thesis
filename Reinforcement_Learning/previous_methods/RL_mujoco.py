@@ -11,14 +11,14 @@ from utils_rl.memory_dataset import *
 
 from previous_methods.previous_agents.agent_ensembles_all_context import Agent_all_ctxt
 from neural_process import NeuralProcess
-from training_leave_one_out import NeuralProcessTrainerLoo
+from training_module_RL import NeuralProcessTrainerRL, NeuralProcessTrainerLoo, NeuralProcessTrainerLooPick
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import csv
 from multihead_attention_np import *
 from torch.distributions import Normal
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from core.trpo import trpo_step
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages, discounted_rewards
 from core.agent import Agent
 

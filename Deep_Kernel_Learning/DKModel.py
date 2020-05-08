@@ -1,6 +1,6 @@
 import torch
 import gpytorch
-from utils import context_target_split, context_target_split_CinT
+from utils.utils import context_target_split, context_target_split_CinT
 from utils_rl import merge_context
 import time
 import random

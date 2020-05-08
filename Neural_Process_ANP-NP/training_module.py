@@ -3,8 +3,7 @@ import numpy as np
 from random import randint
 from matplotlib import pyplot as plt
 from torch.distributions.kl import kl_divergence
-from utils import (context_target_split_CinT, batch_context_target_mask,
-                   img_mask_to_np_input)
+from utils.utils import (context_target_split_CinT)
 
 
 def plot_grad_flow(named_parameters):

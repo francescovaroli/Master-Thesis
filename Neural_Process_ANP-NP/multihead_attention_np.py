@@ -72,9 +72,10 @@ class Attention(nn.Module):
         key = key.permute(2, 0, 1, 3).contiguous().view(-1, seq_k, self.num_hidden_per_attn)
         value = value.permute(2, 0, 1, 3).contiguous().view(-1, seq_k, self.num_hidden_per_attn)
         query = query.permute(2, 0, 1, 3).contiguous().view(-1, seq_q, self.num_hidden_per_attn)
-        # Get context vector
 
+        # Get context vector
         result, attns = self.multihead(key, value, query)
+
         # Concatenate all multihead context vector
         result = result.view(self.h, batch_size, seq_q, self.num_hidden_per_attn)
         result = result.permute(1, 2, 0, 3).contiguous().view(batch_size, seq_q, -1)

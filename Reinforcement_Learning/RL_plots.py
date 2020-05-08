@@ -3,14 +3,9 @@ import gym
 import os
 import sys
 import time
-from random import randint
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils_rl.torch import *
-from utils_rl.memory_dataset import *
-from utils_rl.store_results import *
+from RL_results.store_results import *
 from core.agent_samples_all_context import Agent_all_ctxt
 #from core.agent_conditionning import Agent_all_ctxt
 from core.agent_picker import AgentPicker
@@ -19,8 +14,8 @@ from training_leave_one_out import NeuralProcessTrainerLoo
 from training_module_RL import NeuralProcessTrainerRL
 from training_leave_one_out_pick import NeuralProcessTrainerLooPick
 import scipy.optimize
-from models.mlp_critic import Value
-from new_plotting_functions import *
+from core.mlp_critic import Value
+from plotting_functions_RL import *
 from multihead_attention_np import *
 from torch.distributions import Normal
 from core.common import discounted_rewards, estimate_v_a, improvement_step_all, compute_gae

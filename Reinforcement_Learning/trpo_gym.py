@@ -6,15 +6,15 @@ import pickle
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import matplotlib.pyplot as plt
-from utils import *
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from models.mlp_policy_disc import DiscretePolicy
-from core.trpo import trpo_step
+from utils.utils import *
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
+from trpo_model.mlp_policy_disc import DiscretePolicy
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
-from utils_rl.store_results import *
-from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
+from RL_results.store_results import *
+from utils_rl.env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')

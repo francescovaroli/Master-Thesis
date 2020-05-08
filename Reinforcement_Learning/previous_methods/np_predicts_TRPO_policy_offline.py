@@ -13,7 +13,7 @@ from training_module_RL import NeuralProcessTrainerRL
 from neural_process import NeuralProcess
 from torch.utils.data import Dataset, DataLoader
 from multihead_attention_np import AttentiveNeuralProcess
-from utils import context_target_split
+from utils.utils import context_target_split
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('device: ', device)

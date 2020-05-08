@@ -5,17 +5,16 @@ import sys
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from multihead_attention_np import *
-from utils_rl import *
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
 from core.common import discounted_rewards
-from core.trpo import trpo_step
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent_NN import Agent
 from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
-from training_leave_one_out import NeuralProcessTrainerLoo
-from new_plotting_functions import *
+from training_module_RL import NeuralProcessTrainerRL, NeuralProcessTrainerLoo, NeuralProcessTrainerLooPick
+from plotting_functions_RL import *
 torch.set_default_tensor_type(torch.DoubleTensor)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
@@ -307,7 +306,6 @@ def plot_values(value_np, value_net, all_states, all_values, all_advantages, all
     plt.close(fig)
 
 def plot_policy(net, info):
-    from mpl_toolkits.mplot3d import Axes3D
     # Axes3D import has side effects, it enables using projection='3d' in add_subplot
     import matplotlib.pyplot as plt
     fig = plt.figure()

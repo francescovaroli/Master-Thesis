@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 import time
 import torch
 import gpytorch
-from utils import context_target_split
-from plotting_functions_DKL import plot_posterior
+from utils.utils import context_target_split
 from torch.utils.data import DataLoader
-from dataset_generator import SineData, MultiGPData
+from utils.dataset_generator import MultiGPData
 from DKModel import GPRegressionModel, DKMTrainer
 import os
 from training_module import NeuralProcessTrainer

@@ -2,11 +2,9 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt
 import torch
-import gpytorch
-from utils import context_target_split
-from plotting_functions_DKL import plot_posterior
+from utils.utils import context_target_split
 from torch.utils.data import DataLoader
-from dataset_generator import SineData, GPData2D
+from utils.dataset_generator import GPData2D
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import os
 from plotting_functions_DKL import  create_plot_grid

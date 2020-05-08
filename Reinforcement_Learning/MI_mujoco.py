@@ -2,24 +2,20 @@ import argparse
 import gym
 import os
 import sys
-import time
-from random import randint
 import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl.torch import *
 from utils_rl.memory_dataset import *
-from utils_rl.store_results import *
+from RL_results.store_results import *
 
 from core.agent_samples_all_context import Agent_all_ctxt
 from core.agent_picker import AgentPicker
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
-import scipy.optimize
 from multihead_attention_np import *
-from torch.distributions import Normal
 
 from core.common import estimate_v_a, improvement_step_all, discounted_rewards, sample_initial_context_normal, critic_estimate, update_critic
-from models.mlp_critic import Value
-from env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
+from core.mlp_critic import Value
+from utils_rl.env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 
 
 torch.set_default_tensor_type(torch.DoubleTensor)

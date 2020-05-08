@@ -4,7 +4,7 @@ import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from new_plotting_functions import *
+from plotting_functions_RL import *
 from neural_process import NeuralProcess
 from training_module_RL import NeuralProcessTrainerRL
 

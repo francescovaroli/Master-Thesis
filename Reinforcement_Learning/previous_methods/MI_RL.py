@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
-from new_plotting_functions import plot_rewards_history
+from plotting_functions_RL import plot_rewards_history
 from core.common import discounted_rewards
 from core.agent_picker import AgentPicker
 
 from multihead_attention_np import *
 from torch.distributions import Normal
-from weights_init import InitFunc
+from utils.weights_init import InitFunc
 
 torch.set_default_tensor_type(torch.DoubleTensor)
 if torch.cuda.is_available():

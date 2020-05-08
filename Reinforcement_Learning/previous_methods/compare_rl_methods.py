@@ -7,12 +7,12 @@ from previous_methods.previous_agents.agent_ensembles_all_context import Agent_a
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from new_plotting_functions import plot_rewards_history
+from plotting_functions_RL import plot_rewards_history
 from core.common import discounted_rewards
 from core.agent_picker import AgentPicker
 
 from torch.distributions import Normal
-from weights_init import InitFunc
+from utils.weights_init import InitFunc
 import argparse
 import gym
 import os
@@ -20,9 +20,9 @@ import sys
 import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils_rl import *
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from core.trpo import trpo_step
+from trpo_model.mlp_policy import Policy
+from core.mlp_critic import Value
+from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 

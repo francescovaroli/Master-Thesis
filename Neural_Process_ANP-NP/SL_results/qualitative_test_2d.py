@@ -5,14 +5,12 @@ from random import randint
 from torch.utils.data import DataLoader
 from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
-from network import LatentModel
 from multihead_attention_np import *
 #from attentive_neural_process import AttentiveNeuralProcess
-from dataset_generator import SineData, GPData2D
-from utils import context_target_split
+from utils.dataset_generator import SineData, GPData2D
+from utils.utils import context_target_split
 import gpytorch
 import os
-import pickle
 from plotting_functions_DKL import  create_plot_grid
 
 def plot_posterior(model, directory_path, num_context=250, num_target=1):

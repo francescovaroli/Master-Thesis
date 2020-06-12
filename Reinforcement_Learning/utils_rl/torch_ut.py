@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+from os import path
+
 
 tensor = torch.tensor
 DoubleTensor = torch.DoubleTensor
@@ -76,3 +78,6 @@ def compute_flat_grad(output, inputs, filter_input_ids=set(), retain_graph=False
     for param in params:
         param.grad = None
     return grads
+
+def assets_dir():
+    return path.abspath(path.join(path.dirname(path.abspath(__file__)), '../assets'))

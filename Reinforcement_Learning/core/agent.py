@@ -1,6 +1,6 @@
 import multiprocessing
 from utils_rl.replay_memory import Memory
-from utils_rl.torch import *
+from utils_rl.torch_ut import *
 import math
 import time
 

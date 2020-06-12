@@ -6,7 +6,7 @@ import time
 from random import randint
 import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils_rl.torch import *
+from utils_rl.torch_ut import *
 from utils_rl.memory_dataset import *
 
 from previous_methods.previous_agents.agent_ensembles_all_context import Agent_all_ctxt

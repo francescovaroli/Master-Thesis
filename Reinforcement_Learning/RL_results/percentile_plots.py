@@ -20,9 +20,9 @@ def separate_subfolders(folders, keys):
         subf.append(key_subf)
     return subf
 for sub in ['']:
-    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/WALK/'+sub
+    folder_path = '/media/francesco/Irene/Francesco/Master Thesis/scratch/HOPPER/'+sub
 
-    keys = ['NP', 'TRPO', 'MKI', '$\sigma_{min}^{NP}$: 0,1 ' ,'$\sigma_{min}^{NP}$: 0,15 ','$\sigma_{min}^{NP}$: 0,2 ', '$\sigma_{min}^{NP}$: 0,25 ' ]
+    keys = ['NP', 'MKI','TRPO',  '$\sigma_{min}^{NP}$: 0,1 ' ,'$\sigma_{min}^{NP}$: 0,15 ','$\sigma_{min}^{NP}$: 0,2 ', '$\sigma_{min}^{NP}$: 0,25 ' ]
 
     all_folders = list_folders(folder_path)
     num_folders = len(all_folders)
@@ -35,8 +35,8 @@ for sub in ['']:
     ax_rew.set_xlabel('Number of steps')
     ax_rew.set_ylabel('Average reward')
     title = 'Reward History Percentile ' + all_folders[2].split('-')[0].split('/')[-1]
-    colors = ['b', 'r', 'g', 'c' ,'g', 'y']
-    add_label = [' (no context)', ' (context)']
+    colors = ['b', 'g', 'r', 'c' ,'g', 'y']
+    add_label = ['IMeL + ','IMeL + ', '']
     #ax_rew.set_title(title)
     for e, subfolder in enumerate(separate_subfolders(all_folders[1:], keys)):
         if subfolder == [] or 'nop' in subfolder:
@@ -92,13 +92,13 @@ for sub in ['']:
         perc_20, perc_80 = np.percentile(rew_param, [20, 80], 0)
         mean = rew_param.mean(axis=0)
         step_plot = np.arange(1, len(mean)+1)*chunk_size
-        ax_rew.plot(step_plot, mean, alpha=alpha, c=colors[e], label=keys[e]) #+add_label[e]
+        ax_rew.plot(step_plot, mean, alpha=alpha, c=colors[e], label=add_label[e]+keys[e])
         ax_rew.fill_between(step_plot, perc_20, perc_80, color=colors[e], alpha=alpha/3)
         #handles, labels = plt.gca().get_legend_handles_labels()
         #by_label = dict(zip(labels, handles))
         #plt.legend(by_label.values(), by_label.keys())
         #title = subfolder.split('-v2')[0]
-        ax_rew.set_title('Walker2d-v2')
+        ax_rew.set_title('Hopper-v2')
     plt.legend(loc='lower right', ncol=1)
     #title += label
     plt.grid()

@@ -45,15 +45,15 @@ class Encoder(nn.Module):
         """
         batch_size, num_points, _ = x.size()
         # Flatten tensors, as encoder expects one dimensional inputs
-        x_flat = x.view(batch_size * num_points, self.x_dim)
-        y_flat = y.contiguous().view(batch_size * num_points, self.y_dim)
+        x_flat = x.view(batch_size * num_points, self.x_dim)  # (BxN) x X_dim
+        y_flat = y.contiguous().view(batch_size * num_points, self.y_dim)  # (BxN) x Y_dim
         # Encode each point into a representation r_i
-        input_pairs = torch.cat((x_flat, y_flat), dim=1)
+        input_pairs = torch.cat((x_flat, y_flat), dim=1)  # (BxN) x (X_dim+Y_dim)
         r_i_flat = self.input_to_hidden(input_pairs)
         # Reshape tensors into batches
         r_i = r_i_flat.view(batch_size, num_points, self.r_dim)
         # Aggregate representations r_i into a single representation r
-        r = torch.mean(r_i, dim=1)
+        r = torch.mean(r_i, dim=1)  # B x r_dim <-- B x N x r_dim
 
         return r
 
@@ -126,6 +126,8 @@ class Decoder(nn.Module):
         self.min_sigma = min_sigma
 
         layers = [nn.Linear(x_dim + rep_dim, h_dim),
+                  nn.ReLU(inplace=True),
+                  nn.Linear(h_dim, h_dim),
                   nn.ReLU(inplace=True)]
 
         self.xz_to_hidden = nn.Sequential(*layers)
@@ -160,7 +162,7 @@ class Decoder(nn.Module):
         # Define sigma following convention in "Empirical Evaluation of Neural
         # Process Objectives" and "Attentive Neural Processes"
         if self.fixed_sigma is None:
-            sigma = self.min_sigma + (1 - self.min_sigma) * F.softplus(pre_sigma)
+            sigma = 0.1 + 0.9 * F.softplus(pre_sigma)
         else:
             sigma = torch.Tensor(mu.shape)
             sigma.fill_(self.fixed_sigma)
@@ -214,8 +216,7 @@ class NeuralProcess(nn.Module):
         Parameters
         ----------
         x_context : torch.Tensor
-            Shape (batch_size, num_context, x_dim). Note that x_context is a
-            subset of x_target.
+            Shape (batch_size, num_context, x_dim).
 
         y_context : torch.Tensor
             Shape (batch_size, num_context, y_dim)
@@ -240,19 +241,19 @@ class NeuralProcess(nn.Module):
         if self.training:
             # Encode target and context (context needs to be encoded to
             # calculate kl term)
-            r_target = self.xy_to_r(x_context, y_context)
+            r_target = self.xy_to_r(x_context, y_context)  # B x r_dim <-- B x N x xy_dim
             mu_target, sigma_target = self.xy_to_mu_sigma(x_target, y_target)
             mu_context, sigma_context = self.xy_to_mu_sigma(x_context, y_context)
             # Sample from encoded distribution using reparameterization trick
             q_target = Normal(mu_target, sigma_target)
             q_context = Normal(mu_context, sigma_context)
             z_sample = q_target.rsample()
-            # Repeat z, so it can be concatenated with every x. This changes shape
+            # Repeat z (and r), so it can be concatenated with every x. This changes shape
             # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
             z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
             r = r_target.unsqueeze(1).repeat(1, num_target, 1)
             rep = torch.cat([z_sample, r], dim=-1)
-            # Get parameters of output distribution
+            # Get parameters of output distribution (Decoder)
             y_pred_mu, y_pred_sigma = self.xrep_to_y(x_target, rep)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
 

@@ -1,7 +1,7 @@
 from utils_rl.memory_dataset import merge_padded_lists, merge_context
 from RL_results.store_results import rewards_from_batch
 import scipy.optimize
-from utils_rl.torch import *
+from utils_rl.torch_ut import *
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
@@ -65,7 +65,7 @@ def estimate_eta_3(actions, means, advantages, sigmas, covariances, eps, args):
     stddev = args.fixed_sigma
 
     T = torch.tensor(n).to(args.dtype)
-    if d > 1:  # a, m, s: Nx1xD, disc_r: Nx1, cov: NxDxD
+    if d>1:  # a, m, s: Nx1xD, disc_r: Nx1, cov: NxDxD
         diff_vector = (actions - means) / sigmas**2   # Nx1xD
         squared_normalized = (diff_vector.matmul(torch.inverse(covariances))).matmul(diff_vector.transpose(1,2)).view(-1)  # (Nx1xD)(NxDxD)(NxDx1) -> (Nx1xD)(NxDx1) -> Nx1x1
         denominator = (0.5 * (advantages ** 2).matmul(squared_normalized))  # (1xN)(Nx1) -> 1

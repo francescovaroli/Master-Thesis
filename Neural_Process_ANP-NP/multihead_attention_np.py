@@ -22,7 +22,7 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, key, value, query):
         # Get attention score
-        attn = torch.bmm(query, key.transpose(1, 2))
+        attn = torch.bmm(query, key.transpose(1, 2))  # (heads x N_t x H_head)(heads x H_head x N_c) --> heads x N_t x N_c
         attn = attn / math.sqrt(self.num_hidden_k)
 
         attn = torch.softmax(attn, dim=-1)
@@ -31,7 +31,7 @@ class MultiheadAttention(nn.Module):
         attn = self.attn_dropout(attn)
 
         # Get Context Vector
-        result = torch.bmm(attn, value)
+        result = torch.bmm(attn, value)  # (heads x N_t x N_c)(heads x N_c x H_heads) --> (heads x N_t x H_heads)
 
         return result, attn
 
@@ -65,7 +65,7 @@ class Attention(nn.Module):
         seq_q = query.size(1)
         residual = query
 
-        # Make multihead
+        # Make multihead  (...) x H_tot --> (...) x heads x H_head --> heads x N x H_head
         key = key.view(batch_size, seq_k, self.h, self.num_hidden_per_attn)
         value = value.view(batch_size, seq_k, self.h, self.num_hidden_per_attn)
         query = query.view(batch_size, seq_q, self.h, self.num_hidden_per_attn)
@@ -77,11 +77,11 @@ class Attention(nn.Module):
         result, attns = self.multihead(key, value, query)
 
         # Concatenate all multihead context vector
-        result = result.view(self.h, batch_size, seq_q, self.num_hidden_per_attn)
-        result = result.permute(1, 2, 0, 3).contiguous().view(batch_size, seq_q, -1)
+        result = result.view(self.h, batch_size, seq_q, self.num_hidden_per_attn)  # (heads x B x N_t x H_heads)
+        result = result.permute(1, 2, 0, 3).contiguous().view(batch_size, seq_q, -1)  # (B x N_t x H_tot)
 
         # Concatenate context vector with input (most important)
-        result = torch.cat([residual, result], dim=-1)
+        result = torch.cat([residual, result], dim=-1)  # (B x N_t x (H_tot+r_dim))
 
         # Final linear
         result = self.final_linear(result)
@@ -212,12 +212,12 @@ class DeterministicEncoder(nn.Module):
             """
 
         # Concatenate x and y along the filter axes
-        encoder_input = torch.cat([context_x, context_y], dim=-1)
+        encoder_input = torch.cat([context_x, context_y], dim=-1)  # B x N x (Xd+Yd)
 
         # Pass final axis through MLP
         encoder_input = self.xy_to_hidden(encoder_input)
 
-        # Apply attention
+        # Apply projection
         query = self.target_projection(target_x)
         keys = self.context_projection(context_x)
 
@@ -397,11 +397,11 @@ class AttentiveNeuralProcess(nn.Module):
             # from (batch_size, z_dim) to (batch_size, num_points, z_dim)
             z_sample = z_sample.unsqueeze(1).repeat(1, num_target, 1)
             # Compute deterministic representation
-            a_repr = self.xy_to_a(x_context, y_context, x_target)
+            a_repr = self.xy_to_a(x_context, y_context, x_target)  # B x N_t x a_dim
             # Concatenate latent and deterministic representation
             representation = torch.cat([z_sample, a_repr], dim=-1)
             # Get parameters of output distribution
-            y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, representation)
+            y_pred_mu, y_pred_sigma = self.xz_to_y(x_target, representation)  # B x N_t x (h_dim + a_dim)
             p_y_pred = Normal(y_pred_mu, y_pred_sigma)
 
             return p_y_pred, q_target, q_context

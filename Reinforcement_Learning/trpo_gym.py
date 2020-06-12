@@ -14,6 +14,7 @@ from trpo_model.trpo import trpo_step
 from core.common import estimate_advantages
 from core.agent import Agent
 from RL_results.store_results import *
+from utils_rl.torch_ut import *
 from utils_rl.env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
 
 
@@ -117,8 +118,11 @@ def update_params(batch):
 
     """perform TRPO update"""
     trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl, args.damping, args.l2_reg)
+
+
 avg_rewards = [0]
 tot_steps = [0]
+
 
 def main_loop():
     for i_iter in range(args.max_iter_num):
@@ -146,6 +150,7 @@ def main_loop():
         torch.cuda.empty_cache()
         if tot_steps[-1] > args.tot_steps:
             break
+
 
 def plot_rewards_history(steps, rews):
     fig_rew, ax_rew = plt.subplots(1, 1)

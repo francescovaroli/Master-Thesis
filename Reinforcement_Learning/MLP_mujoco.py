@@ -4,7 +4,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils_rl.torch import *
+from utils_rl.torch_ut import *
 from utils_rl.memory_dataset import *
 from RL_results.store_results import *
 

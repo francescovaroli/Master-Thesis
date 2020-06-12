@@ -4,7 +4,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils_rl.torch import *
+from utils_rl.torch_ut import *
 from utils_rl.memory_dataset import *
 from RL_results.store_results import *
 
@@ -16,7 +16,7 @@ from multihead_attention_np import *
 from core.common import estimate_v_a, improvement_step_all, discounted_rewards, sample_initial_context_normal, critic_estimate, update_critic
 from core.mlp_critic import Value
 from utils_rl.env_wrappers import AntWrapper, HumanoidWrapper, InvertedDoublePendulumWrapper
-
+from utils_rl.up_step_image import plot_pca_proj
 
 torch.set_default_tensor_type(torch.DoubleTensor)
 if torch.cuda.is_available():
@@ -27,7 +27,7 @@ else:
 print('device: ', device)
 
 parser = argparse.ArgumentParser(description='PyTorch TRPO example')
-parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+parser.add_argument('--env-name', default="MountainCarContinuous-v0", metavar='G',
                     help='name of the environment to run')
 parser.add_argument('--render', action='store_true', default=False,
                     help='render the environment')
@@ -39,7 +39,7 @@ parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
 
 parser.add_argument('--loo', default=True, type=boolean_string, help='train leaving episode out')
 parser.add_argument('--pick', default=False, type=boolean_string, help='choose subset of rm')
-parser.add_argument('--num-context', type=int, default=2500, metavar='N',
+parser.add_argument('--num-context', type=int, default=1500, metavar='N',
                     help='number of context points to sample from rm')
 parser.add_argument('--rm-as-context', default=True, type=boolean_string,
                     help='choose subset of rm')
@@ -55,18 +55,18 @@ parser.add_argument('--num-req-steps', type=int, default=5000, metavar='N',
                     help='min number of steps to gather in one iter')
 parser.add_argument('--use-running-state', default=False, type=boolean_string,
                     help='store running mean and variance instead of states and actions')
-parser.add_argument('--max-kl-mi', type=float, default=1.5, metavar='G',
+parser.add_argument('--max-kl-mi', type=float, default=.5, metavar='G',
                     help='max kl value (default: 1e-2)')
-parser.add_argument('--num-ensembles', type=int, default=10, metavar='N',
+parser.add_argument('--num-ensembles', type=int, default=7, metavar='N',
                     help='min num episode to collect per iteration')
 parser.add_argument('--max-iter-num', type=int, default=1000, metavar='N',
                     help='maximal number of main iterations (default: 500)')
 
 
 # MKI specs
-parser.add_argument('--z-mi-dim', type=int, default=27, metavar='N',
+parser.add_argument('--z-mi-dim', type=int, default=4, metavar='N',
                     help='dimension of latent variable in np')
-parser.add_argument('--h-mi-dim', type=int, default=64, metavar='N',
+parser.add_argument('--h-mi-dim', type=int, default=32, metavar='N',
                     help='dimension of hidden layers in np')
 parser.add_argument('--scaling', default='uniform', metavar='N',
                     help='feature extractor scaling')
@@ -105,7 +105,7 @@ parser.add_argument("--plot-every", type=int, default=1,
 args = parser.parse_args()
 initial_training = True
 
-args.epochs_per_iter = 1000 // args.replay_memory_size
+args.epochs_per_iter = 500 // args.replay_memory_size
 
 args.z_mi_dim *= args.net_size
 args.h_mi_dim *= args.net_size
@@ -135,7 +135,6 @@ else:
 max_episode_len = env._max_episode_steps
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
-is_disc_action = len(env.action_space.shape) == 0
 print('state_dim', state_dim)
 print('action_dim', action_dim)
 
@@ -221,6 +220,8 @@ def main_loop():
         # prints & plots
         tot_steps_mi.append(tot_steps_mi[-1] + log_mi['num_steps'])
         avg_rewards_mi.append(log_mi['avg_reward'])
+        if i_iter % 1 == 0:
+            plot_pca_proj(iter_dataset_mi, advantages_mi, model)
         if i_iter % args.log_interval == 0:
             print(i_iter)
             print('mi: \tR_min {:.2f} \tR_max {:.2f} \tR_avg {:.2f}'.format(log_mi['min_reward'], log_mi['max_reward'], log_mi['avg_reward']))

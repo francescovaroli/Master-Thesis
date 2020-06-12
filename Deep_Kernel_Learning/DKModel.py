@@ -88,11 +88,9 @@ class DKMTrainer():
                 x_context, y_context, x_target, y_target = context_target_split(x[:,:num_points,:], y[:,:num_points,:],
                                                                   num_points.item()-1, 1)
 
-                #num_points = min(num_points).item()
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 self.model.eval()
                 self.model.likelihood.eval()
-                #try:
                 with gpytorch.settings.use_toeplitz(False):
                     predictions = self.model(x_target)
                 self.model.train()
@@ -104,19 +102,14 @@ class DKMTrainer():
                     self.model.eval()
                     self.model.likelihood.eval()
                     s = self.model(x_target)
-                #except RuntimeError:
-                #    predictions = self.model(x_target)
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
             print('epoch %d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (epoch, loss.item(),
-                self.model.covar_module.base_kernel.lengthscale.item(),
-                #self.model.covar_module.base_kernel.outputscale.item(), outpuscale: %.3f .base_kernel
-                self.model.likelihood.noise.item()))
+                  self.model.covar_module.base_kernel.lengthscale.item(), self.model.likelihood.noise.item()))
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
-                #plot_posterior_2d(data_loader, self.model, 'training '+str(epoch), self.args)
 
             self.epoch_loss_history.append(avg_loss)
             if early_stopping is not None:
@@ -173,29 +166,19 @@ class DKMTrainer():
                                                                                 self.num_context,
                                                                                 self.num_target)
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
-                #self.model.eval()
-                #self.model.likelihood.eval()
                 #with gpytorch.settings.use_toeplitz(False), gpytorch.settings.fast_pred_var(False):
                 output = self.model(x_context)
                 if any(torch.isnan(output.stddev.view(-1))):
                     print('nan at epoch ', epoch)
                     continue
-                #self.model.train()
-                #self.model.likelihood.train()
                 # Calc loss and backprop derivatives
                 loss = -self.mll(output, y_context.view(-1))  # .sum()
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 avg_loss = epoch_loss / len(data_loader)
-            #print('epoch %d - Loss: %.3f   lengthscale: %.3f  outpuscale: %.3f   noise: %.3f' % (epoch, loss.item(),
-            #    self.model.covar_module.base_kernel.base_kernel.lengthscale.item(),
-            #    self.model.covar_module.base_kernel.outputscale.item(),
-            #    self.model.likelihood.noise.item()))
             if epoch % self.print_freq == 0 or epoch == epochs - 1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
-                #plot_posterior(data_loader, self.model, 'training ' + str(epoch), self.args,
-                #               title='epoch #{}, avg_los {}'.format(epoch, avg_loss), num_func=1)
 
             self.epoch_loss_history.append(avg_loss)
 
@@ -233,31 +216,20 @@ class DKMTrainer_loo():
         for epoch in range(epochs):
             epoch_loss = 0.
             for i, data in enumerate(data_loader):
-                t = time.time()
                 # Zero backprop gradients
                 self.optimizer.zero_grad()
                 data = episode_fixed_list[i]
                 x, y, num_points = data
-                #index = random.randint(0, num_points.item() - 1)
-                #x_target = x[:, index, :].unsqueeze(0)
-                #y_target = y[:, index, :].view(-1)
                 x_target = x.unsqueeze(0)
                 y_target = y.view(-1)
                 x_context, y_context = merge_context(one_out_list[i])
-                #x_context, y_context, _, _ = context_target_split(all_x_context, all_y_context,
-                #                                                  num_context=all_x_context.shape[-2]//2,
-                #                                                  num_extra_target=0)
+
                 # Get output from model
                 self.model.set_train_data(inputs=x_context, targets=y_context.view(-1), strict=False)
                 self.model.eval()
                 self.model.likelihood.eval()
                 with gpytorch.settings.use_toeplitz(False):
                     predictions = self.model(x_target)
-                if any(torch.isnan(predictions.stddev.view(-1))):
-                    print('found Nan')
-                    #self.model.eval()
-                    #self.model.likelihood.eval()
-                    #predictions = self.model(x_target)
 
                 self.model.train()
                 self.model.likelihood.train()
@@ -270,7 +242,6 @@ class DKMTrainer_loo():
                 avg_loss = epoch_loss / len(data_loader)
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
-                #plot_posterior_2d(data_loader, self.model, 'training '+str(epoch), self.args)
 
             self.epoch_loss_history.append(avg_loss)
 
@@ -305,8 +276,6 @@ class DKMTrainer_loo():
                 index = random.randint(0, num_points.item()-1)
                 x_target = x[:, index, :].unsqueeze(0)
                 y_target = y[:, index, :].view(-1)
-                #x_target = x.unsqueeze(0)
-                #y_target = y.view(-1)
                 x_context, y_context = get_close_context(index, x_target, all_context_points,
                                                         None, num_tot_context=self.args.num_context)
                 # Get output from model
@@ -314,11 +283,6 @@ class DKMTrainer_loo():
                 self.model.eval()
                 self.model.likelihood.eval()
                 predictions = self.model(x_target)
-                if any(torch.isnan(predictions.stddev.view(-1))):
-                    print('found Nan')
-                    #self.model.eval()
-                    #self.model.likelihood.eval()
-                    #predictions = self.model(x_target)
 
                 self.model.train()
                 self.model.likelihood.train()
@@ -331,7 +295,6 @@ class DKMTrainer_loo():
                 avg_loss = epoch_loss / len(data_loader)
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
-                #plot_posterior_2d(data_loader, self.model, 'training '+str(epoch), self.args)
 
             self.epoch_loss_history.append(avg_loss)
 

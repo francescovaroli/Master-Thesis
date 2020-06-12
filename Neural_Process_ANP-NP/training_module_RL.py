@@ -55,9 +55,7 @@ class NeuralProcessTrainerRL():
         """
         for epoch in range(epochs):
             epoch_loss = 0.
-            t0 = time.time()
             for i, data in enumerate(data_loader):
-                i0 = time.time()
                 self.optimizer.zero_grad()
 
                 x, y, num_points = data
@@ -66,7 +64,7 @@ class NeuralProcessTrainerRL():
                 num_context = min(randint(*self.num_context_range), num_points//2)
                 num_extra_target = num_points-num_context
 
-                # Create context using only real data (no padded sequences)
+                # Create context sampling the RM
                 x_context, y_context, x_target, y_target = \
                     context_target_split_CinT(x[:, :num_points,:], y[:, :num_points, :], num_context, num_extra_target)
                 p_y_pred, q_target, q_context = \
@@ -81,7 +79,6 @@ class NeuralProcessTrainerRL():
             if epoch % self.print_freq == 0 or epoch == epochs-1:
                 print("Epoch rl: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)
-            #print('epoch time: ', time.time() - t0)
 
             if early_stopping is not None:
                 if avg_loss < early_stopping:
@@ -156,6 +153,8 @@ class NeuralProcessTrainerLoo():
         epochs : int
             Number of epochs to train for.
         """
+
+        # compute the episode-specific context sets
         one_out_list = []
         episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
         for i in range(len(episode_fixed_list)):
@@ -185,7 +184,6 @@ class NeuralProcessTrainerLoo():
                 p_y_pred, q_target, q_context = \
                     self.neural_process(x_context, y_context, x_target, y_target)
                 loss = self._loss(p_y_pred, y_target, q_target, q_context)
-
                 loss.backward()
                 self.optimizer.step()
 
@@ -199,25 +197,9 @@ class NeuralProcessTrainerLoo():
             if early_stopping is not None:
                 if avg_loss < early_stopping:
                     break
-            torch.cuda.empty_cache()
+            #torch.cuda.empty_cache()
     def _loss(self, p_y_pred, y_target, q_target, q_context):
-        """
-        Computes Neural Process loss.
 
-        Parameters
-        ----------
-        p_y_pred : one of torch.distributions.Distribution
-            Distribution over y output by Neural Process.
-
-        y_target : torch.Tensor
-            Shape (batch_size, num_target, y_dim)
-
-        q_target : one of torch.distributions.Distribution
-            Latent distribution for target points.
-
-        q_context : one of torch.distributions.Distribution
-            Latent distribution for context points.
-        """
         # Log likelihood has shape (batch_size, num_target, y_dim). Take mean
         # over batch and sum over number of targets and dimensions of y
         log_likelihood = p_y_pred.log_prob(y_target).mean(dim=0).sum()
@@ -270,7 +252,7 @@ class NeuralProcessTrainerLooPick():
         epochs : int
             Number of epochs to train for.
         """
-        num_ep = len(data_loader.dataset)
+        # compute context sets
         one_out_list = []
         episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
         for i in range(len(episode_fixed_list)):
@@ -312,26 +294,9 @@ class NeuralProcessTrainerLooPick():
             if early_stopping is not None:
                 if avg_loss < early_stopping:
                     break
-            torch.cuda.empty_cache()
+            #torch.cuda.empty_cache()
 
     def _loss(self, p_y_pred, y_target, q_target, q_context):
-        """
-        Computes Neural Process loss.
-
-        Parameters
-        ----------
-        p_y_pred : one of torch.distributions.Distribution
-            Distribution over y output by Neural Process.
-
-        y_target : torch.Tensor
-            Shape (batch_size, num_target, y_dim)
-
-        q_target : one of torch.distributions.Distribution
-            Latent distribution for target points.
-
-        q_context : one of torch.distributions.Distribution
-            Latent distribution for context points.
-        """
         # Log likelihood has shape (batch_size, num_target, y_dim). Take mean
         # over batch and sum over number of targets and dimensions of y
         log_likelihood = p_y_pred.log_prob(y_target).mean(dim=0).sum()

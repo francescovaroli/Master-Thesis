@@ -25,7 +25,7 @@ from core.common import estimate_advantages
 from core.agent import Agent
 
 torch.set_default_tensor_type(torch.DoubleTensor)
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available():
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 else:
@@ -121,7 +121,6 @@ dkl_spec = 'DKM_{}e_{}b_{}lr_gp_{}lr_nn_{}z_{}h_{}_{}<noise_trainLoo_scale(grid)
                                                             args.batch_size, args.lr_gp, args.lr_nn, args.z_dim, args.h_dim, args.scaling, args.noise)
 run_id = 'CARTPOLE_fixSTD:{}_{}ep_{}kl_{}gamma_pick{}_{}ctx_loo{}_'.format(args.fixed_sigma, args.num_ensembles, args.max_kl,
                                                              args.gamma, args.pick, args.num_context, args.loo) + dkl_spec
-#args.directory_path += run_id
 
 """environment"""
 env = gym.make(args.env_name)
@@ -146,7 +145,6 @@ value_net.to(device)
 agent_trpo = Agent(env, policy_net, device, running_state=running_state, render=args.render, num_threads=1)
 
 def update_params_trpo(batch):
-    # (3)
     states = torch.from_numpy(np.stack(batch.state)).to(args.dtype).to(device)
     actions = torch.from_numpy(np.stack(batch.action)).to(args.dtype).to(device)
     rewards = torch.from_numpy(np.stack(batch.reward)).to(args.dtype).to(device)
@@ -161,7 +159,6 @@ def update_params_trpo(batch):
     trpo_step(policy_net, value_net, states, actions, returns, advantages, args.max_kl_trpo, args.damping, args.l2_reg)
 
 
-#torch.set_default_dtype(args.dtype)
 def sample_initial_context_normal(num_ensembles):
     initial_episodes = []
     for e in range(num_ensembles):

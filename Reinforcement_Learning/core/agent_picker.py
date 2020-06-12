@@ -1,6 +1,6 @@
 import multiprocessing
 from utils_rl.memory_dataset import Memory, merge_context, get_close_context
-from utils_rl.torch import *
+from utils_rl.torch_ut import *
 import math
 import time
 from collections import namedtuple

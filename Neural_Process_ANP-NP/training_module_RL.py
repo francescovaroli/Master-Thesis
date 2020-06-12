@@ -8,8 +8,7 @@ import time
 
 class NeuralProcessTrainerRL():
     """
-    Class to handle training of Neural Processes and Attentive Neural Process
-    for functions and images.
+    Class to handle training of Neural Processes and Attentive Neural Process as component of IMeL.
 
     Parameters
     ----------
@@ -23,11 +22,6 @@ class NeuralProcessTrainerRL():
     num_context_range : tuple of ints
         Number of context points will be sampled uniformly in the range given
         by num_context_range.
-
-    num_extra_target_range : tuple of ints
-        Number of extra target points (as we always include context points in
-        target points, i.e. context points are a subset of target points) will
-        be sampled uniformly in the range given by num_extra_target_range.
 
     print_freq : int
         Frequency with which to print loss information during training.
@@ -114,7 +108,7 @@ class NeuralProcessTrainerRL():
 class NeuralProcessTrainerLoo():
     """
     Class to handle training of Neural Processes and Attentive Neural Process
-    for functions and images.
+     as component of IMeL. Leave-one-out training.
 
     Parameters
     ----------
@@ -125,15 +119,13 @@ class NeuralProcessTrainerLoo():
 
     optimizer : one of torch.optim optimizers
 
-    num_context_range : not used
 
-    num_extra_target_range : not used
+    num_target : num of points in the target set
 
     print_freq : int
         Frequency with which to print loss information during training.
     """
-    def __init__(self, device, neural_process, optimizer, num_context_range=None,
-                 num_target=100, print_freq=100):
+    def __init__(self, device, neural_process, optimizer, num_target=100, print_freq=100):
         self.device = device
         self.neural_process = neural_process
         self.optimizer = optimizer
@@ -213,7 +205,7 @@ class NeuralProcessTrainerLoo():
 class NeuralProcessTrainerLooPick():
     """
     Class to handle training of Neural Processes and Attentive Neural Process
-    for functions and images.
+    as component of IMeL. Leave-one-out training choosing the context set depending on the index/distance.
 
     Parameters
     ----------
@@ -224,9 +216,10 @@ class NeuralProcessTrainerLooPick():
 
     optimizer : one of torch.optim optimizers
 
-    num_context_range : not used
+    pick_dist : distance value (None if index is used)
 
-    num_extra_target_range : not used
+    num_context : num samples selected
+
 
     print_freq : int
         Frequency with which to print loss information during training.

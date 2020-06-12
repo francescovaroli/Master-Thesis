@@ -4,7 +4,7 @@ import torch
 
 class Value(nn.Module):
     """
-    Network to estimate the value of each state
+    Network to estimate the value function for each state
     """
     def __init__(self, state_dim, hidden_size=(128, 128), activation='tanh'):
         super().__init__()

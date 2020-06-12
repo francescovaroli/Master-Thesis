@@ -40,7 +40,6 @@ def collect_samples(pid, env, policy, num_req_steps, num_req_episodes, mean_acti
             _, z_dist = policy.sample_z(all_x_context, all_y_context)
 
         while num_steps < num_req_steps or num_episodes < num_req_episodes:
-            #print('episode', num_episodes)
 
             episode = []
             reward_episode = 0
@@ -139,7 +138,10 @@ def merge_log(log_list):
 
 
 class Agent_all_ctxt:
-
+    """
+    Agent collecting samples for IMeL.
+    The policy are sampled by the NP/MKI.
+    """
     def __init__(self, env, policy, device, attention=False,
                  mean_action=False, render=False, running_state=None, fixed_sigma=None):
         self.env = env

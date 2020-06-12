@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import time
 
 class Interpolator(torch.nn.Module):
+    """
+    Exponential interpolator of the features in the z space
+    """
     def __init__(self, input_dim):
         super(Interpolator, self).__init__()
         self.W = torch.nn.Parameter(data=torch.Tensor(input_dim, input_dim), requires_grad=True)
@@ -22,6 +25,9 @@ class Interpolator(torch.nn.Module):
         return thetas.matmul(y_context) / thetas.sum(dim=-1, keepdim=True)  # (N x M)*(M x 1)
 
 class FeatureExtractor(torch.nn.Sequential):
+    """
+    NN mapping x to the feature space z
+    """
     def __init__(self, x_dim, h_dim, out_dim):
         super(FeatureExtractor, self).__init__()
         self.add_module('linear1', torch.nn.Linear(x_dim, h_dim))  # default h_dim = 256
@@ -32,6 +38,9 @@ class FeatureExtractor(torch.nn.Sequential):
 
 
 class MeanInterpolator(torch.nn.Module):
+    """
+    Kernel interpolation method for learning an exponential kernel used to interpolate the projected input
+    """
     def __init__(self, x_dim, h_dim, z_dim, scaling=None):
         super(MeanInterpolator, self).__init__()
         self.feature_extractor = FeatureExtractor(x_dim, h_dim, z_dim)
@@ -79,6 +88,9 @@ class MeanInterpolator(torch.nn.Module):
 
 
 class MITrainer():
+    """
+    Traineing module for MKI.
+    """
 
     def __init__(self, device, model, optimizer, num_context=1000, num_target=100, print_freq=100):
 
@@ -92,6 +104,9 @@ class MITrainer():
         self.num_context = num_context
 
     def train_rl_loo(self, data_loader, epochs, early_stopping=None):
+        """
+        train MKI as part of IMeL by leave-one-out procedure
+        """
         one_out_list = []
         episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
         for i in range(len(episode_fixed_list)):
@@ -141,6 +156,9 @@ class MITrainer():
 
 
     def train_rl(self, data_loader, epochs, early_stopping=None):
+        """
+        Train MKI model as a part if IMeL
+        """
         for epoch in range(epochs):
             epoch_loss = 0.
             for i, data in enumerate(data_loader):
@@ -170,6 +188,9 @@ class MITrainer():
                     break
 
     def train(self, data_loader, epochs, early_stopping=None):
+        """
+        Train MKI to learn functions of arbitrary dimension
+        """
         for epoch in range(epochs):
             epoch_loss = 0.
             for i, data in enumerate(data_loader):
@@ -202,7 +223,9 @@ class MITrainer():
         diff = (y_target - y_pred).transpose(0,1)
         return diff.matmul(diff.transpose(1, 2)).sum()
 
-#test
+
+#  test
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     z_dim = 2

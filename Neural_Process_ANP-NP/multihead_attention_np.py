@@ -8,7 +8,7 @@ import math
 
 class MultiheadAttention(nn.Module):
     """
-    Multihead attention mechanism (dot attention)
+    Multihead attention mechanism
     """
 
     def __init__(self, num_hidden_k):

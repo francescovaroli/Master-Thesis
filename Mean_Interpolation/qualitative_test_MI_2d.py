@@ -9,7 +9,7 @@ from MeanInterpolatorModel import MeanInterpolator, MITrainer
 import os
 from plotting_functions_DKL import  create_plot_grid
 
-if torch.cuda.is_available() and False:
+if torch.cuda.is_available() :
     device = torch.device("cuda")
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"

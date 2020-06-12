@@ -127,7 +127,6 @@ class NeuralProcessTrainer():
 
                 # Sample number of context and target points
                 num_context = randint(*self.num_context_range)
-                #num_extra_target = randint(*self.num_extra_target_range)
 
                 # Create context and target points and apply neural process
 
@@ -146,10 +145,6 @@ class NeuralProcessTrainer():
 
                 self.steps += 1
 
-                #if self.steps % self.print_freq == 0:
-                #    if x.size()[2] == 1:
-                #        plot_functions(x_target.cpu().detach(), y_target.cpu().detach(), x_context.cpu().detach(),
-                #                       y_context.cpu().detach(), p_y_pred.mean.cpu().detach(), p_y_pred.stddev.cpu().detach())
             avg_loss = epoch_loss / len(data_loader)
             print("Epoch: {}, Avg_loss: {}".format(epoch, avg_loss))
             self.epoch_loss_history.append(avg_loss)

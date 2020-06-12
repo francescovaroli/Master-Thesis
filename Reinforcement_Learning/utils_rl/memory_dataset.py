@@ -2,14 +2,6 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 import numpy as np
 
-import random
-
-def merge_csv():
-    ep_rewards = rewards_from_batch(batch)
-    rewards = np.concatenate(ep_rewards, axis=0)
-    all_rewards = np.genfromtxt(rewards_file, delimiter=',')
-    all_rewards = np.column_stack([all_rewards, rewards])
-    np.savetxt(rewards_file, all_rewards)
 
 def get_random_context(context_list, num_context):
 
@@ -26,6 +18,9 @@ def get_random_context(context_list, num_context):
 
 
 def get_close_context(index, target, context_list, dist, num_tot_context=1000):
+    """
+    Select subset of the context set either by index or distance
+    """
     if dist is not None:
         x1_target = target[0, 0, 0].cpu()
         x2_target = target[0, 0, 1].cpu()

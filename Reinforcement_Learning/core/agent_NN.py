@@ -103,7 +103,10 @@ def merge_log(log_list):
 
 
 class Agent:
-
+    """
+    Agent collecting samples for IMeL.
+    The policy are sampled by the MLP without a context set.
+    """
     def __init__(self, env, policy, device, custom_reward=None,
                  mean_action=False, render=False, running_state=None, num_threads=1):
         self.env = env

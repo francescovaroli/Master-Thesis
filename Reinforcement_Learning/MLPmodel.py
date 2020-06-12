@@ -249,6 +249,7 @@ if __name__ == '__main__':
     from utils_rl.memory_dataset import Memory, merge_padded_lists, get_close_context, ReplayMemoryDataset
     import argparse
     import matplotlib.pyplot as plt
+    directory = ''
     parser = argparse.ArgumentParser(description='PyTorch TRPO example')
     parser.add_argument('--fixed-sigma', default=0.35, type=float, metavar='N',
                         help='sigma of the policy')
@@ -297,10 +298,10 @@ if __name__ == '__main__':
 
         avg_rewards.append(log['avg_reward'].item())
         try:
-            os.mkdir('/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/mlp')
+            os.mkdir(directory)
         except FileExistsError:
             pass
         fig = plt.figure()
         plt.plot(tot_steps[1:], avg_rewards[1:])
-        fig.savefig('/home/francesco/PycharmProjects/MasterThesis/mujoco learning results/mlp/')
+        fig.savefig(directory)
         plt.show()

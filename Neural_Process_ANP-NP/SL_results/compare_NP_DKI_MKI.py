@@ -11,7 +11,7 @@ from DKModel import GPRegressionModel, DKMTrainer
 import os
 from training_module import NeuralProcessTrainer
 from neural_process import NeuralProcess
-from attentive_neural_process import AttentiveNeuralProcess
+from previous_methods.attentive_neural_process import AttentiveNeuralProcess
 from MeanInterpolatorModel import MeanInterpolator, MITrainer
 
 if torch.cuda.is_available() and False:

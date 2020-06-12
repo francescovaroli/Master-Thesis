@@ -121,7 +121,10 @@ def merge_log(log_list):
 
 
 class AgentPicker:
-
+    """
+    Agent collecting samples for IMeL.
+    The policy are sampled by the NP/MKI selecting a subset of the context set.
+    """
     def __init__(self, env, policy, device, num_context, pick_dist=None,
                  mean_action=False, render=False, running_state=None, fixed_sigma=None):
         self.env = env

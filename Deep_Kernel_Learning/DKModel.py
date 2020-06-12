@@ -26,8 +26,6 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         self.mean_module = gpytorch.means.ConstantMean()
         self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.GridInterpolationKernel(
             gpytorch.kernels.RBFKernel(ard_num_dims=z_dim, is_stationary=False), num_dims=z_dim, grid_size=grid_size))  #
-        #self.covar_module = gpytorch.kernels.GridInterpolationKernel(gpytorch.kernels.SpectralMixtureKernel(
-        #                                      num_mixtures=2, ard_num_dims=z_dim), num_dims=z_dim, grid_size=grid_size)
         self.likelihood = likelihood
         _, num_points, x_dim = train_x.size()
         self.feature_extractor = LargeFeatureExtractor(x_dim, h_dim, z_dim)
@@ -35,8 +33,12 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         self.id = name_id
 
     def project(self, x):
-        # We're first putting our data through a deep net (feature extractor)
-        # We're also scaling the features so that they're nice values
+        """
+        project input on feature spae an normlize it
+        :param x: input
+        :return:
+        """
+
         projected_x = self.feature_extractor(x.squeeze(0))
 
         if self.scaling == 'uniform':
@@ -75,6 +77,7 @@ class DKMTrainer():
         self.num_target = num_target
 
     def train_rl(self, data_loader, epochs, early_stopping=None):
+        """Training module for DKL as part of IMeL """
 
         for epoch in range(epochs):
             epoch_loss = 0.
@@ -117,6 +120,7 @@ class DKMTrainer():
                     break
 
     def train_rl_ctx(self, data_loader, epochs, early_stopping=None):
+        """Training module for DKL as part of IMeL. Condition GP on context set """
 
         for epoch in range(epochs):
             epoch_loss = 0.
@@ -152,6 +156,7 @@ class DKMTrainer():
 
 
     def train(self, data_loader, epochs, early_stopping=None):
+        """Training procedure for DKL on arbitrary function"""
         print('std')
         for epoch in range(epochs):
             epoch_loss = 0.
@@ -201,6 +206,8 @@ class DKMTrainer_loo():
         self.args = args
 
     def train_rl(self, data_loader, epochs, early_stopping=None):
+        """Training module for DKL as part of IMeL. leave-one-out trainng procedure"""
+
         one_out_list = []
         episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
         for i in range(len(episode_fixed_list)):
@@ -250,6 +257,8 @@ class DKMTrainer_loo():
                     break
 
     def train_rl_pick(self, data_loader, epochs, early_stopping=None):
+        """Training module for DKL as part of IMeL. Choose subset of context points """
+
         one_out_list = []
         episode_fixed_list = [ep for _, ep in enumerate(data_loader)]
         for i in range(len(episode_fixed_list)):

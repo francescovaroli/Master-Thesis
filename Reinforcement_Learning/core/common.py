@@ -6,14 +6,7 @@ from utils_rl.torch_ut import *
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
     """
-    Estimate normalized advantages and Q-values of all state-action pairs sampled from a batch
-    :param rewards:
-    :param masks:
-    :param values:
-    :param gamma:
-    :param tau:
-    :param device:
-    :return:
+    Estimate normalized advantages for TRPO algorithm
     """
 
     #rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
@@ -130,6 +123,9 @@ def improvement_step_all(complete_dataset, estimated_adv, eps, args):
 
 
 def compute_gae(rewards, values, gamma, tau):
+    """
+    Compute gae advantages for IMeL algorithm
+    """
     tensor_type = type(values)
     deltas = tensor_type(values.size(0), 1)
     advantages = tensor_type(values.size(0), 1)
@@ -145,7 +141,7 @@ def compute_gae(rewards, values, gamma, tau):
 
 def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
     '''
-    Function to estimate the advantage by predicting the baseline V(s) = M(s)
+    Function to estimate the advantage by predicting the baseline V(s) = V^NN(s)
     and the advantage A(s,t) = Q(a, t)- V(t)
     '''
     ep_rewards = disc_rew
@@ -195,6 +191,9 @@ def estimate_v_a(iter_dataset, disc_rew, value_replay_memory, model, args):
 
 
 def sample_initial_context_normal(env, initial_num=20, init_sigma=0.1):
+    """
+    Sample states and means for initial context C^0
+    """
     initial_episodes = []
     max_episode_len = env._max_episode_steps
     state_dim = env.observation_space.shape[0]
@@ -219,6 +218,9 @@ def sample_initial_context_normal(env, initial_num=20, init_sigma=0.1):
 
 
 def critic_estimate(value_net, states_list, rewards_list, args):
+    """
+    compute advantages
+    """
     adv_list = []
     ret_list = []
     for states, rewards in zip(states_list, rewards_list):

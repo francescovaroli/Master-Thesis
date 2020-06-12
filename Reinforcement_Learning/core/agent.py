@@ -7,10 +7,10 @@ import time
 
 def collect_samples(pid, queue, env, policy, custom_reward,
                     mean_action, render, running_state, min_batch_size):
-    # (2)
+
     torch.randn(pid)
     log = dict()
-    memory = Memory()  # every time we collect a batch he memory is re-initialized
+    memory = Memory()
     num_steps = 0
     total_reward = 0
     min_reward = 1e6
@@ -34,7 +34,7 @@ def collect_samples(pid, queue, env, policy, custom_reward,
                 else:
                     action_mean, _, action_std = policy.forward(state_var)
                     action = torch.normal(action_mean, action_std)[0].cpu().numpy()
-                    #action = policy.select_action(state_var)[0].cpu().numpy()  # sample from normal distribution
+
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
@@ -48,8 +48,8 @@ def collect_samples(pid, queue, env, policy, custom_reward,
 
             mask = 0 if done else 1  # marker to separate episodes in the batch
 
-            memory.push(state, action, mask, next_state, reward, action_mean)  # replay memory where all Transitions
-                                                                  # (from different episodes) are stored
+            memory.push(state, action, mask, next_state, reward, action_mean)
+
             if render:
                 env.render()
             if done:
@@ -100,7 +100,9 @@ def merge_log(log_list):
 
 
 class Agent:
-
+    """
+    Agent for TRPO algotithm
+    """
     def __init__(self, env, policy, device, custom_reward=None,
                  mean_action=False, render=False, running_state=None, num_threads=1):
         self.env = env
